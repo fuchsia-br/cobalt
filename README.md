@@ -229,7 +229,7 @@ service account any name.
 * A JSON file containing the credentials will be generated and downloaded to
 your computer. Save it anywhere.
 * Rename and move the JSON file. You must name the file exactly
-`service_account_credentials.json` and you must put
+`personal_bt_admin_service_account.json` and you must put
 the file in the Cobalt source root directory (next to this README file.)
 * cobaltb.py sets the environment variable `GOOGLE_APPLICATION_CREDENTIALS` to
 the path to that file. This is necessary for the gRPC C++ code linked with
@@ -249,14 +249,18 @@ not able to use the service account credential located at
 `./cobaltb.py bigtable provision`
 This creates the Cobalt Bigtable tables in your Cloud Bigtable instance.
 
-#### Delete the data from the Tables
-`./cobaltb.py bigtable delete_observations`
-WARNING: This will permanently delete all data from the Observation Store in
-whichever Cloud Bigtable instance you point it at. Be careful.
+#### Delete data from the Tables
+`./cobaltb.py bigtable delete_observations --customer_id=<customer_id> --project_id=<project_id> --metric_id=<metric_id>`
 
-`./cobaltb.py bigtable delete_reports`
-WARNING: This will permanently delete all data from the Report Store in
-whichever Cloud Bigtable instance you point it at. Be careful.
+WARNING: This will permanently delete the Observations corresponding to the
+specified metric in whichever Cloud Bigtable instance you point it at.
+Be careful.
+
+`./cobaltb.py bigtable delete_reports --customer_id=<customer_id> --project_id=<project_id> --report_config_id=<report_config_id>`
+
+WARNING: This will permanently delete all report data corresponding to the
+specified report config from the Report Store in whichever Cloud Bigtable
+instance you point it at. Be careful.
 
 ### Cloud Bigtable tests
 These are a set of gunit tests that run locally but use Cloud Bigtable. These
@@ -395,6 +399,12 @@ Its contents should be exactly the following
   "cluster_zone": "<your-cluster-zone>",
   "gce_pd_name": "<your-persistent-disk-name>",
   "bigtable_instance_name": "<your-bigtable-instance-name>"
+  "shuffler_static_ip" : "<optional-pre-allocated-static-ip>",
+  "report_master_static_ip" : "<optional-pre-allocated-static-ip>",
+  "analyzer_service_static_ip" : "<optional-pre-allocated-static-ip>"",
+  "shuffler_config_file" : "<optional-path-to-non-default-config-file>",
+  "cobalt_config_dir" : "<optional-path-to-non-default-config-dir>",
+  "suffler_use_memstore" : "<specify true or false. Default false.>"
 }
 ```
 
@@ -408,6 +418,8 @@ For example:
   "cluster_zone": "us-central1-a",
   "gce_pd_name": "rudominer-shuffler-1",
   "bigtable_instance_name": "rudominer-test-1"
+  "shuffler_config_file" : "shuffler/src/shuffler_config/config_demo.txt"
+  "cobalt_config_dir" : "config/demo"
 }
 ```
 
@@ -433,12 +445,30 @@ project name without the prefix and the colon.
 * *cluster_zone*: The zone in which the GKE cluster was created
 * *gce_pd_name*: The name of the GCE persistent disk you created
 * *bigtable_instance_name*: The name of the Bigtable instance you created.
+* *shuffler_static_ip*: If you have allocated a static IP address in your
+  Google Cloud Project you can assign it to the shuffler by writing it here.
+  Otherwise the shuffler will use a new dynamic IP address every time it is
+  deployed. WARNING: Google Cloud Platform has a quota on static IP addresses.
+  If you manually create static IP addresses and the deployment of Cobalt fails
+  you may have hit this quota. It is possible to request a quota increase.
+* *report_master_static_ip*: Same as above for the Report Master
+* *analyzer_service_static_ip*: Same as above for the Analyzer Service.
+* shuffler_config_file: If not specified uses the *demo* configuration file.
+  If specified it should be a *source-root-relative* path to a Shuffler config
+  file.
+* cobalt_config_dir: If not specified uses the *demo* Cobalt config dir. If
+  specified it should be a *source-root-relative* path to a directory containing
+  the cobalt config files `registered_encodings.txt`, `registered_metrics.txt`,
+  `registered_reports.txt`.
+* shuffler_use_memstore: If not specified defaults to false meaning that the
+  Shuffler will not use memstore but rather will use a persistent datastore.
+  If specified it should be the string `true` or `false`.
 
 ### Deploying Cobalt to GKE
 
 `./cobaltb.py deploy authenticate`
-Run this one time in order associate your computer with your GKE cluster
-and set up authentication.
+Run this one time in order to register your personal cluster within the
+Kubernets configuration file on your computer.
 
 `./cobaltb.py deploy upload_secret_keys`
 Run this one time in order to upload the PEM files containing the Analyzer's
@@ -505,3 +535,161 @@ the test app, the observation querier and the report client.
 *  ` ./cobaltb.py start test_app -cobalt_on_gke`
 *  `./cobaltb.py start observation_querier -use_cloud_bt`
 *  `./tools/demo/demo_reporter.py -cobalt_on_gke`
+
+## Managing Production Clusters
+In addition to developers' personal clusters Cobalt also has production
+clusters. As of this writing there is exactly one production cluster called
+`fuchsia-cobalt-us-central1-b` because it is used to run Cobalt for Fuchsia
+and it is located in the us-central1-b zone.
+
+In the `production` directory there are sub-directories corresponding to
+each of the production clusters. For example as of this writing there is
+a directory called `production/fuchsia-cobalt-us-central1-b`.
+
+Several of the operations described above pertaining to a developer's personal
+cluster are also applicable to a Cobalt production cluster. To manage
+a production cluster, pass the flag `--production_dir` to
+`cobaltb.py`, specifying the production directory corresponding to the
+production cluster you wish to manage.
+
+### The cluster.json file
+Similar to the `personal_cluster.json` for personal clusters described
+above, there is a file called `cluster.json` located in each of the
+production directories. For example, as of this writing, there is a file
+called `production/fuchsia-cobalt-us-central1-b/cluster.json` with the
+following contents:
+
+```
+{
+  "cloud_project_prefix": "google.com",
+  "cloud_project_name": "fuchsia-cobalt",
+  "cluster_name": "cobalt",
+  "cluster_zone": "us-central1-b",
+  "gce_pd_name": "cobalt",
+  "bigtable_instance_name": "cobalt",
+  "shuffler_static_ip" : "130.211.218.95",
+  "report_master_static_ip" : "35.188.119.76",
+  "analyzer_service_static_ip" : "35.184.165.233",
+  "shuffler_config_file" : "shuffler/src/shuffler_config/config_v0.txt",
+  "cobalt_config_dir" : "config/production",
+  "shuffler_use_memstore" : "true"
+}
+```
+
+The `cobaltb.py` script will read this `cluster.json` file and use its contents
+to set the default values for deployment-related flags if the flag
+`--production_dir` is passed.
+
+Unlike a `personal_cluster.json` file the production `cluster.json` files are
+checked in to source control.
+
+### Generating PEM Files
+The production Analyzer needs a file called `analyzer_private.pem` and the
+production Shuffler needs a file called `shuffler_public.pem`. The current
+procedure, which will likely change in the future, is for the developer that
+first creates the production cluster to run `./cobaltb.py keygen` twice
+and create four files in the appropriate production directory named
+`analyzer_private.pem`, `analyzer_public.pem`, `shuffler_private.pem` and
+`shuffler_public.pem`. As described below, the private files are uploaded as
+GKE secrets to the Analyzer and Shuffler respectively. Of course the private
+files must never be checked in to source control. The public files may be
+deployed with clients that will access the production cluster.
+
+### Deploying Cobalt to GKE in a Production Cluster
+
+`./cobaltb.py --production_dir=<production_dir> deploy authenticate`
+Run this one time in order to register the production cluster within the
+Kubernets configuration file on your computer.
+
+`./cobaltb.py --production_dir=<production_dir> deploy build`
+Run this to build Docker containers for the Shuffler, Analyzer Service and
+Report Master. Run it any time the Cobalt code changes. The generated
+containers are stored on your computer. Note that the Docker images for the
+Shuffler and the Report Master contain config files that are copied from the
+locations specified in the `cluster.json` file and so the Docker images
+for production are different than the docker images for a personal cluster.
+
+`./cobaltb.py --production_dir=<production_dir> deploy push --job=shuffler`
+
+`./cobaltb.py --production_dir=<production_dir> deploy push --job=analyzer-service`
+
+`./cobaltb.py --production_dir=<production_dir> deploy push --job=report-master`
+Run these to push each of the containers built via the previous step
+up to the cloud repository.
+
+`./cobaltb.py --production_dir=<production_dir> deploy start --job=shuffler`
+
+`./cobaltb.py --production_dir=<production_dir> deploy start --job=analyzer-service`
+
+`./cobaltb.py --production_dir=<production_dir> deploy start --job=report-master`
+Run these to start each of the jobs on GKE. Each of these will start multiple
+Kubernetes entities on GKE: a *Service*, a *Deployment*, a *Replica Set*,
+and a *Pod*.
+
+`./cobaltb.py --production_dir=<production_dir> deploy stop --job=shuffler`
+
+`./cobaltb.py --production_dir=<production_dir> deploy stop --job=analyzer-service`
+
+`./cobaltb.py --production_dir=<production_dir> deploy stop --job=report-master`
+Run these to stop each of the jobs on GKE. Each of these will stop the
+Kubernetes entities that were started by the corresponding *start* command.
+
+`./cobaltb.py --production_dir=<production_dir> deploy show`
+Run this in order to see the list of running jobs and their
+externally facing IP addresses and ports.
+
+`./cobaltb.py --production_dir=<production_dir> deploy upload_secret_keys`
+The current procedure, which will likely change in the future, is for the
+developer who first creates the production cluster to upload the PEM files
+containing the Analyzer's and Shuffler's private keys. These are the files
+*analyzer_private.pem* and *shuffler_private.pem* that were created in the
+section **Generating PEM Files** above. To upload different private keys,
+first delete any previously upload secret keys by running
+`./cobaltb.py --production_dir=<production_dir> deploy delete_secret_keys`
+
+### Managing Production Bigtable
+
+This section describes how to manage Cobalt's production Bigtable instances.
+
+#### Install a Service Account Credential
+In order to use Cobalt utilities to directly access a production instance
+of Cloud Bigtable, you must install a Service Account Credential on your
+computer. Follow the instructions above for creating the file
+`personal_bt_admin_service_account.json` with the following exceptions.
+
+* Instead of your personal project use the production project. (You must
+have permission to access the production project.)
+* Instead of creating a file in the root directory called
+`personal_bt_admin_service_account.json`, create a file in the appropriate
+production directory called `bt_admin_service_account.json`. For example for
+the Cobalt instance `fuchsia-cobalt-us-central1-b` described above you would
+create the file
+`production/fuchsia-cobalt-us-central1-b/bt_admin_service_account.json`.
+
+The script `cobaltb.py` sets the environment variable
+`GOOGLE_APPLICATION_CREDENTIALS` equal to the path to
+`bt_admin_service_account.json` when the flag `--production_dir` is passed.
+
+**Important:** Do not check `bt_admin_service_account.json` into source control.
+It is created for your own use and should live only on your development
+machine. (That is why it is listed in the `.gitignore` file.)
+
+#### Provision the Tables
+To provision the Bigtable tables type
+`./cobaltb.py --production_dir=<production_dir> bigtable provision`
+This creates the Cobalt Bigtable tables in the **production** Cloud Bigtable
+if they have not already been created.
+
+#### Delete data from the Tables
+`./cobaltb.py bigtable delete_observations  --production_dir=<production_dir> --customer_id=<customer_id> --project_id=<project_id> --metric_id=<metric_id>`
+
+WARNING: This will permanently delete the Observations corresponding to the
+specified metric in the **production** Observation Store.
+Be extremely careful.
+
+`./cobaltb.py bigtable delete_reports --production_dir=<production_dir> --customer_id=<customer_id> --project_id=<project_id> --report_config_id=<report_config_id>`
+
+WARNING: This will permanently delete all report data corresponding to the
+specified report config from the **production**  Report Store.
+Be extremely careful.
+
