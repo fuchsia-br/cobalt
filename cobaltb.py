@@ -234,6 +234,14 @@ def _test(args):
         ]
         bigtable_project_name = bigtable_project_name_from_args
         bigtable_instance_name = args.bigtable_instance_name
+      if args.production_dir:
+        # When running the end-to-end test against the production instance of
+        # Cobalt, it may not be true that the Shuffler has been configured
+        # to use a threshold of 100 so skip the part of the test that
+        # verifies that.
+        test_args = test_args + [
+          "-do_shuffler_threshold_test=false",
+        ]
     print '********************************************************'
     success = (test_runner.run_all_tests(
         test_dir, start_bt_emulator=start_bt_emulator,
@@ -349,6 +357,7 @@ def _start_report_client(args):
     report_master_uri = public_uris["report_master"]
   process_starter.start_report_client(
       report_master_uri=report_master_uri,
+      project_id=args.project_id,
       verbose_count=_verbose_count)
 
 def _start_observation_querier(args):
@@ -885,6 +894,10 @@ def main():
       'the report_client to query the instance of ReportMaster in the '
       'specified production cluster.',
       action='store_true')
+  sub_parser.add_argument('--project_id',
+    help='Specify the Cobalt project ID from which you wish to query. '
+         'Default = 1.',
+    default=1)
 
   sub_parser = start_subparsers.add_parser('observation_querier',
       parents=[parent_parser], help='Start the Cobalt ObservationStore '
