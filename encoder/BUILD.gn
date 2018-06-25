@@ -19,6 +19,8 @@ static_library("encoder") {
     "observation_store_dispatcher.cc",
     "memory_observation_store.h",
     "memory_observation_store.cc",
+    "file_observation_store.h",
+    "file_observation_store.cc",
     "send_retryer.cc",
     "send_retryer.h",
     "shipping_dispatcher.cc",

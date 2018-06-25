@@ -42,11 +42,6 @@ const size_t kMaxBytesPerObservation = 50;
 const size_t kMaxBytesPerEnvelope = 200;
 const size_t kMaxBytesTotal = 1000;
 
-// Note(rudominer) Because kMinEnvelopeSendSize = 170 and
-// kMaxBytesPerEnvelope = 200, and our tests use Observations of size
-// 40 bytes, the worker thread will attempt to send Envelopes that contain
-// exactly 5, 40-byte Observations. (4 * 40 < 170 and 6 * 40 > 200 ).
-const size_t kMinEnvelopeSendSize = 170;
 const std::chrono::seconds kMaxSeconds = ShippingManager::kMaxSeconds;
 
 // Returns a ProjectContext obtained by parsing the configuration specified
@@ -135,8 +130,7 @@ class ShippingDispatcherTest : public ::testing::Test {
     store_dispatcher_->Register(
         ObservationMetadata::LEGACY_BACKEND,
         std::make_unique<MemoryObservationStore>(
-            kMaxBytesPerObservation, kMaxBytesPerEnvelope, kMaxBytesTotal,
-            kMinEnvelopeSendSize));
+            kMaxBytesPerObservation, kMaxBytesPerEnvelope, kMaxBytesTotal));
     shipping_dispatcher_->Register(
         ObservationMetadata::LEGACY_BACKEND,
         std::make_unique<FakeShippingManager>(
@@ -147,8 +141,7 @@ class ShippingDispatcherTest : public ::testing::Test {
     store_dispatcher_->Register(
         ObservationMetadata::V1_BACKEND,
         std::make_unique<MemoryObservationStore>(
-            kMaxBytesPerObservation, kMaxBytesPerEnvelope, kMaxBytesTotal,
-            kMinEnvelopeSendSize));
+            kMaxBytesPerObservation, kMaxBytesPerEnvelope, kMaxBytesTotal));
     shipping_dispatcher_->Register(
         ObservationMetadata::V1_BACKEND,
         std::make_unique<FakeShippingManager>(

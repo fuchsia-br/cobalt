@@ -78,18 +78,12 @@ class ObservationStore {
   // AddEncryptedObservation() will return kStoreFull, until enough observations
   // are removed from the store.
   //
-  // min_bytes_per_envelope: ObservationStore will attempt to combine
-  // EnvelopeHolders with sizes smaller than this value (in bytes) into
-  // EnvelopeHolders whose size exceeds this value prior to returning the
-  // EnvelopeHolder from TakeNextEnvelopeHolder().
-  //
   // REQUIRED:
   // 0 <= max_bytes_per_observation <= max_bytes_per_envelope <= max_bytes_total
-  // 0 <= min_bytes_per_envelope <= max_bytes_per_envelope
+  // 0 <= max_bytes_per_envelope
   explicit ObservationStore(size_t max_bytes_per_observation,
                             size_t max_bytes_per_envelope,
-                            size_t max_bytes_total,
-                            size_t min_bytes_per_envelope);
+                            size_t max_bytes_total);
 
   virtual ~ObservationStore() {}
 
@@ -144,7 +138,6 @@ class ObservationStore {
   const size_t max_bytes_per_observation_;
   const size_t max_bytes_per_envelope_;
   const size_t max_bytes_total_;
-  const size_t min_bytes_per_envelope_;
   const size_t almost_full_threshold_;
 };
 

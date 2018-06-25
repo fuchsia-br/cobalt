@@ -32,10 +32,19 @@ set(SHIPPING_DISPATCHER_TEST_CONFIG_H "${CMAKE_CURRENT_BINARY_DIR}/shipping_disp
 generate_test_config_h(${CMAKE_CURRENT_SOURCE_DIR}/shipping_dispatcher_test_config.yaml
       ${SHIPPING_DISPATCHER_TEST_CONFIG_H} 1 1 "cobalt_config_base64")
 
+set(FILE_OBSERVATION_STORE_TEST_CONFIG_H "${CMAKE_CURRENT_BINARY_DIR}/file_observation_store_test_config.h")
+generate_test_config_h(${CMAKE_CURRENT_SOURCE_DIR}/file_observation_store_test_config.yaml
+      ${FILE_OBSERVATION_STORE_TEST_CONFIG_H} 1 1 "cobalt_config_base64")
+
 # client_secret library
 add_library(client_secret client_secret.cc)
 target_link_libraries(client_secret cobalt_crypto)
 add_cobalt_dependencies(client_secret)
+
+cobalt_make_protobuf_cpp_lib(file_observation_store_internal
+                             FILE_OBSERVATION_STORE_INTERNAL_HDRS
+                             false
+                             file_observation_store_internal)
 
 # encoder library
 add_library(encoder
@@ -50,7 +59,10 @@ add_library(encoder
             observation_store.cc
             observation_store_dispatcher.cc
             memory_observation_store.cc
-            ${COBALT_PROTO_HDRS} ${CONFIG_PROTO_HDRS})
+            file_observation_store.cc
+            "../third_party/protobuf/src/google/protobuf/util/delimited_message_util.cc"
+            ${COBALT_PROTO_HDRS} ${CONFIG_PROTO_HDRS}
+            ${FILE_OBSERVATION_STORE_INTERNAL_HDRS})
 target_link_libraries(encoder
                       client_config
                       client_secret
@@ -58,7 +70,8 @@ target_link_libraries(encoder
                       forculus_encrypter
                       rappor_encoder
                       shuffler_grpc_client
-                      clearcut_extensions_proto_lib)
+                      clearcut_extensions_proto_lib
+                      file_observation_store_internal)
 add_cobalt_dependencies(encoder)
 
 add_executable(encoder_tests
@@ -72,7 +85,11 @@ add_executable(encoder_tests
                ${SHIPPING_MANAGER_TEST_CONFIG_H}
                shipping_dispatcher_test.cc
                ${SHIPPING_DISPATCHER_TEST_CONFIG_H}
-               shuffler_client_test.cc system_data_test.cc)
+               shuffler_client_test.cc
+               system_data_test.cc
+               ${FILE_OBSERVATION_STORE_TEST_CONFIG_H}
+               file_observation_store_test.cc
+               posix_file_system.cc)
 target_link_libraries(encoder_tests
                       client_secret
                       encoder)

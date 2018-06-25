@@ -149,7 +149,6 @@ namespace {
 const size_t kMaxBytesPerObservation = 100 * 1024;
 const size_t kMaxBytesPerEnvelope = 1024 * 1024;
 const size_t kMaxBytesTotal = 10 * 1024 * 1024;
-const size_t kMinEnvelopeSendSize = 1024;
 const std::chrono::seconds kInitialRpcDeadline(FLAGS_deadline_seconds);
 const std::chrono::seconds kDeadlinePerSendAttempt(60);
 
@@ -569,14 +568,14 @@ TestApp::TestApp(
       store_dispatcher_(new ObservationStoreDispatcher()),
       shipping_dispatcher_(new ShippingDispatcher()),
       ostream_(ostream) {
-  store_dispatcher_->Register(ObservationMetadata::LEGACY_BACKEND,
-                              std::make_unique<MemoryObservationStore>(
-                                  kMaxBytesPerObservation, kMaxBytesPerEnvelope,
-                                  kMaxBytesTotal, kMinEnvelopeSendSize));
-  store_dispatcher_->Register(ObservationMetadata::V1_BACKEND,
-                              std::make_unique<MemoryObservationStore>(
-                                  kMaxBytesPerObservation, kMaxBytesPerEnvelope,
-                                  kMaxBytesTotal, kMinEnvelopeSendSize));
+  store_dispatcher_->Register(
+      ObservationMetadata::LEGACY_BACKEND,
+      std::make_unique<MemoryObservationStore>(
+          kMaxBytesPerObservation, kMaxBytesPerEnvelope, kMaxBytesTotal));
+  store_dispatcher_->Register(
+      ObservationMetadata::V1_BACKEND,
+      std::make_unique<MemoryObservationStore>(
+          kMaxBytesPerObservation, kMaxBytesPerEnvelope, kMaxBytesTotal));
 
   // By using (kMaxSeconds, 0) here we are effectively putting the
   // ShippingDispatcher in manual mode. It will never send

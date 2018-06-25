@@ -18,8 +18,7 @@ namespace encoder {
 class MemoryObservationStore : public ObservationStore {
  public:
   MemoryObservationStore(size_t max_bytes_per_observation,
-                         size_t max_bytes_per_envelope, size_t max_bytes_total,
-                         size_t min_bytes_per_envelope);
+                         size_t max_bytes_per_envelope, size_t max_bytes_total);
 
   StoreStatus AddEncryptedObservation(
       std::unique_ptr<EncryptedMessage> message,

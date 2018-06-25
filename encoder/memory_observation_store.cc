@@ -12,10 +12,9 @@ namespace encoder {
 
 MemoryObservationStore::MemoryObservationStore(size_t max_bytes_per_observation,
                                                size_t max_bytes_per_envelope,
-                                               size_t max_bytes_total,
-                                               size_t min_bytes_per_envelope)
+                                               size_t max_bytes_total)
     : ObservationStore(max_bytes_per_observation, max_bytes_per_envelope,
-                       max_bytes_total, min_bytes_per_envelope),
+                       max_bytes_total),
       envelope_send_threshold_size_(size_t(0.6 * max_bytes_per_envelope_)),
       current_envelope_(
           new EnvelopeMaker(max_bytes_per_observation, max_bytes_per_envelope)),

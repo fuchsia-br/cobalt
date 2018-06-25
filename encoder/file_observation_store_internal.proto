@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package cobalt.encoder;
+
+import "observation.proto";
+import "encrypted_message.proto";
+
+// ObservationStoreRecord is used internally by FileObservationStore for
+// serializing protos into files. It allows writing either a meta_data or an
+// encrypted_observation so they can later be reconstructed into an Envelope.
+message ObservationStoreRecord {
+  oneof contents {
+    ObservationMetadata meta_data = 1;
+    EncryptedMessage encrypted_observation = 2;
+  }
+}

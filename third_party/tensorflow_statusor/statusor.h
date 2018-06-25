@@ -160,6 +160,22 @@ class StatusOr : private internal_statusor::StatusOrData<T>,
   // Returns this->status().ok()
   bool ok() const { return this->status_.ok(); }
 
+  const T& ValueOr(const T& other) const {
+    if (ok()) {
+      return ValueOrDie();
+    } else {
+      return other;
+    }
+  }
+
+  T ConsumeValueOr(T other) {
+    if (ok()) {
+      return ConsumeValueOrDie();
+    } else {
+      return other;
+    }
+  }
+
   // Returns a reference to our status. If this contains a T, then
   // returns Status::OK.
   const Status& status() const&;

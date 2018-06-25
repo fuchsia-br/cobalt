@@ -5542,7 +5542,7 @@ def FlagCxx11Features(filename, clean_lines, linenum, error):
 #                                     'thread', # Allow threads in cobalt
 #                                     'chrono', # Allow chrono in cobalt
                                       'ratio',
-                                      'regex',
+#                                     'regex', # allow regex in cobalt
                                       'system_error',
                                      ):
     error(filename, linenum, 'build/c++11', 5,
