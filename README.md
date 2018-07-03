@@ -29,6 +29,9 @@ in the Garnet repo.
   systems.
   2. Python 2.7
   3. libstdc++
+On a new Linux glaptop you may not have libstdc++ installed. A command similar
+to the following appears to work:
+`sudo apt-get install libstdc++-8-dev`
 
 ## Fetch the code
 For example via
