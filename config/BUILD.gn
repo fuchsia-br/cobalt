@@ -10,7 +10,9 @@ proto_library("cobalt_config_proto") {
     "cobalt_config.proto",
     "encodings.proto",
     "metrics.proto",
+    "metric_definition.proto",
     "report_configs.proto",
+    "report_definition.proto,"
   ]
   import_dirs = [ "//third_party/protobuf/src" ]
   generate_python = false

@@ -23,13 +23,16 @@ add_subdirectory(validation)
 cobalt_make_protobuf_cpp_lib(config_proto_lib
                              CONFIG_PROTO_HDRS
                              false
-                             encodings metrics report_configs cobalt_config)
+                             encodings metrics metric_definition
+                             report_configs report_definition
+                             cobalt_config)
 
 # Generate Go bindings for the config .proto files.
 cobalt_protobuf_generate_go(generate_config_pb_go_files
                             CONFIG_PB_GO_FILES
                             false
-                            cobalt_config encodings metrics report_configs)
+                            cobalt_config encodings metrics metric_definition
+                            report_configs report_definition)
 
 add_library(buckets_config
             buckets_config.cc

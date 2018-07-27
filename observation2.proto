@@ -1,0 +1,143 @@
+// Copyright 2018 The Fuchsia Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package cobalt;
+
+import "observation.proto";
+
+// An Observation is a piece of data sent from a Cobalt client to the Cobalt
+// server as input to a Report.
+//
+// Observations are associated with a specific Metric. They are built on a
+// Fuchsia client based on the Events logged for that Metric. Observations are
+// associated with a specific Report. They are built for the purpose of
+// generating that Report. They are transmitted from the Fuchsia client to
+// the Cobalt server where they are aggregated and analyzed in order to generate
+// the Report.
+//
+// Observations may store their data using special privacy-preserving encodings.
+// The specification of how to do this is part of the definition of a Report.
+// Observations are built for a particular Report and so use an encoding
+// appropriate for that Report.
+//
+// There are different types of Observations that are appropriate for different
+// types of Metrics and different types of Reports.
+//
+// An Observation is always transmitted and stored along with
+// some ObservationMetadata that describes, among other things, which Metric
+// and which Report it is for and on which day the Observation was formed.
+//
+// Observations are transmitted from the client to the server encrypted, inside
+// the |ciphertext| field of an EncryptedMessage. Many encrypted Observations
+// are transmitted together inside of an ObservationBatch.
+message Observation2 {
+  // Next observation_type ID: 6
+  // Next general ID: 1002;
+
+  // An Observation has one of the following types.
+  oneof observation_type {
+    IntegerEventObservation numeric_event = 1;
+    HistogramObservation histogram = 2;
+    BasicRapporObservation basic_rappor = 3;
+    RapporObservation string_rappor = 4;
+    ForculusObservation forculus = 5;
+    CustomObservation custom = 1000;
+  }
+
+  // A quasi-unique identifier for this observation. This is randomly generated
+  // on the client and used on the server as part of a fully-unique identifier.
+  // This field allows the operation of sending an Observation to the Cobalt
+  // server to be idempotent: If the same Observation is transmitted twice then
+  // the server will store the observation only once.
+  bytes random_id = 1001;
+}
+
+// Observations of type IntegerEventObservation contain an event type specified
+// by its index, a component specified by its hash, and an integer value.
+// This type of Observation is used in the following cases:
+//
+// (a) A Metric of type EVENT_COUT and a Report of type
+//     EVENT_COMPONENT_OCCURRENCE_COUNT.
+//     In this case the Observation is *immediate* meaning it is generated
+//     directly from a single Event as soon as the Event is logged. The |value|
+//     field contains the count. Note that the |period_duration_micros| from the
+//     Event is not used. It's purpose is to compute event *rates* which are not
+//     relevant to the EVENT_COMPONENT_OCCURRENCE_COUNT Report type.
+//
+// (b) A Metric of type ELAPSED_TIME and a Report of type
+//     NUMERIC_AGGREGATION , INT_RANGE_HISTOGRAM or
+//     NUMERIC_PERF_RAW_DUMP. In this case the Observation again is
+//     immediate. The |value| field contains the duration in microseconds.
+//
+// (c) A Metric of type FrameRateMetric and a Report of type
+//     NUMERIC_AGGREGATION, INT_RANGE_HISTOGRAM or
+//     NUMERIC_PERF_RAW_DUMP. In this case the Observation again is
+//     immediate. The |value| field contains round(fps * 1000).
+//
+// (d) A Metric of type MemoryUseMetric and a Report of type
+//     NUMERIC_AGGREGATION , INT_RANGE_HISTOGRAM or
+//     NUMERIC_PERF_RAW_DUMP. In this case the Observation again is
+//     immediate. The |value| field contains the number of bytes.
+message IntegerEventObservation {
+  // The index of the event that occurred.
+  uint32 event_index = 1;
+
+   // A hash of the component name.
+  string component_name_hash = 2;
+
+  int64 value = 3;
+}
+
+
+// Observations of type HistogramObservation contain an event type specified
+// by its index, a component specified by its hash, and a histogram of
+// integer-range buckets. This type of Observation is used in the
+// following case:
+//
+// A MetricDefinition of type INT_HISTOGRAM and a Report of type
+// INT_RANGE_HISTOGRAM. In this case the Observation is *immediate* meaning
+// it is generated directly from a single INT_HISTOGRAM Event as soon as
+// the Event is logged.
+message HistogramObservation {
+  // The index of the event that occurred.
+  uint32 event_index = 1;
+
+   // A hash of the component name.
+  string component_name_hash = 2;
+
+  // A pair consisting of a bucket index and a count. Each bucket is
+  // an integer range. The definition of the buckets and their indices
+  // is given in the MetricDefinition.
+  message Bucket {
+    // The index of one of the buckets.
+    uint32 index = 1;
+    // The count for that bucket.
+    uint64 count = 2;
+  };
+
+  // The set of bucket indices and their corresponding counts.
+  repeated Bucket buckets = 3;
+};
+
+
+// Observations of this type contain a custom number of parts each with a
+// custom name and a custom type.
+//
+// This type of Observation is used in the following case:
+//
+// A MetricDefinition of type CUSTOM and Report of type
+// CUSTOM_RAW_DUMP. In this case the Observation is *immediate* meaning it is
+// generated directly from a single CUSTOM Event as soon as the Event is
+// logged. The Event contains a list of (name, value) pairs where the names
+// are the names of the CUSTOM parts and the values are of the appropriate
+// type defined in the CUSTOM. A CustomObservation directly stores those
+// pairs.
+message CustomObservation {
+  // The keys are the names of the metric parts to which each Value
+  // is associated.
+  map<string, ValuePart> values = 1;
+}
+

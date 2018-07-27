@@ -1,0 +1,267 @@
+// Copyright 2018 The Fuchsia Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+syntax = "proto3";
+
+package cobalt;
+
+import "config/metrics.proto";
+import "config/report_definition.proto";
+
+option go_package = "config";
+
+// A Metric is a category of Events that a user logs to Cobalt.
+//
+// A Metric belongs to a Project and has a name and a type.
+//
+// When an Event is logged in Cobalt's Logger interface, a Metric name is
+// specified and the Event then belongs to that Metric.
+//
+// A MetricDefinition includes a list of ReportDefinitions. These are the
+// definitions of the Reports that should be run for that Metric. Generating a
+// Report involves the Cobalt client sending Observations to the server based
+// on the Events belonging to the Metric, and the server performing an analysis
+// of those Observations in order to generate the Report output.
+//
+// When an Observation is sent from a Cobalt client to the server, it contains
+// a Metric name and a Report name. This indicates that the
+// Observation is derived from the Events belonging to the Metric for the
+// purpose of generating the Report.
+//
+// A MetricDefinition is used to define a Metric.
+message MetricDefinition {
+  // Next id: 13
+
+  // Unique name for this Metric within its owning project.
+  // The name must obey the syntax of a C variable name and must have length
+  // at most 64. The name must not be changed once data collection has
+  // begun. Changing the name constitutes declaring a different Metric.
+  string metric_name = 1;
+
+  // These three numbers form this Metric's unique numerical ID, used internally
+  // by Cobalt. Normally an instance of MetricDefinition is created by the
+  // Cobalt config YAML parser and these three values will be set automatically.
+  // None of these three values need to be manually set in the YAML file. The
+  // customer_id and project_id are known from the context of the YAML file and
+  // the |id| is set to a hash of the |name| field above. If an instance of
+  // MetricDefinition is created by some means other than the YAML parser
+  // then these values must be set. The |id| field should be set to a number
+  // uniquely identifying this Metric within its project.
+  uint32 customer_id = 2;
+  uint64 project_id = 3;
+  uint32 id = 4;
+
+  // A Metric has one of the following types.
+  enum MetricType {
+
+    // Records that an event has occurred.
+    //
+    // Event fields:
+    // - uint32 event_type_index # The index of the event type that occurred.
+    //
+    // MetricDefinition fields:
+    // - event_types # Enumerated list of all possible event types
+    // - max_num_event_types # Upper bound on future growth of event_types
+    //
+    // Compatible report types:
+    // - SIMPLE_OCCURRENCE_COUNT
+    EVENT_OCCURRED = 0;
+
+    // Records that an event occurred a number of times.
+    //
+    // Event fields:
+    // - uint32 event_type_index # The index of the event type that occurred.
+    // - string component # The associated system componet
+    // - int64 period_duration_micros # Time over which the count was taken
+    // - uint32 count # The number of times the event occured.
+    //
+    // MetricDefinition fields:
+    // - event_types  # Enumerated list of all possible event types
+    //
+    // Compatible report types:
+    // - EVENT_COMPONENT_OCCURRENCE_COUNT
+    EVENT_COUNT = 1;
+
+    // Records an elpased time.
+    //
+    // Event fields:
+    // - uint32 event_type_index # The index of the event type that occurred.
+    // - string component # The associated system componet
+    // - int64 elapsed_micros # The elapsed time in microsencods.
+    //
+    // MetricDefinition fields:
+    // - event_types # Enumerated list of all possible event types
+    //
+    // Compatible report types:
+    // - NUMERIC_AGGREGATION
+    // - INT_RANGE_HISTOGRAM
+    // - NUMERIC_PERF_RAW_DUMP
+    ELAPSED_TIME = 2;
+
+    // Records a frame-rate.
+    //
+    // Event fields:
+    // - uint32 event_type_index # The index of the event type that occurred.
+    // - string component # The associated system componet
+    // - int32 frame_rate # round(rames-per-second * 1000)
+    //
+    // MetricDefinition fields:
+    // - event_types  # Enumerated list of all possible event types
+    //
+    // Compatible report types:
+    // - NUMERIC_AGGREGATION
+    // - INT_RANGE_HISTOGRAM
+    // - NUMERIC_PERF_RAW_DUMP
+    FRAME_RATE = 3;
+
+    // Records a memory-usage.
+    //
+    // Event fields:
+    // - uint32 event_type_index # The index of the event type that occurred.
+    // - string component # The associated system componet
+    // - int64 bytes # Memory usage in bytes.
+    //
+    // MetricDefinition fields:
+    // - event_types  # Enumerated list of all possible event types
+    //
+    // Compatible report types:
+    // - NUMERIC_AGGREGATION
+    // - INT_RANGE_HISTOGRAM
+    // - NUMERIC_PERF_RAW_DUMP
+    MEMORY_USAGE = 4;
+
+    // Records a histogram over a set of integer buckets. The semantics of the
+    // Metric must be specified in comments near the Metric definition. The
+    // numerical values of the buckets is specified below in the |int_buckets|
+    // field.
+    //
+    // This Metric type is intended to be used in situations where the client
+    // wishes to aggregate a large number of integer-valued measurements
+    // *in-process*, prior to submitting the data to Cobalt.
+    //
+    // Event fields:
+    // - uint32 event_type_index # The index of the event type that occurred.
+    // - string component # The associated system componet
+    // - vector<HistogramBucket> histogram # The histogram being logged.
+    //
+    // MetricDefinition fields:
+    // - int_buckets # The definition of the buckets
+    // - event_types  # Enumerated list of all possible event types
+    //
+    // Compatible report types:
+    // - INT_RANGE_HISTOGRAM
+    INT_HISTOGRAM = 5;
+
+    // Records that a given string was used in a specific context. The semantics
+    // of the Metric must be specified in comments near the MetricDefintion.
+    //
+    //  This metric type is intended to be used in the following situation:
+    //  * The string being logged does not contain PII or passwords.
+    //  * The set of all possible strings that may be logged is large.
+    //    If the set is small consider using EVENT_OCCURED instead.
+    //  * The ultimate data of interest is the statistical distribution of the
+    //    most commonly used strings
+    //
+    // Event fields:
+    // - string s # The string that was used.
+    //
+    // MetricDefinition fields: None
+    //
+    // Compatible report types:
+    // - HIGH_FREQUENCY_STRING_COUNTS
+    // - STRING_COUNTS_WITH_THRESHOLD
+    STRING_USED = 6;
+
+    // Allows users of Cobalt to define custom Metrics with custom semantics
+    // and multiple parts each with their own data type. The semantics of the
+    // Metric as a whole and of each part must be specified in comments.
+    //
+    // Event fields:
+    //   vector<CustomEventValue> event_values # Named, typed values
+    //
+    // MetricDefinition fields:
+    // - parts # The definition of the names and types of the parts.
+    //
+    // Compatible report types:
+    // - CUSTOM_RAW_DUMP
+    CUSTOM = 9999;
+  }
+
+  MetricType metric_type = 5;
+
+  // The enumerated set of event types for the event_type parameter.
+  //
+  // This field is used in most Metric types.
+  //
+  // The keys are the indices and the values are the  human-readable names of
+  // the event types. It is OK to add new elements to this  map or to change
+  // the spelling of event names after data collection has
+  // started. It is not OK to change the meaning of any of the indices.
+  // ##DO_NOT_POPULATE_ON_CLIENT##
+  map<uint32, string> event_types = 6;
+
+  // Only needed with Metrics of type EVENT_OCCURRED.
+  // While additional event_types may be added after data collection has begun,
+  // this value may not be changed and the number of event_types must be at
+  // most this value. Leave room for future growth of event_types but set
+  // as small as possible because this affects the size of the Observations
+  // sent to the server for this Metric. This value must be <= 1024.
+  uint32 max_num_event_types = 7;
+
+  // The set of buckets for the histograms for this metric. This field is used
+  // only with metrics of type INT_HISTOGRAM
+  IntegerBuckets int_buckets = 8;
+
+  // Used only with metric_type = CUSTOM
+  // The keys are the names of the parts.
+  map<string, MetricPart> parts = 9;
+
+  /////////// The rest of the fields are used with all Metric types ///////////
+
+  // A TimeZonePolicy specifies how the day_index of an Event should
+  // be computed based on the actual time of logging.
+  enum TimeZonePolicy {
+    // Use the date in UTC at logging time to compute the day_index.
+    UTC = 0;
+
+    // Use the local date at logging time to compute the day_index.
+    LOCAL = 1;
+  }
+
+  // The TimeZonePolicy for this Metric (Optional. Defaults to UTC)
+  TimeZonePolicy time_zone_policy = 10;
+
+  message Metadata {
+    // The date after which this metric is no longer valid. If this field is not
+    // supplied, the metric is considered currently expired, and is not
+    // guaranteed to be reported by cobalt.
+    //
+    // The date must be expressed in yyyy/mm/dd form.
+    // It may be at most one year in the future.
+    string expiration_date = 1;
+
+    // Primary contacts for questions/bugs regarding this metric (may be a
+    // group). This should be a fully qualified email address (e.g.
+    // my-group@test.com)
+    repeated string owner = 2;
+
+    // This represents the highest release cycle stage in which Observations
+    // for this Metric should be reported. For example a DEBUG Metric will not
+    // be reported in a FISHFOOD release and a DOGFOOD Metric will not be
+    // reported in a PROD release.
+    enum ReleaseStage {
+      NEVER_REPORT = 0;
+
+      // TODO(rudominer) Share this proto message with observation.proto.
+      DEBUG = 10;
+      FISHFOOD = 20;
+      DOGFOOD = 40;
+      PROD = 99;
+    }
+    ReleaseStage max_release_stage = 4;
+  }
+  Metadata meta_data = 11;
+
+  // The Reports to run for this Metric.
+  repeated ReportDefinition reports = 12;
+}

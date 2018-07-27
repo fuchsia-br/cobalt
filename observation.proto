@@ -74,21 +74,65 @@ message ValuePart {
   }
 }
 
+// Observations of this type contain an encryption of a string. The string
+// is encrypted using Forculus threshold encryption so that it may only be
+// decrypted if sufficiently many distinct clients transmit the same string.
+//
+// This type of Observation is used in the following case:
+//
+// A MetricDefinition of type STRING_USED and Report of type
+// STRING_COUNTS_WITH_THRESHOLD. In this case the Observation is
+// *immediate* meaning it is generated directly from a single
+// STRING_USED Event as soon as the Event is logged. The Event contains
+// the string that was used. The fields of a ForculusObservation contain
+// the data necessary to represent the threshold-encrypted ciphertext of
+// the string.
 message ForculusObservation {
-  // The encryption of a serialized ValuePart.
   bytes ciphertext = 1;
-
   bytes point_x = 2;
   bytes point_y = 3;
 }
 
+// Observations of this type contain an encoding of a string. The encoding uses
+// String RAPPOR to provide local differential privacy.
+//
+// This type of Observation is used in the following case:
+//
+// A MetricDefinition of type STRING_USED and Report of type
+// HIGH_FREQUENCY_STRING_COUNTS. In this case the Observation is
+// *immediate* meaning it is generated directly from a single
+// STRING_USED Event as soon as the Event is logged. The Event contains
+// the string that was used. The |data| field in this Observation contains
+// an encoding of that string. It contains a bit vector obtained by representing
+// the string as a bit vector using several hash functions and then adding
+// random noise by flipping bits.
 message RapporObservation {
+  // The client's cohort. Each client is assigned a random cohort. The cohorts
+  // are needed to recover the original string since the process of representing
+  // a string as a bit vector is lossy.
   uint32 cohort = 1;
 
+  // A bit vector containing the encoding of the string.
   bytes data = 2;
 }
 
+
+// Observations of this type contain an encoding of an element of an
+// an indexed set. The encoding uses Basic RAPPOR to provide local differential
+// privacy.
+//
+// This type of Observation is used in the following case:
+//
+// A MetricDefinition of type EVENT_OCCURRED and Report of type
+// SIMPLE_OCCURRENCE_COUNT. In this case the Observation is *immediate* meaning
+// it is generated directly from a single EVENT_OCCURRED Event as soon as
+// the Event is logged. The Event contains a single index, the index of the
+// event-type that occurred. The |data| field in this Observation contains
+// an encoding of that index. It contains a bit vector obtained by representing
+// the index as a one-hot bit vector and then adding random noise by
+// flipping bits.
 message BasicRapporObservation {
+  // A bit vector containing the encoding of the index.
   bytes data = 1;
 }
 
@@ -180,11 +224,17 @@ message Observation {
 // ObservationMetadata describes the parts of an observation other than the
 // secret payload.
 message ObservationMetadata {
-  // An Observation is for a particular metric.
-  // The following three values together specify that metric.
+  // next id: 8
+
+  // An Observation is for a particular Metric.
+  // The following three values together specify that Metric.
   uint32 customer_id = 1;
   uint32 project_id = 2;
-  uint32 metric_id = 3;  // e.g. 7 = City-And-Rating
+  uint32 metric_id = 3;
+
+  // Starting in Cobalt 1.0 an Observation is for a particular Report.
+  // The triple (customer_id, project_id, report_id) specify the Report.
+  uint32 report_id = 7;
 
   // The day on which the observation occurred, expressed as the zero-based
   // index relative to January 1, 1970.
