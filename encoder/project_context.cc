@@ -38,6 +38,14 @@ const Metric* ProjectContext::Metric(uint32_t id) const {
   return metric_registry_->Get(customer_id_, project_id_, id);
 }
 
+const Metric* ProjectContext::Metric(const std::string& metric_name) const {
+  if (client_config_) {
+    return client_config_->Metric(customer_id_, project_id_, metric_name);
+  }
+  CHECK(metric_registry_);
+  return metric_registry_->Get(customer_id_, project_id_, metric_name);
+}
+
 const EncodingConfig* ProjectContext::EncodingConfig(uint32_t id) const {
   if (client_config_) {
     return client_config_->EncodingConfig(customer_id_, project_id_, id);

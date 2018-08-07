@@ -146,6 +146,11 @@ const Metric* ClientConfig::Metric(uint32_t customer_id, uint32_t project_id,
   return metrics_->Get(customer_id, project_id, metric_id);
 }
 
+const Metric* ClientConfig::Metric(uint32_t customer_id, uint32_t project_id,
+                                   const std::string& metric_name) {
+  return metrics_->Get(customer_id, project_id, metric_name);
+}
+
 ClientConfig::ClientConfig(
     std::shared_ptr<config::EncodingRegistry> encoding_configs,
     std::shared_ptr<config::MetricRegistry> metrics)

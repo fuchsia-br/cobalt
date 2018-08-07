@@ -274,6 +274,10 @@ class Encoder {
   // result contains an error status.
   Result Encode(uint32_t metric_id, const Value& value);
 
+  // Returns the metric_id associated with the given |metric_name| by looking
+  // it up in the ProjectContext.
+  uint32_t MetricId(const std::string& metric_name);
+
   // Sets a static value to use for the current time when computing the
   // day index. By default an Encoder uses the real system clock to determine
   // the current time. But this function may be invoked to override that

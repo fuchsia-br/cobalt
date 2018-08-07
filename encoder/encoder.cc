@@ -532,6 +532,10 @@ Encoder::Result Encoder::Encode(uint32_t metric_id, const Value& value) {
   return result;
 }
 
+uint32_t Encoder::MetricId(const std::string& metric_name) {
+  return project_->Metric(metric_name)->id();
+}
+
 ValuePart& Encoder::Value::AddPart(uint32_t encoding_config_id,
                                    const std::string& part_name) {
   // emplace() returns a pair whose first element is an iterator over

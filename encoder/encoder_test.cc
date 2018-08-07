@@ -650,6 +650,16 @@ TEST(EncoderTest, EncodeIntBucketDistributionNoOp) {
                                     expect_utc, ObservationPart::kUnencoded);
 }
 
+TEST(EncoderTest, MetricId) {
+  // Build the ProjectContext encapsulating our test config data.
+  std::shared_ptr<ProjectContext> project = GetTestProject();
+  FakeSystemData system_data;
+
+  // Construct the Encoder.
+  Encoder encoder(project, ClientSecret::GenerateNewSecret(), &system_data);
+  EXPECT_EQ(kSingleStringMetricId, encoder.MetricId("SingleString"));
+}
+
 // Tests the advanced API, when used corretly.
 TEST(EncoderTest, AdvancedApiNoErrors) {
   // Build the ProjectContext encapsulating our test config data.

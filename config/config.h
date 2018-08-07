@@ -115,6 +115,15 @@ class Registry {
     return iterator->second.get();
   }
 
+  const T* const Get(uint32_t customer_id, uint32_t project_id,
+                     const std::string& name) {
+    auto iterator = name_map_.find(MakeKey(customer_id, project_id, name));
+    if (iterator == name_map_.end()) {
+      return nullptr;
+    }
+    return iterator->second.get();
+  }
+
   // Provide a mechansim to iterate through all registry items.
   RegistryIterator begin() { return RegistryIterator(map_.begin()); }
   RegistryIterator end() { return RegistryIterator(map_.end()); }
@@ -124,12 +133,22 @@ class Registry {
   static std::string MakeKey(uint32_t customer_id, uint32_t project_id,
                              uint32_t id);
 
+  // Builds a map key that encodes the triple (customer_id, project_id, name)
+  static std::string MakeKey(uint32_t customer_id, uint32_t project_id,
+                             const std::string& name);
+
   // Builds a map key from the ids in |config_proto|.
-  static std::string MakeKey(const T& config_proto);
+  static std::string MakeKeyWithId(const T& config_proto);
+
+  static std::string MakeKeyWithName(const T& config_proto);
 
   // The keys in this map are strings that encode ID triples of the form
   // (customer_id, project_id, id)
   Map map_;
+
+  // The keys in this map are strings that encode triples of the form
+  // (customer_id, project_id, name)
+  Map name_map_;
 };
 
 //////////////////////////////////////////////////////////////////
@@ -151,9 +170,29 @@ std::string Registry<RT>::MakeKey(uint32_t customer_id, uint32_t project_id,
 }
 
 template <class RT>
-std::string Registry<RT>::MakeKey(const T& config_proto) {
+std::string Registry<RT>::MakeKey(uint32_t customer_id, uint32_t project_id,
+                                  const std::string& name) {
+  // Two 32-bit positive ints (at most 10 digits each) plus 2 colons plus a
+  // trailing null is <= 23 bytes.
+  char out[23];
+  int size =
+      snprintf(out, sizeof(out), "%u:%u:", customer_id, project_id);
+  if (size <= 0) {
+    return "";
+  }
+  return std::string(out, size) + name;
+}
+
+template <class RT>
+std::string Registry<RT>::MakeKeyWithId(const T& config_proto) {
   return MakeKey(config_proto.customer_id(), config_proto.project_id(),
                  config_proto.id());
+}
+
+template <class RT>
+std::string Registry<RT>::MakeKeyWithName(const T& config_proto) {
+  return MakeKey(config_proto.customer_id(), config_proto.project_id(),
+                 config_proto.name());
 }
 
 template <class RT>
@@ -170,14 +209,17 @@ std::pair<std::unique_ptr<Registry<RT>>, Status> Registry<RT>::TakeFrom(
     T* config_proto = registered_configs->mutable_element(i);
     // First build the key and insert an empty Tg into the map
     // at that key.
-    auto pair = registry->map_.insert(
-        std::make_pair(MakeKey(*config_proto), std::unique_ptr<T>(new T())));
+    auto pair = registry->map_.insert(std::make_pair(
+        MakeKeyWithId(*config_proto), std::unique_ptr<T>(new T())));
     const bool& success = pair.second;
     auto& inserted_pair = pair.first;
     if (!success) {
       return std::make_pair(std::move(registry), kDuplicateRegistration);
     }
-    // Then swap in the data from the T;
+    // Then swap in the data from the T and populate the name map;
+    auto name_pair = registry->name_map_.insert(std::make_pair(
+        MakeKeyWithName(*config_proto), std::unique_ptr<T>(new T())));
+    name_pair.first->second->CopyFrom(*config_proto);
     inserted_pair->second->Swap(config_proto);
   }
   return std::make_pair(std::move(registry), kOK);

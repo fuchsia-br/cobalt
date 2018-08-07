@@ -6,6 +6,7 @@
 #define COBALT_ENCODER_PROJECT_CONTEXT_H_
 
 #include <memory>
+#include <string>
 #include <utility>
 
 #include "config/client_config.h"
@@ -34,7 +35,12 @@ class ProjectContext {
   // Returns the Metric with the given ID in the project, or nullptr if there is
   // no such Metric. The caller does not take ownership of the returned
   // pointer.
-  const Metric* Metric(uint32_t id) const;
+  const class Metric* Metric(uint32_t id) const;
+
+  // Returns the Metric with the given name in the project, or nullptr if there
+  // is no such Metric. The caller does not take ownership of the returned
+  // pointer.
+  const class Metric* Metric(const std::string& metric_name) const;
 
   // Returns the EncodingConfig with the given ID in the project, or nullptr if
   // there is no such EncodingConfig. The caller does not take ownership of the
