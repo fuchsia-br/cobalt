@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <random>
 #include <utility>
 
 #include "./gtest.h"
@@ -235,6 +236,36 @@ TEST_F(FileObservationStoreTest, HandlesCorruptFiles) {
 
   auto read_env = env->GetEnvelope();
   EXPECT_EQ(read_env.batch_size(), 0);
+}
+
+TEST_F(FileObservationStoreTest, StressTest) {
+  std::random_device rd;
+  for (int i = 0; i < 5000; i++) {
+    // Between 5-15 observations.
+    auto observations = (rd() % 10) + 5;
+    // Between 50-100 bytes per observation.
+    auto size = (rd() % 50) + 50;
+    for (int j = 0; j < observations; j++) {
+      EXPECT_EQ(ObservationStore::kOk, AddObservation(size));
+    }
+
+    while (true) {
+      auto holder = store_->TakeNextEnvelopeHolder();
+      if (holder == nullptr) {
+        break;
+      }
+
+      auto should_return = rd() % 2;
+      if (should_return == 1) {
+        store_->ReturnEnvelopeHolder(std::move(holder));
+      } else {
+        auto env = holder->GetEnvelope();
+        ASSERT_GT(env.batch_size(), 0);
+      }
+    }
+
+    ASSERT_EQ(store_->Size(), 0);
+  }
 }
 
 }  // namespace encoder

@@ -64,7 +64,8 @@ FileObservationStore::FileObservationStore(
     // For simplicity's sake, we attempt to the active_file_name_ while ignoring
     // the result. If the operation succeeds, then we rescued the active file.
     // Otherwise, there probably was no active file in the first place.
-    FinalizeFile(active_file_name_, &fields);
+    VLOG(4) << "Attempting to rename a (potentially nonexistant) file";
+    FinalizeActiveFile(&fields);
   }
 }
 
@@ -80,9 +81,9 @@ ObservationStore::StoreStatus FileObservationStore::AddEncryptedObservation(
   size_t obs_size = message->ciphertext().size() +
                     message->public_key_fingerprint().size() + 1;
   if (obs_size > max_bytes_per_observation_) {
-    VLOG(1) << "WARNING: An observation that was too big was passed in to "
-               "FileObservationStore::AddEncryptedObservation(): "
-            << obs_size;
+    LOG(WARNING) << "An observation that was too big was passed in to "
+                    "FileObservationStore::AddEncryptedObservation(): "
+                 << obs_size;
     return kObservationTooBig;
   }
 
@@ -121,7 +122,7 @@ ObservationStore::StoreStatus FileObservationStore::AddEncryptedObservation(
     VLOG(4) << "In-progress file contains " << active_file->ByteCount()
             << " bytes (>= " << max_bytes_per_envelope_ << "). Finalizing it.";
 
-    if (!FinalizeFile(active_file_name_, &fields)) {
+    if (!FinalizeActiveFile(&fields)) {
       LOG(WARNING) << "Unable to finalize `" << active_file_name_;
       return kWriteFailed;
     }
@@ -130,20 +131,35 @@ ObservationStore::StoreStatus FileObservationStore::AddEncryptedObservation(
   return kOk;
 }
 
-bool FileObservationStore::FinalizeFile(
-    const std::string &filename,
+bool FileObservationStore::FinalizeActiveFile(
     util::ProtectedFields<Fields>::LockedFieldsPtr *fields) {
-  // Close the current file (if it is open).
-  (*fields)->active_file = nullptr;
-  (*fields)->active_fstream = nullptr;
-  (*fields)->metadata_written = false;
+  auto &f = *fields;
 
-  auto new_name = FullPath(GenerateFinalizedName());
-  if (!fs_->Rename(filename, new_name)) {
+  // Close the current file (if it is open).
+  f->active_file = nullptr;
+  if (f->active_fstream.is_open()) {
+    f->active_fstream.close();
+  }
+  f->metadata_written = false;
+
+  auto filesize = fs_->FileSize(active_file_name_);
+  if (filesize.ok()) {
+    if (filesize.ConsumeValueOrDie() == 0) {
+      // File exists, but is empty. Let's just delete it instead of renaming.
+      fs_->Delete(active_file_name_);
+      return false;
+    }
+  } else {
+    // if !filesize.ok(), the file likely doesn't even exist.
     return false;
   }
 
-  (*fields)->finalized_bytes += fs_->FileSize(new_name).ConsumeValueOr(0);
+  auto new_name = FullPath(GenerateFinalizedName());
+  if (!fs_->Rename(active_file_name_, new_name)) {
+    return false;
+  }
+
+  f->finalized_bytes += fs_->FileSize(new_name).ConsumeValueOr(0);
   return true;
 }
 
@@ -167,13 +183,16 @@ std::string FileObservationStore::FileEnvelopeHolder::FullPath(
 
 google::protobuf::io::OstreamOutputStream *FileObservationStore::GetActiveFile(
     util::ProtectedFields<Fields>::LockedFieldsPtr *fields) {
-  if ((*fields)->active_file == nullptr) {
-    (*fields)->active_fstream.reset(
-        new std::ofstream(active_file_name_, std::ofstream::out));
-    (*fields)->active_file.reset(new google::protobuf::io::OstreamOutputStream(
-        (*fields)->active_fstream.get()));
+  auto &f = *fields;
+
+  if (f->active_file == nullptr) {
+    f->active_fstream.open(active_file_name_);
+    CHECK(f->active_fstream.is_open()) << "Failed to open " << active_file_name_
+                                       << ": " << std::strerror(errno);
+    f->active_file.reset(
+        new google::protobuf::io::OstreamOutputStream(&f->active_fstream));
   }
-  return (*fields)->active_file.get();
+  return f->active_file.get();
 }
 
 std::vector<std::string> FileObservationStore::ListFinalizedFiles() const {
@@ -187,11 +206,13 @@ std::vector<std::string> FileObservationStore::ListFinalizedFiles() const {
   return retval;
 }
 
-StatusOr<std::string> FileObservationStore::GetOldestFinalizedFile() const {
+StatusOr<std::string> FileObservationStore::GetOldestFinalizedFile(
+    util::ProtectedFields<Fields>::LockedFieldsPtr *fields) {
+  auto &f = *fields;
+
   std::string found_file_name;
-  auto fields = protected_fields_.const_lock();
   for (auto file : ListFinalizedFiles()) {
-    if (fields->files_taken.find(file) == fields->files_taken.end()) {
+    if (f->files_taken.find(file) == f->files_taken.end()) {
       if (found_file_name == "") {
         found_file_name = file;
       } else {
@@ -216,23 +237,25 @@ StatusOr<std::string> FileObservationStore::GetOldestFinalizedFile() const {
 
 std::unique_ptr<ObservationStore::EnvelopeHolder>
 FileObservationStore::TakeNextEnvelopeHolder() {
-  auto oldest_file_name_or = GetOldestFinalizedFile();
+  auto fields = protected_fields_.lock();
+
+  auto oldest_file_name_or = GetOldestFinalizedFile(&fields);
   if (!oldest_file_name_or.ok()) {
-    {
-      auto fields = protected_fields_.lock();
-      if (!fields->active_file || fields->active_file->ByteCount() == 0) {
-        return nullptr;
-      }
-      FinalizeFile(active_file_name_, &fields);
+    if (!fields->active_file || fields->active_file->ByteCount() == 0) {
+      // Active file isn't open or is empty. Return nullptr.
+      return nullptr;
     }
-    oldest_file_name_or = GetOldestFinalizedFile();
+    if (!FinalizeActiveFile(&fields)) {
+      // Finalizing the active file failed, no envelope to return.
+      return nullptr;
+    }
+    oldest_file_name_or = GetOldestFinalizedFile(&fields);
     if (!oldest_file_name_or.ok()) {
       return nullptr;
     }
   }
 
   auto oldest_file_name = oldest_file_name_or.ConsumeValueOrDie();
-  auto fields = protected_fields_.lock();
   fields->files_taken.insert(oldest_file_name);
   fields->finalized_bytes -=
       fs_->FileSize(FullPath(oldest_file_name)).ConsumeValueOr(0);

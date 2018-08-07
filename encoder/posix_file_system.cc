@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
+#include <memory>
 #include <sstream>
 
 #include "encoder/posix_file_system.h"
@@ -21,13 +22,18 @@ bool PosixFileSystem::MakeDirectory(const std::string &directory) {
   return mkdir(directory.c_str(), S_IRWXU | S_IRWXG | S_IRWXO) == 0;
 }
 
+class CloseDir {
+ public:
+  void operator()(DIR *dir) { closedir(dir); }
+};
+
 StatusOr<std::vector<std::string>> PosixFileSystem::ListFiles(
     const std::string &directory) {
   std::vector<std::string> files;
-  DIR *dir;
+  std::unique_ptr<DIR, CloseDir> dir(opendir(directory.c_str()), CloseDir());
   struct dirent *ent;
-  if ((dir = opendir(directory.c_str())) != nullptr) {
-    while ((ent = readdir(dir)) != nullptr) {
+  if (dir != nullptr) {
+    while ((ent = readdir(dir.get())) != nullptr) {
       if (ent->d_name[0] == '.' &&
           (ent->d_name[1] == '.' || ent->d_name[1] == '\0')) {
         continue;
@@ -51,7 +57,8 @@ StatusOr<size_t> PosixFileSystem::FileSize(const std::string &file) {
   struct stat st;
   if (stat(file.c_str(), &st) != 0) {
     std::stringstream ss;
-    ss << "Unable to stat file [" << file << "]: " << errno;
+    ss << "Unable to stat file [" << file << "]: " << std::strerror(errno)
+       << "[" << errno << "]";
     return Status(StatusCode::INTERNAL, ss.str());
   }
   return st.st_size;

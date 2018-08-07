@@ -164,7 +164,7 @@ class FileObservationStore : public ObservationStore {
     // to the active_file. If another observation comes in with an identical
     // metadata, it is not necessary to write it again.
     std::string last_written_metadata;
-    std::unique_ptr<std::ofstream> active_fstream;
+    std::ofstream active_fstream;
     std::unique_ptr<google::protobuf::io::OstreamOutputStream> active_file;
     // files_taken lists the filenames that have been "Taken" from the store.
     // These should not be used to construct EnvelopeHolders for
@@ -180,7 +180,8 @@ class FileObservationStore : public ObservationStore {
 
   // GetOldestFinalizedFile returns a file name for the oldest file in the
   // store.
-  tensorflow_statusor::StatusOr<std::string> GetOldestFinalizedFile() const;
+  tensorflow_statusor::StatusOr<std::string> GetOldestFinalizedFile(
+      util::ProtectedFields<Fields>::LockedFieldsPtr *fields);
 
   // GenerateFinalizedName returns an absolute path that can be used for
   // finalizing a file. It is based on the current timestamp and a random number
@@ -191,8 +192,8 @@ class FileObservationStore : public ObservationStore {
   // name with the root directory.
   std::string FullPath(const std::string &filename) const;
 
-  bool FinalizeFile(const std::string &filename,
-                    util::ProtectedFields<Fields>::LockedFieldsPtr *fields);
+  bool FinalizeActiveFile(
+      util::ProtectedFields<Fields>::LockedFieldsPtr *fields);
 
   // GetActiveFile returns a pointer to the current OstreamOutputStream. If the
   // file is not yet opened, it will be opened by this function.
