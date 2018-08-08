@@ -140,6 +140,10 @@ message MetricPart {
   //
   // Only one MetricPart per Metric may have this field set.
   IntegerBuckets int_buckets = 3;
+
+  // ID of the defult encoding scheme to use to encode this MetricPart if no
+  // other encoding ID is given.
+  uint32 default_encoding_id = 4;
 }
 
 // A Metric represents a real-world value to be observed and reported by Cobalt.

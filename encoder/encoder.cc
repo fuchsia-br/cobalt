@@ -536,6 +536,11 @@ uint32_t Encoder::MetricId(const std::string& metric_name) {
   return project_->Metric(metric_name)->id();
 }
 
+const std::unordered_map<std::string, uint32_t>&
+Encoder::DefaultEncodingsForMetric(uint32_t metric_id) {
+  return project_->DefaultEncodingsForMetric(metric_id);
+}
+
 ValuePart& Encoder::Value::AddPart(uint32_t encoding_config_id,
                                    const std::string& part_name) {
   // emplace() returns a pair whose first element is an iterator over

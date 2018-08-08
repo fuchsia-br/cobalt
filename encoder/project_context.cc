@@ -46,6 +46,30 @@ const Metric* ProjectContext::Metric(const std::string& metric_name) const {
   return metric_registry_->Get(customer_id_, project_id_, metric_name);
 }
 
+const std::unordered_map<std::string, uint32_t>&
+ProjectContext::DefaultEncodingsForMetric(uint32_t id) {
+  if (default_encodings_.find(id) == default_encodings_.end()) {
+    std::unordered_map<std::string, uint32_t> encodings;
+    const class Metric* metric;
+    if (client_config_) {
+      metric = client_config_->Metric(customer_id_, project_id_, id);
+    } else {
+      CHECK(metric_registry_);
+      metric = metric_registry_->Get(customer_id_, project_id_, id);
+    }
+
+    if (metric) {
+      for (auto pair : metric->parts()) {
+        encodings.insert(
+            std::make_pair(pair.first, pair.second.default_encoding_id()));
+      }
+    }
+    default_encodings_.insert(std::make_pair(id, std::move(encodings)));
+  }
+
+  return default_encodings_[id];
+}
+
 const EncodingConfig* ProjectContext::EncodingConfig(uint32_t id) const {
   if (client_config_) {
     return client_config_->EncodingConfig(customer_id_, project_id_, id);

@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <utility>
 
 #include "config/client_config.h"
@@ -42,6 +43,11 @@ class ProjectContext {
   // pointer.
   const class Metric* Metric(const std::string& metric_name) const;
 
+  // Returns a map from MetricPart names to default encoding_ids for the metric
+  // given by |id|. If no such metric exists, returns an empty map.
+  const std::unordered_map<std::string, uint32_t>& DefaultEncodingsForMetric(
+      uint32_t id);
+
   // Returns the EncodingConfig with the given ID in the project, or nullptr if
   // there is no such EncodingConfig. The caller does not take ownership of the
   // returned pointer.
@@ -54,6 +60,10 @@ class ProjectContext {
  private:
   const uint32_t customer_id_, project_id_;
 
+  // The keys are metric_ids and the values are maps from MetricPart names to
+  // default encoding_ids.
+  std::unordered_map<uint32_t, std::unordered_map<std::string, uint32_t>>
+      default_encodings_;
   // Either client_config_ will be null or else
   // metric_registry_ and encoding_registry_ will be null, depending on
   // which constructor was used.

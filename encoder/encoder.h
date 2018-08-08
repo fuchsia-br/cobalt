@@ -18,6 +18,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "./observation.pb.h"
@@ -277,6 +278,10 @@ class Encoder {
   // Returns the metric_id associated with the given |metric_name| by looking
   // it up in the ProjectContext.
   uint32_t MetricId(const std::string& metric_name);
+
+  // Returns a map from MetricPart names to default encoding_ids.
+  const std::unordered_map<std::string, uint32_t>& DefaultEncodingsForMetric(
+      uint32_t metric_id);
 
   // Sets a static value to use for the current time when computing the
   // day index. By default an Encoder uses the real system clock to determine

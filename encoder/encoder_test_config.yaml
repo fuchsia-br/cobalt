@@ -18,6 +18,7 @@ metric_configs:
   time_zone_policy: LOCAL
   parts:
     "Part1":
+      default_encoding_id: 1
 
 # Metric 2 has one integer part, and UTC time_zone_policy.
 - id: 2
