@@ -17,6 +17,8 @@
 #include <glog/logging.h>
 
 #include <algorithm>
+#include <chrono>
+#include <random>
 #include <string>
 #include <utility>
 #include <vector>
@@ -190,26 +192,116 @@ class RapporAnalyzerTest : public ::testing::Test {
     }
   }
 
-  void PrintTrueCountsAndEstimates(
-      const std::string& case_label, uint32_t num_candidates,
-      const std::vector<CandidateResult>& results,
-      const std::vector<int>& true_candidate_counts) {
+  // Generate a random number from power law distribution on the interval
+  // [|left|,|right|] with given |exponent|
+  int GenerateNumberFromPowerLaw(const double left, const double right,
+                                 const double exponent) {
+    // double precision must be used because of potentially large powers taken
+    std::uniform_real_distribution<double> uniform_0_1_distribution(0.0, 1.0);
+    double random_between_0_1 = uniform_0_1_distribution(random_dev_);
+    double left_to_exponent_plus_1 = std::pow(left, exponent + 1);
+    double random_power_law_number =
+        (std::pow(right, exponent + 1) - left_to_exponent_plus_1) *
+            random_between_0_1 +
+        left_to_exponent_plus_1;
+    random_power_law_number =
+        std::pow(random_power_law_number, 1.0f / (exponent + 1));
+    return random_power_law_number;
+  }
+
+  std::vector<int> CountsEstimatesFromResults(
+      const std::vector<CandidateResult>& results) {
+    uint32_t num_candidates = results.size();
     std::vector<int> count_estimates(num_candidates);
     for (size_t i = 0; i < num_candidates; i++) {
       count_estimates[i] = static_cast<int>(round(results[i].count_estimate));
     }
+    return count_estimates;
+  }
+
+  void PrintTrueCountsAndEstimates(
+      const std::string& case_label, uint32_t num_candidates,
+      const std::vector<CandidateResult>& results,
+      const std::vector<int>& true_candidate_counts) {
+    std::vector<int> count_estimates = CountsEstimatesFromResults(results);
     std::ostringstream true_stream;
-    for (auto x : true_candidate_counts) {
-      true_stream << x << " ";
+    for (size_t i = 0; i < num_candidates; i++) {
+      if (true_candidate_counts[i] > 0) {
+        true_stream << "beta(" << i << ") == " << true_candidate_counts[i]
+                    << std::endl;
+      }
     }
     LOG(ERROR) << "-------------------------------------";
     LOG(ERROR) << case_label;
     LOG(ERROR) << "True counts: " << true_stream.str();
     std::ostringstream estimate_stream;
-    for (auto x : count_estimates) {
-      estimate_stream << x << " ";
+    for (size_t i = 0; i < num_candidates; i++) {
+      if (count_estimates[i] > 0) {
+        estimate_stream << "beta(" << i << ") == " << count_estimates[i]
+                        << std::endl;
+      }
     }
     LOG(ERROR) << "  Estimates: " << estimate_stream.str();
+  }
+
+  // Assess utility of |results|. The informal measure suggested by mironov is:
+  // "Largest n such that at most 10% of the n highest hitters are identified as
+  // such incorrectly (are false positives)". Obviously, this makes sense only
+  // for n in some range (it may unjusty suggest that the results are bad for n
+  // too small, or for n too large, that they are good when in fact they are
+  // not). Also, 10% is arbitrary. So instead, we just compute the false
+  // positive rates for n in some grid set. We also print the total number of
+  // nonzero estimates identified.
+  void AssessUtility(const std::vector<CandidateResult>& results,
+                     const std::vector<int>& true_candidate_counts) {
+    // Get the estimates vector as well as the number of nonzero estimates
+    int num_candidates = results.size();
+    std::vector<int> estimates_vector = CountsEstimatesFromResults(results);
+    int how_many_nonzeros =
+        std::count_if(estimates_vector.begin(), estimates_vector.end(),
+                      [](const int a) { return a > 0; });
+
+    // Sort candidate ids in an ascending order according to their real and
+    // estimated values
+    std::vector<int> estimated_id_order(num_candidates);
+    std::iota(estimated_id_order.begin(), estimated_id_order.end(), 0);
+    std::vector<int> true_id_order = estimated_id_order;
+
+    std::sort(estimated_id_order.begin(), estimated_id_order.end(),
+              [&estimates_vector](const int a, const int b) {
+                return estimates_vector[a] > estimates_vector[b];
+              });
+
+    std::sort(true_id_order.begin(), true_id_order.end(),
+              [&true_candidate_counts](const int a, const int b) {
+                return true_candidate_counts[a] > true_candidate_counts[b];
+              });
+
+    // Compute the false positive rates for a grid of values
+    LOG(ERROR) << "Identified " << how_many_nonzeros << " nonzero estimates.";
+    LOG(ERROR)
+        << "The measure of false positives for identified top n hitters:";
+    std::vector<int> top_hitters_analyzed = {10,  20,  50,   100,  200,
+                                             300, 500, 1000, 2000, 5000};
+    int num_hitters = 0;
+    for (auto it = top_hitters_analyzed.begin();
+         it != top_hitters_analyzed.end(); ++it) {
+      num_hitters = *it;
+      if (num_hitters > num_candidates) {
+        break;
+      }
+      float false_positives = 0;
+      auto after_nth_element_it = true_id_order.begin() + num_hitters;
+      for (int i = 0; i < num_hitters; i++) {
+        auto where_ith_estimated_element = std::find(
+            true_id_order.begin(), after_nth_element_it, estimated_id_order[i]);
+        if (where_ith_estimated_element == after_nth_element_it) {
+          false_positives += 1.0;
+        }
+      }
+      LOG(ERROR) << "The false positive rate at n = " << num_hitters << " is "
+                 << false_positives / num_hitters;
+    }
   }
 
   // Checks correctness of the solution stored in |results| in an explicit way.
@@ -297,6 +389,7 @@ class RapporAnalyzerTest : public ::testing::Test {
     LOG(ERROR) << "Converged? " << analyzer_->minimizer_data_.converged;
     LOG(ERROR) << "How many epochs? "
                << analyzer_->minimizer_data_.num_epochs_run;
+    LOG(ERROR) << "Final l1 penalty == " << analyzer_->minimizer_data_.l1;
     LOG(ERROR) << "Checking solution correctness at each coordinate ...";
     // Check the KKT condition for each coordinate
     int num_errs = 0;
@@ -425,25 +518,38 @@ class RapporAnalyzerTest : public ::testing::Test {
                                uint32_t num_candidates, uint32_t num_bloom_bits,
                                uint32_t num_cohorts, uint32_t num_hashes,
                                std::vector<int> candidate_indices,
-                               std::vector<int> true_candidate_counts) {
+                               std::vector<int> true_candidate_counts,
+                               const bool print_estimates) {
     SetAnalyzer(num_candidates, num_bloom_bits, num_cohorts, num_hashes);
     AddObservationsForCandidates(candidate_indices);
 
     std::vector<CandidateResult> results;
+    auto start_analyze_time = std::chrono::steady_clock::now();
     auto status = analyzer_->Analyze(&results);
     if (!status.ok()) {
       EXPECT_EQ(grpc::OK, status.error_code());
       return;
     }
 
+    auto end_analyze_time = std::chrono::steady_clock::now();
+    LOG(ERROR) << "Analyze() took "
+               << std::chrono::duration_cast<std::chrono::seconds>(
+                      end_analyze_time - start_analyze_time)
+                      .count()
+               << " seconds.";
+
     if (results.size() != num_candidates) {
       EXPECT_EQ(num_candidates, results.size());
       return;
     }
-    PrintTrueCountsAndEstimates(case_label, num_candidates, results,
-                                true_candidate_counts);
 
-    CheckSolutionCorrectness(1e-5, 1e-5, results);
+    if (print_estimates) {
+      PrintTrueCountsAndEstimates(case_label, num_candidates, results,
+                                  true_candidate_counts);
+    }
+
+    CheckSolutionCorrectness(1e-4, 1e-4, results);
+    AssessUtility(results, true_candidate_counts);
   }
 
   // Does the same as DoExperimentWithAnalyze except it also
@@ -502,6 +608,9 @@ class RapporAnalyzerTest : public ::testing::Test {
   // By default this test uses p=0, q=1. Individual tests may override this.
   double prob_0_becomes_1_ = 0.0;
   double prob_1_stays_1_ = 1.0;
+
+  // Random device
+  std::random_device random_dev_;
 };
 
 // Tests the function BuildCandidateMap. We build one small CandidateMap and
@@ -745,12 +854,13 @@ TEST_F(RapporAnalyzerTest, ExperimentWithAnalyze) {
   static const uint32_t kNumCohorts = 3;
   static const uint32_t kNumHashes = 2;
   static const uint32_t kNumBloomBits = 8;
+  static const bool print_estimates = true;
 
   std::vector<int> candidate_indices(100, 5);
   std::vector<int> true_candidate_counts = {0, 0, 0, 0, 0, 100, 0, 0, 0, 0};
-  DoExperimentWithAnalyze("p=0, q=1, only candidate 5", kNumCandidates,
-                          kNumBloomBits, kNumCohorts, kNumHashes,
-                          candidate_indices, true_candidate_counts);
+  DoExperimentWithAnalyze(
+      "p=0, q=1, only candidate 5", kNumCandidates, kNumBloomBits, kNumCohorts,
+      kNumHashes, candidate_indices, true_candidate_counts, print_estimates);
 
   candidate_indices = std::vector<int>(20, 1);
   candidate_indices.insert(candidate_indices.end(), 20, 4);
@@ -758,7 +868,8 @@ TEST_F(RapporAnalyzerTest, ExperimentWithAnalyze) {
   true_candidate_counts = {0, 20, 0, 0, 20, 0, 0, 0, 0, 60};
   DoExperimentWithAnalyze("p=0, q=1, several candidates", kNumCandidates,
                           kNumBloomBits, kNumCohorts, kNumHashes,
-                          candidate_indices, true_candidate_counts);
+                          candidate_indices, true_candidate_counts,
+                          print_estimates);
 
   prob_0_becomes_1_ = 0.1;
   prob_1_stays_1_ = 0.9;
@@ -767,7 +878,8 @@ TEST_F(RapporAnalyzerTest, ExperimentWithAnalyze) {
   true_candidate_counts = {0, 0, 0, 0, 0, 100, 0, 0, 0, 0};
   DoExperimentWithAnalyze("p=0.1, q=0.9, only candidate 5", kNumCandidates,
                           kNumBloomBits, kNumCohorts, kNumHashes,
-                          candidate_indices, true_candidate_counts);
+                          candidate_indices, true_candidate_counts,
+                          print_estimates);
 
   candidate_indices = std::vector<int>(20, 1);
   candidate_indices.insert(candidate_indices.end(), 20, 4);
@@ -775,7 +887,8 @@ TEST_F(RapporAnalyzerTest, ExperimentWithAnalyze) {
   true_candidate_counts = {0, 20, 0, 0, 20, 0, 0, 0, 0, 60};
   DoExperimentWithAnalyze("p=0.1, q=0.9, several candidates", kNumCandidates,
                           kNumBloomBits, kNumCohorts, kNumHashes,
-                          candidate_indices, true_candidate_counts);
+                          candidate_indices, true_candidate_counts,
+                          print_estimates);
 }
 
 // Comparison of Analyze and simple least squares
@@ -820,6 +933,63 @@ TEST_F(RapporAnalyzerTest, CompareAnalyzeToRegression) {
   CompareAnalyzeToSimpleRegression(
       "p=0.1, q=0.9, several candidates", kNumCandidates, kNumBloomBits,
       kNumCohorts, kNumHashes, candidate_indices, true_candidate_counts);
+}
+
+// This is similar to ExperimentWithAnalyze but the true candidate counts are
+// distributed according to the power law; we specify the number of
+// observations and the exponent parameter of the power law. The ids are then
+// shuffled so that it is not true that large ids are more frequent.
+// Additionally, we test accuracy of RAPPOR as a privacy-preserving algorithm
+// for the specified values of p (prob_0_becomes_1_) and q (prob_1_stays_1_), by
+// calling AccessUtility.
+// Note: encoding observations is time consuming so large tests may take long.
+TEST_F(RapporAnalyzerTest, PowerLawExperiment) {
+  static const uint32_t kNumCandidates = 20000;
+  static const uint32_t kNumCohorts = 128;
+  static const uint32_t kNumHashes = 2;
+  static const uint32_t kNumBloomBits = 128;
+  static const uint32_t kNumObservations = 1e+6;
+  static const bool print_estimates = false;
+  const double exponent = 30;
+  const int max_id = static_cast<const int>(kNumCandidates - 1);
+
+  std::vector<int> candidate_indices(kNumObservations);
+  std::vector<int> true_candidate_counts(kNumCandidates, 0);
+
+  // Create a "map" of shuffled ids to randomize the observed id values
+  std::vector<int> candidate_ids_list_shuffled(kNumCandidates);
+  std::iota(candidate_ids_list_shuffled.begin(),
+            candidate_ids_list_shuffled.end(), 0);
+  std::mt19937 g(random_dev_());
+  std::shuffle(candidate_ids_list_shuffled.begin(),
+               candidate_ids_list_shuffled.end(), g);
+
+  // Generate observations from the power law distribution on
+  // [0,kNumCandidates-1]
+  const double left = 0.0;
+  const double right = static_cast<const double>(max_id);
+  for (uint32_t i = 0; i < kNumObservations; i++) {
+    double random_power_law_number =
+        GenerateNumberFromPowerLaw(left, right, exponent);
+    int observed_candidate_id = static_cast<int>(random_power_law_number);
+    observed_candidate_id = std::min(observed_candidate_id, max_id);
+    observed_candidate_id = candidate_ids_list_shuffled[observed_candidate_id];
+    candidate_indices[i] = observed_candidate_id;
+    true_candidate_counts[observed_candidate_id]++;
+  }
+
+  DoExperimentWithAnalyze("p=0, q=1, exponential distribution", kNumCandidates,
+                          kNumBloomBits, kNumCohorts, kNumHashes,
+                          candidate_indices, true_candidate_counts,
+                          print_estimates);
+
+  prob_0_becomes_1_ = 0.25;
+  prob_1_stays_1_ = 0.75;
+
+  DoExperimentWithAnalyze("p=0.5, q=0.75, exponential distribution",
+                          kNumCandidates, kNumBloomBits, kNumCohorts,
+                          kNumHashes, candidate_indices, true_candidate_counts,
+                          print_estimates);
 }
 
 }  // namespace rappor
