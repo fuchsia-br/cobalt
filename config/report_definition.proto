@@ -16,12 +16,16 @@ option go_package = "config";
 // A Report is associated with a Metric and this means that the Report analyzes
 // the Events that were logged to that Metric. The first step occurs on a
 // Fuchsia device where Cobalt analyzes the logged Events in order to form
-// Observations. An Observation is built for a particluar Report and includes
-// one of several privacy-oriented Encodings, depending on the Report type.
+// Observations.
+//
+// An Observation is built for a particular Report. The type of observation,
+// including which of several privacy-oriented Encodings is used or not, depends
+// on the Report type.
+//
 // The Observations are sent to the Cobalt Shuffler which shuffles them in order
 // to break linkability between Observations and linkability with the
 // originating device. Next the shuffled Observations are sent to the Analyzer
-// which aggreagates Observations from all Fuchsia devices in order to generate
+// which aggregates Observations from all Fuchsia devices in order to generate
 // a report.
 //
 // There are multiple types of Metrics and multiple types of Reports. Each
@@ -88,7 +92,7 @@ message ReportDefinition{
     SIMPLE_OCCURRENCE_COUNT = 1;
 
     // Gives the total, daily, fleet-wide count of the number of occurrences of
-    // each of a set of event types, for each of a set of omponents.
+    // each of a set of event types, for each of a set of components.
     //
     // Supported Input Types:
     //   - Metric type: EVENT_COUNT
@@ -126,7 +130,7 @@ message ReportDefinition{
     //   - Metric types: ELAPSED_TIME, FRAME_RATE, MEMORY_USAGE
     //     Encoding: component name is hashed
     //     Observation type: IntegerEventObservation
-    //     Observation value field: respectiely, duration_microseconds
+    //     Observation value field: Respectively, duration_microseconds
     //                              round(fps * 100), bytes
     //
     // ReportDefintion fields particular to this type:
@@ -271,7 +275,7 @@ message ReportDefinition{
     //   - Metric types: ELAPSED_TIME, FRAME_RATE, MEMORY_USAGE
     //     Encoding: component name is hashed
     //     Observation type: IntegerEventObservation
-    //     Observation value field: respectiely, duration_microseconds
+    //     Observation value field: Respectively, duration_microseconds
     //                              round(fps * 100), bytes
     //
     // ReportDefintion fields particular to this type:
