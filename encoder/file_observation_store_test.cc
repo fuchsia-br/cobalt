@@ -245,7 +245,7 @@ TEST_F(FileObservationStoreTest, StressTest) {
     auto observations = (rd() % 10) + 5;
     // Between 50-100 bytes per observation.
     auto size = (rd() % 50) + 50;
-    for (int j = 0; j < observations; j++) {
+    for (auto j = 0u; j < observations; j++) {
       EXPECT_EQ(ObservationStore::kOk, AddObservation(size));
     }
 
@@ -264,7 +264,7 @@ TEST_F(FileObservationStoreTest, StressTest) {
       }
     }
 
-    ASSERT_EQ(store_->Size(), 0);
+    ASSERT_EQ(store_->Size(), 0u);
   }
 }
 
