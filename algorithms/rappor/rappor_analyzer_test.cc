@@ -849,7 +849,7 @@ TEST_F(RapporAnalyzerTest, ExtractEstimatedBitCountRatiosSmallNonRandomTest) {
 // It invokes Analyze() in a few very simple cases, checks that the the
 // algorithm converges and that the result vector has the correct size. Then
 // it prints out the true candidate counts and the computed estimates.
-TEST_F(RapporAnalyzerTest, ExperimentWithAnalyze) {
+TEST_F(RapporAnalyzerTest, DISABLED_ExperimentWithAnalyze) {
   static const uint32_t kNumCandidates = 10;
   static const uint32_t kNumCohorts = 3;
   static const uint32_t kNumHashes = 2;
@@ -897,7 +897,7 @@ TEST_F(RapporAnalyzerTest, ExperimentWithAnalyze) {
 // case, it also computes the least squares solution using QR for exactly the
 // same system and prints both solutions (note that the least squares solution
 // is not always unique)
-TEST_F(RapporAnalyzerTest, CompareAnalyzeToRegression) {
+TEST_F(RapporAnalyzerTest, DISABLED_CompareAnalyzeToRegression) {
   static const uint32_t kNumCandidates = 10;
   static const uint32_t kNumCohorts = 3;
   static const uint32_t kNumHashes = 2;
@@ -943,7 +943,7 @@ TEST_F(RapporAnalyzerTest, CompareAnalyzeToRegression) {
 // for the specified values of p (prob_0_becomes_1_) and q (prob_1_stays_1_), by
 // calling AccessUtility.
 // Note: encoding observations is time consuming so large tests may take long.
-TEST_F(RapporAnalyzerTest, PowerLawExperiment) {
+TEST_F(RapporAnalyzerTest, DISABLED_PowerLawExperiment) {
   static const uint32_t kNumCandidates = 20000;
   static const uint32_t kNumCohorts = 128;
   static const uint32_t kNumHashes = 2;
