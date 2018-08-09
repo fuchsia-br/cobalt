@@ -27,6 +27,15 @@ namespace encoder {
 
 using send_retryer::SendRetryerInterface;
 
+// An ObservationStoreUpdateRecipient is any component that wishes to receive
+// notifications when an Observation has been added to the ObservationStore.
+class ObservationStoreUpdateRecipient {
+ public:
+  // Notifies the Recipient that AddEncryptedObservation() has been invoked on
+  // the ObservationStore.
+  virtual void NotifyObservationsAdded() = 0;
+};
+
 // ShippingManager is a central coordinator for collecting encoded Observations
 // and sending them to the Shuffler. Observations are accumulated in the
 // ObservationStore and periodically sent in batches to the Shuffler by a
@@ -46,7 +55,7 @@ using send_retryer::SendRetryerInterface;
 // Usually a single ShippingManager will be constructed for each shuffler
 // backend the client device wants to send to. All applications running on that
 // device use the same set of ShippingManagers.
-class ShippingManager {
+class ShippingManager : public ObservationStoreUpdateRecipient {
  public:
   // Use this constant instead of std::chrono::seconds::max() in
   // ScheduleParams below in order to effectively set the wait time to
@@ -105,9 +114,7 @@ class ShippingManager {
   // This method must be invoked exactly once.
   void Start();
 
-  // Notifies the ShippingManager that an observation may have been added to the
-  // ObservationStore.
-  void NotifyObservationsAdded();
+  void NotifyObservationsAdded() override;
 
   // Register a request with the ShippingManager for an expedited send. The
   // ShippingManager's worker thread will try to send all of the accumulated,

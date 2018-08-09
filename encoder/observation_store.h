@@ -15,6 +15,29 @@
 namespace cobalt {
 namespace encoder {
 
+// ObservationStoreWriterInterface is an abstract interface to a store
+// of Observations, to be used by code that writes to this store. This is
+// isolated into an abstract interface that can be mocked out in tests.
+class ObservationStoreWriterInterface {
+ public:
+  enum StoreStatus {
+    // AddEncryptedObservation() succeeded.
+    kOk = 0,
+    // The Observation was not added to the store because it is too big.
+    kObservationTooBig,
+    // The observation was not added to the store because it is full. The
+    // Observation itself is not too big to be added otherwise.
+    kStoreFull,
+    // The Observation was not added to the store because of an unspecified
+    // writing error. It may be a file system error, or some other reason.
+    kWriteFailed,
+  };
+
+  virtual StoreStatus AddEncryptedObservation(
+      std::unique_ptr<EncryptedMessage> message,
+      std::unique_ptr<ObservationMetadata> metadata) = 0;
+};
+
 // ObservationStore is an abstract interface to an underlying store of encrypted
 // observations and their metadata. These are organized within the store into
 // Envelopes. Individual (encrypted observation, metadata) pairs are added
@@ -29,7 +52,7 @@ namespace encoder {
 // data is also deleted. If the underlying data should not be deleted (e.g. if
 // the upload failed), the EnvelopeHolder should be placed back into the
 // ObservationStore using the ReturnEnvelopeHolder() method.
-class ObservationStore {
+class ObservationStore : public ObservationStoreWriterInterface {
  public:
   // EnvelopeHolder holds a reference to a single Envelope and its underlying
   // data storage. An instance of EnvelopeHolder is considered to own its
@@ -86,19 +109,6 @@ class ObservationStore {
                             size_t max_bytes_total);
 
   virtual ~ObservationStore() {}
-
-  enum StoreStatus {
-    // AddEncryptedObservation() succeeded.
-    kOk = 0,
-    // The Observation was not added to the store because it is too big.
-    kObservationTooBig,
-    // The observation was not added to the store because it is full. The
-    // Observation itself is not too big to be added otherwise.
-    kStoreFull,
-    // The Observation was not added to the store because of an unspecified
-    // writing error. It may be a file system error, or some other reason.
-    kWriteFailed,
-  };
 
   // Returns a human-readable name for the StoreStatus.
   static std::string StatusDebugString(StoreStatus status);
