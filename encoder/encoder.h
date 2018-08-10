@@ -276,7 +276,7 @@ class Encoder {
   Result Encode(uint32_t metric_id, const Value& value);
 
   // Returns the metric_id associated with the given |metric_name| by looking
-  // it up in the ProjectContext.
+  // it up in the ProjectContext. If there is no such Metric, returns 0.
   uint32_t MetricId(const std::string& metric_name);
 
   // Returns a map from MetricPart names to default encoding_ids.

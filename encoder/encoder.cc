@@ -533,7 +533,11 @@ Encoder::Result Encoder::Encode(uint32_t metric_id, const Value& value) {
 }
 
 uint32_t Encoder::MetricId(const std::string& metric_name) {
-  return project_->Metric(metric_name)->id();
+  const Metric* metric = project_->Metric(metric_name);
+  if (metric) {
+    return metric->id();
+  }
+  return 0;
 }
 
 const std::unordered_map<std::string, uint32_t>&
