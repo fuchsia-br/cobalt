@@ -20,8 +20,15 @@ import (
 var validMetricPartName = regexp.MustCompile("^[a-zA-Z][_a-zA-Z0-9\\- ]+$")
 
 func validateConfiguredMetrics(config *config.CobaltConfig) (err error) {
+	// Set of encodingIds. Used to check that the Metric only refers to valid encodingIds.
+	encodingIds := map[string]bool{}
+
 	// Set of metric ids. Used to detect duplicates.
 	metricIds := map[string]bool{}
+
+	for _, encoding := range config.EncodingConfigs {
+		encodingIds[formatId(encoding.CustomerId, encoding.ProjectId, encoding.Id)] = true
+	}
 
 	for i, metric := range config.MetricConfigs {
 		metricKey := formatId(metric.CustomerId, metric.ProjectId, metric.Id)
@@ -31,14 +38,14 @@ func validateConfiguredMetrics(config *config.CobaltConfig) (err error) {
 		}
 		metricIds[metricKey] = true
 
-		if err = validateMetric(metric); err != nil {
+		if err = validateMetric(metric, encodingIds); err != nil {
 			return fmt.Errorf("Error validating metric %v (%v, %v, %v): %v", metric.Name, metric.CustomerId, metric.ProjectId, metric.Id, err)
 		}
 	}
 	return nil
 }
 
-func validateMetric(m *config.Metric) (err error) {
+func validateMetric(m *config.Metric, encodingIds map[string]bool) (err error) {
 	if m.Id == 0 {
 		return fmt.Errorf("Metric id '0' is invalid.")
 	}
@@ -73,6 +80,11 @@ func validateMetric(m *config.Metric) (err error) {
 
 		if !validMetricPartName.MatchString(name) {
 			return fmt.Errorf("Metric part name '%v' is invalid. Metric part names must match the regular expression '%v'.", name, validMetricPartName)
+		}
+
+		encodingId := formatId(m.CustomerId, m.ProjectId, v.DefaultEncodingId)
+		if !encodingIds[encodingId] {
+			return fmt.Errorf("Metric part '%v' is invalid. There is no encoding id %v.", name, encodingId)
 		}
 	}
 	return nil
