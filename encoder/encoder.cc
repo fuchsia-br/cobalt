@@ -545,6 +545,10 @@ Encoder::DefaultEncodingsForMetric(uint32_t metric_id) {
   return project_->DefaultEncodingsForMetric(metric_id);
 }
 
+const Metric* Encoder::GetMetric(uint32_t metric_id) {
+  return project_->Metric(metric_id);
+}
+
 ValuePart& Encoder::Value::AddPart(uint32_t encoding_config_id,
                                    const std::string& part_name) {
   // emplace() returns a pair whose first element is an iterator over

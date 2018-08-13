@@ -672,6 +672,17 @@ TEST(EncoderTest, DefaultEncodingsForMetric) {
   EXPECT_EQ(kForculusEncodingId, encodings.begin()->second);
 }
 
+TEST(EncoderTest, GetMetric) {
+  // Build the ProjectContext encapsulating our test config data.
+  std::shared_ptr<ProjectContext> project = GetTestProject();
+  FakeSystemData system_data;
+
+  // Construct the Encoder.
+  Encoder encoder(project, ClientSecret::GenerateNewSecret(), &system_data);
+  auto metric = encoder.GetMetric(kSingleStringMetricId);
+  EXPECT_NE(nullptr, metric);
+}
+
 // Tests the advanced API, when used corretly.
 TEST(EncoderTest, AdvancedApiNoErrors) {
   // Build the ProjectContext encapsulating our test config data.

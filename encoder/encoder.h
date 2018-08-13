@@ -283,6 +283,9 @@ class Encoder {
   const std::unordered_map<std::string, uint32_t>& DefaultEncodingsForMetric(
       uint32_t metric_id);
 
+  // Returns a pointer to the metric given by |metric_id|.
+  const Metric* GetMetric(uint32_t metric_id);
+
   // Sets a static value to use for the current time when computing the
   // day index. By default an Encoder uses the real system clock to determine
   // the current time. But this function may be invoked to override that
