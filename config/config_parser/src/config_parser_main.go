@@ -32,6 +32,7 @@ var (
 	gitTimeoutSec  = flag.Int64("git_timeout", 60, "How many seconds should I wait on git commands?")
 	customerId     = flag.Int64("customer_id", -1, "Customer Id for the config to be read. Must be set if and only if 'config_file' is set.")
 	projectId      = flag.Int64("project_id", -1, "Project Id for the config to be read. Must be set if and only if 'config_file' is set.")
+	projectName    = flag.String("project_name", "", "Project name for the config to be read. Must be set if and only if 'config_dir' is set.")
 	outFormat      = flag.String("out_format", "bin", "Specifies the output format. Supports 'bin' (serialized proto), 'b64' (serialized proto to base 64), 'cpp' (a C++ file containing a variable with a base64-encoded serialized proto.) and 'dart' (a Dart file...)")
 	varName        = flag.String("var_name", "config", "When using the 'cpp' or 'dart' output format, this will specify the variable name to be used in the output.")
 	namespace      = flag.String("namespace", "", "When using the 'cpp' output format, this will specify the comma-separated namespace within which the config variable must be places.")
@@ -58,8 +59,12 @@ func main() {
 		glog.Exit("Exactly one of 'repo_url', 'config_file' and 'config_dir' must be set.")
 	}
 
-	if *configFile == "" && *configDir == "" && (*customerId >= 0 || *projectId >= 0) {
-		glog.Exit("'customer_id' and 'project_id' must be set if and only if 'config_file' or 'config_dir' are set.")
+	if *projectId >= 0 && *projectName != "" {
+		glog.Exit("Exactly one of 'project_id' and 'project_name' must be set.")
+	}
+
+	if *configFile == "" && *configDir == "" && (*customerId >= 0 || *projectId >= 0 || *projectName != "") {
+		glog.Exit("'customer_id' and 'project_(id/name)'  must be set if and only if 'config_file' or 'config_dir' are set.")
 	}
 
 	if *configFile != "" && (*customerId < 0 || *projectId < 0) {
@@ -126,6 +131,8 @@ func main() {
 		c, err = config_parser.ReadConfigFromYaml(*configFile, uint32(*customerId), uint32(*projectId))
 	} else if *customerId >= 0 && *projectId >= 0 {
 		c, err = config_parser.ReadProjectConfigFromDir(*configDir, uint32(*customerId), uint32(*projectId))
+	} else if *customerId >= 0 && *projectName != "" {
+		c, err = config_parser.ReadProjectConfigFromDirByName(*configDir, uint32(*customerId), *projectName)
 	} else {
 		c, err = config_parser.ReadConfigFromDir(*configDir)
 	}
