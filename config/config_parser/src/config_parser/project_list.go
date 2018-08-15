@@ -25,8 +25,6 @@ import (
 	"regexp"
 )
 
-const customerId = 1
-
 var validNameRegexp = regexp.MustCompile("^[a-zA-Z][_a-zA-Z0-9]{1,81}$")
 
 // Parse a list of customers appending all their projects to the projectConfig
@@ -152,18 +150,43 @@ func populateProjectConfig(p map[string]interface{}, c *projectConfig) (err erro
 	if !validNameRegexp.MatchString(c.projectName) {
 		return fmt.Errorf("Project name '%v' is invalid. Project names must match the regular expression '%v'", c.projectName, validNameRegexp)
 	}
-	v, ok = p["id"]
-	if !ok {
-		return fmt.Errorf("Missing id for project %v.", c.projectName)
+
+	c.cobaltVersion = cobaltVersion0
+	v, ok = p["cobalt_version"]
+	if ok {
+		version, ok := v.(int)
+		if !ok {
+			return fmt.Errorf("Cobalt version '%v' for project %v is not an integer.", v, c.projectName)
+		}
+		if version == 0 {
+			c.cobaltVersion = cobaltVersion0
+		} else if version == 1 {
+			c.cobaltVersion = cobaltVersion1
+		} else {
+			return fmt.Errorf("Version '%v' for project %v is not '1' or '0'.", version, c.projectName)
+		}
 	}
-	projectId, ok := v.(int)
-	if !ok {
-		return fmt.Errorf("Id '%v' for project %v is not an integer.", v, c.projectName)
+
+	if c.cobaltVersion == cobaltVersion1 {
+		_, ok = p["id"]
+		if ok {
+			return fmt.Errorf("Project %v is using version 1.0. Version 1.0 projects may not specify an id.", c.projectName)
+		}
+		c.projectId = idFromName(c.projectName)
+	} else {
+		v, ok = p["id"]
+		if !ok {
+			return fmt.Errorf("Missing id for project %v.", c.projectName)
+		}
+		projectId, ok := v.(int)
+		if !ok {
+			return fmt.Errorf("Id '%v' for project %v is not an integer.", v, c.projectName)
+		}
+		if projectId <= 0 {
+			return fmt.Errorf("Id for project %v is not a positive integer.", c.projectName)
+		}
+		c.projectId = uint32(projectId)
 	}
-	if projectId < 0 {
-		return fmt.Errorf("Id for project %v is negative. Ids must be positive", c.projectName)
-	}
-	c.projectId = uint32(projectId)
 
 	v, ok = p["contact"]
 	if !ok {

@@ -38,7 +38,7 @@ message ReportDefinition{
   // at most 64. The name must not be changed once data collection has
   // begun. Changing the name constitutes declaring a different
   // ReportDefinition.
-  string name = 1;
+  string report_name = 1;
 
   // The unique numerical identifier for this Report used internally by Cobalt.
   // Normally an instance of ReportDefinition is created by the Cobalt config
@@ -46,7 +46,7 @@ message ReportDefinition{
   // |name| field. If an instance of ReportDefinition is created by some means
   // other than the YAML parser then this should be set to a value that is
   // unique within this ReportDefinition's owning MetricDefinition.
-  int64 id = 2;
+  uint32 id = 2;
 
   // A Report has one of the following types.
   enum ReportType {

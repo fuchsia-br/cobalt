@@ -44,8 +44,9 @@ report_configs:
   metric_id: 1
 `
 	c := projectConfig{
-		customerId: 1,
-		projectId:  10,
+		customerId:    1,
+		projectId:     10,
+		cobaltVersion: cobaltVersion0,
 	}
 
 	if err := parseProjectConfig(y, &c); err != nil {
@@ -106,6 +107,77 @@ report_configs:
 	if !reflect.DeepEqual(e, c.projectConfig) {
 		t.Errorf("%v\n!=\n%v", proto.MarshalTextString(&e), proto.MarshalTextString(&c.projectConfig))
 	}
+}
+
+// Basic test for parseProjectConfig with a 1.0 project.
+func TestParseProjectConfigV1Project(t *testing.T) {
+	y := `
+metric_definitions:
+- metric_name: the_metric_name
+  time_zone_policy: UTC
+  reports:
+  - report_name: the_report
+    report_type: CUSTOM_RAW_DUMP
+  - report_name: the_other_report
+    report_type: STRING_COUNTS_WITH_THRESHOLD
+- metric_name: the_other_metric_name
+  time_zone_policy: LOCAL
+  reports:
+  - report_name: the_report
+    report_type: NUMERIC_PERF_RAW_DUMP
+`
+	c := projectConfig{
+		customerId:    1,
+		projectId:     10,
+		cobaltVersion: cobaltVersion1,
+	}
+
+	if err := parseProjectConfig(y, &c); err != nil {
+		t.Error(err)
+	}
+
+	e := config.CobaltConfig{
+		MetricDefinitions: []*config.MetricDefinition{
+			&config.MetricDefinition{
+				CustomerId:     1,
+				ProjectId:      10,
+				MetricName:     "the_metric_name",
+				Id:             idFromName("the_metric_name"),
+				TimeZonePolicy: config.MetricDefinition_UTC,
+				Reports: []*config.ReportDefinition{
+					&config.ReportDefinition{
+						ReportName: "the_report",
+						Id:         idFromName("the_report"),
+						ReportType: config.ReportDefinition_CUSTOM_RAW_DUMP,
+					},
+					&config.ReportDefinition{
+						ReportName: "the_other_report",
+						Id:         idFromName("the_other_report"),
+						ReportType: config.ReportDefinition_STRING_COUNTS_WITH_THRESHOLD,
+					},
+				},
+			},
+			&config.MetricDefinition{
+				CustomerId:     1,
+				ProjectId:      10,
+				MetricName:     "the_other_metric_name",
+				Id:             idFromName("the_other_metric_name"),
+				TimeZonePolicy: config.MetricDefinition_LOCAL,
+				Reports: []*config.ReportDefinition{
+					&config.ReportDefinition{
+						ReportName: "the_report",
+						Id:         idFromName("the_report"),
+						ReportType: config.ReportDefinition_NUMERIC_PERF_RAW_DUMP,
+					},
+				},
+			},
+		},
+	}
+
+	if !reflect.DeepEqual(e, c.projectConfig) {
+		t.Errorf("%v\n!=\n%v", proto.MarshalTextString(&e), proto.MarshalTextString(&c.projectConfig))
+	}
+
 }
 
 // Tests that we catch non-unique encoding ids.

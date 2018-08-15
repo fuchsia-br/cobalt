@@ -47,7 +47,7 @@ message MetricDefinition {
   // then these values must be set. The |id| field should be set to a number
   // uniquely identifying this Metric within its project.
   uint32 customer_id = 2;
-  uint64 project_id = 3;
+  uint32 project_id = 3;
   uint32 id = 4;
 
   // A Metric has one of the following types.

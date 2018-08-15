@@ -20,6 +20,7 @@ option go_package = "config";
 
 import "config/encodings.proto";
 import "config/metrics.proto";
+import "config/metric_definition.proto";
 import "config/report_configs.proto";
 
 // CobaltConfig holds the configuration for a Cobalt client or Cobalt analyzer.
@@ -29,4 +30,5 @@ message CobaltConfig {
   repeated EncodingConfig encoding_configs = 1;
   repeated Metric metric_configs = 2;
   repeated ReportConfig report_configs = 3;
+  repeated MetricDefinition metric_definitions = 4;
 }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This file contains the respresentation for the configuration of a cobalt
+// This file contains the representation for the configuration of a cobalt
 // project (See projectConfig) and a way to parse that configuration information
 // from a yaml string.
 
@@ -24,6 +24,16 @@ import (
 	"yamlpb"
 )
 
+type cobaltVersion int
+
+const (
+	// Cobalt version 0.1
+	cobaltVersion0 = iota
+
+	// Cobalt version 1.0
+	cobaltVersion1
+)
+
 // Represents the configuration of a single project.
 type projectConfig struct {
 	customerName  string
@@ -31,6 +41,7 @@ type projectConfig struct {
 	projectName   string
 	projectId     uint32
 	contact       string
+	cobaltVersion cobaltVersion
 	projectConfig config.CobaltConfig
 }
 
@@ -50,17 +61,26 @@ func parseProjectConfig(y string, c *projectConfig) (err error) {
 		}
 		encodingIds[e.Id] = true
 		e.CustomerId = c.customerId
-		e.ProjectId = c.projectId
+		e.ProjectId = uint32(c.projectId)
 	}
 
 	for _, e := range c.projectConfig.MetricConfigs {
 		e.CustomerId = c.customerId
-		e.ProjectId = c.projectId
+		e.ProjectId = uint32(c.projectId)
 	}
 
 	for _, e := range c.projectConfig.ReportConfigs {
 		e.CustomerId = c.customerId
+		e.ProjectId = uint32(c.projectId)
+	}
+
+	for _, e := range c.projectConfig.MetricDefinitions {
+		e.CustomerId = c.customerId
 		e.ProjectId = c.projectId
+		e.Id = idFromName(e.MetricName)
+		for _, r := range e.Reports {
+			r.Id = idFromName(r.ReportName)
+		}
 	}
 
 	return nil

@@ -86,7 +86,7 @@ func ReadProjectConfigFromDirByName(rootDir string, customerId uint32, projectNa
 // ReadConfigFromYaml reads the configuration for a single project from a single yaml file.
 // See project_config.go for the format.
 func ReadConfigFromYaml(yamlConfigPath string, customerId uint32, projectId uint32) (c config.CobaltConfig, err error) {
-	yamlConfig, err := ioutil.ReadFile(yamlConfigPath)
+	r, err := newConfigReaderForFile(yamlConfigPath)
 	if err != nil {
 		return c, err
 	}
@@ -94,7 +94,7 @@ func ReadConfigFromYaml(yamlConfigPath string, customerId uint32, projectId uint
 	p := projectConfig{}
 	p.customerId = customerId
 	p.projectId = projectId
-	if err := parseProjectConfig(string(yamlConfig), &p); err != nil {
+	if err := readProjectConfig(r, &p); err != nil {
 		return c, err
 	}
 
@@ -145,7 +145,7 @@ type configDirReader struct {
 	configDir string
 }
 
-// newConfigDirReader returns a pointer to a configReader which will read the
+// newConfigDirReader returns a pointer to a configDirReader which will read the
 // Cobalt configuration stored in the provided directory.
 func newConfigDirReader(configDir string) (r *configDirReader, err error) {
 	info, err := os.Stat(configDir)
@@ -189,6 +189,46 @@ func (r *configDirReader) Project(customerName string, projectName string) (stri
 	if err != nil {
 		return "", err
 	}
+	return string(projectConfig), nil
+}
+
+// configFileReader is an implementation of configReader where the configuration
+// data is stored in a single file.
+type configFileReader struct {
+	configFile string
+}
+
+// newConfigFileReader returns a pointer to a configFileReader which will read
+// the Cobalt configuration stored in the provided file.
+func newConfigFileReader(configFile string) (r *configFileReader, err error) {
+	info, err := os.Stat(configFile)
+	if err != nil {
+		return nil, err
+	}
+
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("%v is not a file.", configFile)
+	}
+
+	return &configFileReader{configFile: configFile}, nil
+}
+
+// newConfigReaderForFile returns a pointer to a configReader which will read the
+// Cobalt configuration stored in the provided file.
+func newConfigReaderForFile(configFile string) (r configReader, err error) {
+	return newConfigFileReader(configFile)
+}
+
+func (r *configFileReader) Customers() (string, error) {
+	return "", fmt.Errorf("configFileReader does not have a customers list.")
+}
+
+func (r *configFileReader) Project(_ string, _ string) (string, error) {
+	projectConfig, err := ioutil.ReadFile(r.configFile)
+	if err != nil {
+		return "", err
+	}
+
 	return string(projectConfig), nil
 }
 
@@ -268,6 +308,7 @@ func mergeConfigs(l []projectConfig) (s config.CobaltConfig) {
 		s.EncodingConfigs = append(s.EncodingConfigs, c.projectConfig.EncodingConfigs...)
 		s.MetricConfigs = append(s.MetricConfigs, c.projectConfig.MetricConfigs...)
 		s.ReportConfigs = append(s.ReportConfigs, c.projectConfig.ReportConfigs...)
+		s.MetricDefinitions = append(s.MetricDefinitions, c.projectConfig.MetricDefinitions...)
 	}
 
 	// In order to ensure that we output a stable order in the binary protobuf, we
@@ -280,6 +321,9 @@ func mergeConfigs(l []projectConfig) (s config.CobaltConfig) {
 	})
 	sort.SliceStable(s.ReportConfigs, func(i, j int) bool {
 		return cmpConfigEntry(s.ReportConfigs[i], s.ReportConfigs[j])
+	})
+	sort.SliceStable(s.MetricDefinitions, func(i, j int) bool {
+		return cmpConfigEntry(s.MetricDefinitions[i], s.MetricDefinitions[j])
 	})
 
 	return s

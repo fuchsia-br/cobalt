@@ -329,6 +329,45 @@ contact: ben
 	}
 }
 
+// Checks validation for the cobalt_version field.
+func TestPopulateProjectListVersionValidation(t *testing.T) {
+	var y string
+	var c projectConfig
+
+	y = `
+name: ledger
+id: 1
+contact: ben
+cobalt_version: 0
+`
+	c = projectConfig{}
+	if err := parseProjectConfigForTest(y, &c); err != nil {
+		t.Error("Rejected a project with Cobalt version 0: %v", err)
+	}
+
+	y = `
+name: ledger
+contact: ben
+cobalt_version: 1
+`
+	c = projectConfig{}
+	if err := parseProjectConfigForTest(y, &c); err != nil {
+		t.Error("Rejected a project with Cobalt version 1: %v", err)
+	}
+
+	// Checks that an error is returned if the Cobalt version is an unexpected value.
+	y = `
+name: ledger
+id: 1
+contact: ben
+cobalt_version: 10
+`
+	c = projectConfig{}
+	if err := parseProjectConfigForTest(y, &c); err == nil {
+		t.Errorf("Accepted project with invalid Cobalt version.")
+	}
+}
+
 // Checks validation for the id field.
 func TestPopulateProjectListIdValidation(t *testing.T) {
 	var y string
@@ -342,6 +381,29 @@ contact: ben
 	c = projectConfig{}
 	if err := parseProjectConfigForTest(y, &c); err == nil {
 		t.Errorf("Accepted project without id.")
+	}
+
+	// Checks that Cobalt version 1 projects without an id are accepted.
+	y = `
+name: ledger
+contact: ben
+cobalt_version: 1
+`
+	c = projectConfig{}
+	if err := parseProjectConfigForTest(y, &c); err != nil {
+		t.Errorf("Rejected a Cobalt version 1 project without id.: %v", err)
+	}
+
+	// Checks that Cobalt version 1 projects with an id are rejected.
+	y = `
+name: ledger
+contact: ben
+id: 10
+cobalt_version: 1
+`
+	c = projectConfig{}
+	if err := parseProjectConfigForTest(y, &c); err == nil {
+		t.Errorf("Accepted a Cobalt version 1 project with an id.")
 	}
 
 	// Checks that an error is returned if the id is an invalid type.
