@@ -32,8 +32,8 @@ var (
 	gitTimeoutSec  = flag.Int64("git_timeout", 60, "How many seconds should I wait on git commands?")
 	customerId     = flag.Int64("customer_id", -1, "Customer Id for the config to be read. Must be set if and only if 'config_file' is set.")
 	projectId      = flag.Int64("project_id", -1, "Project Id for the config to be read. Must be set if and only if 'config_file' is set.")
-	outFormat      = flag.String("out_format", "bin", "Specifies the output format. Supports 'bin' (serialized proto), 'b64' (serialized proto to base 64) and 'cpp' (ta C++ file containing a variable with a base64-encoded serialized proto.)")
-	varName        = flag.String("var_name", "config", "When using the 'cpp' output format, this will specify the variable name to be used in the output.")
+	outFormat      = flag.String("out_format", "bin", "Specifies the output format. Supports 'bin' (serialized proto), 'b64' (serialized proto to base 64), 'cpp' (a C++ file containing a variable with a base64-encoded serialized proto.) and 'dart' (a Dart file...)")
+	varName        = flag.String("var_name", "config", "When using the 'cpp' or 'dart' output format, this will specify the variable name to be used in the output.")
 	namespace      = flag.String("namespace", "", "When using the 'cpp' output format, this will specify the comma-separated namespace within which the config variable must be places.")
 	depFile        = flag.String("dep_file", "", "Generate a depfile (see gn documentation) that lists all the project configuration files. Requires -output_file and -config_dir.")
 )
@@ -110,8 +110,10 @@ func main() {
 			namespaceList = strings.Split(*namespace, ",")
 		}
 		outputFormatter = config_parser.CppOutputFactory(*varName, namespaceList, configLocation)
+	case "dart":
+		outputFormatter = config_parser.DartOutputFactory(*varName, configLocation)
 	default:
-		glog.Exitf("'%v' is an invalid out_format parameter. 'bin', 'b64' and 'cpp' are the only valid values for out_format.", *outFormat)
+		glog.Exitf("'%v' is an invalid out_format parameter. 'bin', 'b64', 'cpp' and 'dart' are the only valid values for out_format.", *outFormat)
 	}
 
 	// First, we parse the configuration from the specified location.
