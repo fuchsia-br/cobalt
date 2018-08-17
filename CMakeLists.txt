@@ -44,6 +44,7 @@ set(DIR_END_TO_END_TESTS "${CMAKE_BINARY_DIR}/e2e_tests")
 set(DIR_GTESTS_BT_EMULATOR "${CMAKE_BINARY_DIR}/gtests_btemulator")
 set(DIR_GTESTS_CLOUD_BT "${CMAKE_BINARY_DIR}/gtests_cloud_bt")
 set(DIR_PERF_TESTS "${CMAKE_BINARY_DIR}/perf_tests")
+set(DIR_MANUAL_TESTS "${CMAKE_BINARY_DIR}/manual_tests")
 
 # Go related defines
 set(GO_PATH env GOPATH="${CMAKE_SOURCE_DIR}/third_party/go:${CMAKE_BINARY_DIR}/go-proto-gen")

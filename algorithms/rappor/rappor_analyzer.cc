@@ -15,6 +15,8 @@
 #include "algorithms/rappor/rappor_analyzer.h"
 
 #include <glog/logging.h>
+#include <algorithm>
+#include <random>
 
 #include "algorithms/rappor/rappor_encoder.h"
 #include "third_party/lossmin/lossmin/losses/inner-product-loss-function.h"
@@ -61,32 +63,18 @@ grpc::Status RapporAnalyzer::Analyze(
     return status;
   }
 
-  // This is the right-hand side vector b from the equation Ax = b that
-  // we are estimating. See comments on the declaration of
-  // ExtractEstimatedBitCountRatios() for a description of this vector.
+  // est_bit_count_ratios is the right-hand side vector b from the equation Ax =
+  // b that we are estimating, and est_std_errors are the corresponding standard
+  // errors. See comments on the declaration of
+  // ExtractEstimatedBitCountRatiosAndStdErrors() for a description of this
+  // vector.
   Eigen::VectorXf est_bit_count_ratios;
-  status = ExtractEstimatedBitCountRatios(&est_bit_count_ratios);
-  if (!status.ok()) {
-    return status;
-  }
-
-  ///////////////////////////////////////////////////////////////////////////
-  // Note(rudominer) The code below is a temporary proof-of-concept.
-  // It is not intended to be used for Cobalt production. The goal is to
-  // estimate a solution to Ax=b where A is the candidate_matrix_ and b is
-  // the est_bit_count_ratios vector. Below we use the
-  // ParallelBoostingWithMomentum minimizer from the lossmin library with a
-  // LinearRegressionLossFunction. Although this code gives seemingly good
-  // results in very simple test situations, I have no confidence that
-  // this implementation is correct and I fully expect this code to be
-  // rewritten by somebody more expert than me on this topic.
-  // The purpose of this code is mostly to act as a starting point
-  // and in particular to indicate how the lossmin and Eigen libraries may be
-  // integrated into this class.
-  //
-  // TODO(mironov) Rewrite this code to be what we actually want.
-  //
-  ///////////////////////////////////////////////////////////////////////////
+  std::vector<float> est_std_errors;
+  ExtractEstimatedBitCountRatiosAndStdErrors(&est_bit_count_ratios,
+                                             &est_std_errors);
+  // Initialize the loss function and gradient evaluator
+  // TODO(bazyli) finish description once we fork from or upstream the lossmin
+  // library
 
   // Note(rudominer) The GradientEvaluator constructor takes a
   // const LabelSet& parameter but est_bit_count_ratios is a
@@ -111,73 +99,386 @@ grpc::Status RapporAnalyzer::Analyze(
   lossmin::LinearRegressionLossFunction loss_function;
   lossmin::GradientEvaluator grad_eval(candidate_matrix_, as_label_set,
                                        &loss_function);
+  // In the first step, we compute the lasso path. That is,
+  // we compute the solutions to a sequence of lasso problems
+  // with decreasing values of l1 penalty. The path is linear, that is the
+  // difference between the lasso penalty of each two consecutive subproblems is
+  // constant. The solution to each problem gives a "warm start" for the next
+  // one. (The initial, largest value of l1 is the smallest value such that the
+  // solution to the lasso problem is zero. This value of l1 is equal to the
+  // infinity norm of the unpenalized objective gradient at zero). This is the
+  // standard way to compute lasso and has a number of advantages cited in
+  // literature. It is more numerically stable and more efficient than computing
+  // just the last problem; it gives the entire path of solutions and therefore
+  // can be used to choose the most meaningful value of penalty (in our case we
+  // do not really know it a priori).
+  // TODO(bazyli): double precision
+
+  // Initialize the solution vector to zero vector for lasso path.
+  const int num_candidates = candidate_matrix_.cols();
+  lossmin::Weights est_candidate_weights =
+      lossmin::Weights::Zero(num_candidates);
+
+  // Construct the minimizer with zero penalty (we will set penalties later).
+  // Also compute initial gradient (this will be used to get initilal l1
+  // penalty and convergence threshold).
+  lossmin::ParallelBoostingWithMomentum minimizer(0.0, 0.0, grad_eval);
+  lossmin::Weights initial_gradient = lossmin::Weights::Zero(num_candidates);
+  minimizer.SparseInnerProductGradient(est_candidate_weights,
+                                       &initial_gradient);
 
   // Set the parameters for the convergence algorithm.
-  // l1 and l2 must be >= 0. In order to achieve
-  // behavior similar to LASSO, we need l1 > 0. Small positive value of
-  // l2 (two or three orders of magnitude smaller than l1) may
-  // also be desirable for stability. The value of kConvergenceThreshold should
-  // be small but not too small. For single precision (float) it should
-  // probably be something between 1e-5 and 1e-7. kLossEpochs and
-  // kConvergencepochs should be small positive numbers (smaller than
-  // kMaxEpochs).
-  // TODO(bazyli) design and implement how the whole algorithm is run, including
-  // values of parameters.
+  // Note(bazyli)
+  // 1. To improve the accuracy of the solution you may want to
+  // set kRelativeConvergenceThreshold and
+  // kRelativeInLassoPathConvergenceThreshold to smaller values, at the expense
+  // of more computations (epochs) performed.
+  // 2. You can set kZeroThreshold to the value you think is best (smaller
+  // than what you would deem negligible); keep in mind that very small
+  // values may be difficult for individual runs of the minimizer.
+  // 3. You can change kMaxNonzeroCoefficients depending on how many largest
+  // coefficients you care about; smaller number means fewer iterations (shorter
+  // lasso path).
+  // 4. Modify other parameters with caution.
+  //
+  // kRelativeConvergenceThreshold is the improvement that we expect to achieve
+  // at convergence, relative to initial gradient. That is, if ||g|| is the
+  // initial 2-norm norm of the gradient, we expect the final (i.e. after the
+  // last lasso problem) total measure of KKT violation to be equal to
+  // kRelativeConvergenceThreshold * ||g||. Value smaller than 1e-8 gives a full
+  // (single precision) convergence and is probably overshooting because the
+  // purpose of the first step is mostly to identify potential nonzero
+  // coefficients. Something between 1e-5 and 1e-7 should be totally enough.
+  // Even larger value can be chosen for performance reasons. This accuracy will
+  // be used only in the final lasso subproblem.
+  // kRelativeInLassoPathConvergenceThreshold has the same interpretaion but
+  // will be used inside the lasso path (before the last subproblem). We
+  // probably want to set this to be slightly (e.g. ten times) less restrictive
+  // (larger) than kRelativeConvergenceThreshold for efficiency because the
+  // solutions inside the lasso path serve as a "warm-up" before the last
+  // subproblem; this subproblem, on the other hand, can be more accurate and
+  // should benefit more from "momentum" computations in the algorithm.
+  // TODO(bazyli) update lossmin so that convergence threshold can be computed
+  // from initial kkt violation directly
+  //
+  // Note: The actual absolute values of convergence
+  // thresholds used in the algorithm are capped in case ||g|| is almost
+  // zero in the first place (see below).
+  static const float kRelativeConvergenceThreshold = 1e-4;
+  static const float kRelativeInLassoPathConvergenceThreshold = 1e-3;
+  // kZeroThreshold is the (relative) proportion below which we assume a
+  // candidate count to be effectively zero; that is, we assume a candidate to
+  // be zero if its estimated count is below kZeroThreshold of the
+  // bit_counter_.num_observations(). It cannot be exactly zero for
+  // performance reasons (also, exact zero makes little if any sense
+  // numerically). Also, smaller values are more difficult for individual runs
+  // of the minimizer.
+  static const float kZeroThreshold = 1e-4;
+  // kNumLassoSteps is the number of problems solved in the lasso path (the R
+  // library glmnet default value is 100); it is not true that more steps
+  // will take more time: there should be a "sweet spot" and definitely this
+  // number should not be too small (probably something between 50 and 500).
+  static const int kNumLassoSteps = 100;
+  // kL1maxToL1minRatio is the ratio between the first and the last l1 penalty
+  // value in the lasso path; should probably be something between 1e-6 and
+  // 1e-3. (the R library glmnet uses 1e-3 by default).
+  static const float kL1maxToL1minRatio = 1e-3;
+  // kL2toL1Ratio is the ratio between l1 and l2 penalty.
+  // Although pure lasso does not include any l2 penalty, a tiny bit can improve
+  // stability. A value of kL2toL1Ratio less or equal to 1e-2 should not affect
+  // the interpretation of the solution.
+  static const float kL2toL1Ratio = 1e-2;
+  // kLossEpochs denotes how often the current objective value is recorded in
+  // the solver (this only matters if kUseSimpleConvergenceCheck == true).
+  // kConvergenceEpochs denotes how often the minimizer checks convergence.
+  // If kUseSimpleConvergence == true, then the algorithm will check convergence
+  // every (kLossEpochs * kConvergenceEpochs) epochs and terminate if the
+  // relative change in the objective in the last kConvergenceEpochs recorded
+  // values was sufficiently small to declare convergence. If
+  // kUseSimpleConvergenceCheck == false, the algorithm will simply check every
+  // kConvergenceEpochs if the KKT condition holds to declare convergence.
+  // kLossEpochs and kConvergenceEpochs must be positive (and probably both not
+  // larger than 10). Also, kLossEpochs <= kConvergenceEpochs makes more sense.
+  // TODO(bazyli) update lossmin to incorporate a combined convergence check
+  static const int kLossEpochs = 5;
+  static const int kConvergenceEpochs = 10;
+  static const bool kUseSimpleConvergenceCheck = false;
+  static const bool kInLassoPathUseSimpleConvergenceCheck = false;
+  // kMaxEpochs, kMaxNonzeroCoefficients, and kMaxSolution1Norm are global
+  // stopping parameters for the lasso path.
+  // kMaxEpochs denotes the limit on the total number of epochs (iterations)
+  // run; the actual number can be up to two times larger (not including the
+  // second RAPPOR step) because every individual lasso subproblem (run of
+  // minimizer) has the same bound and the total epochs count is updated after
+  // the subproblem is run.
+  static const int kMaxEpochs = 10000;
+  // kMaxNonzeroCoefficients is the maximum expected number of nonzero
+  // coefficients in the solution. The final step of the lasso path will be
+  // entered when this number of nonzeros (i.e. coefficients larger than
+  // kZeroThreshold) have been identified in the algorithm; otherwise the
+  // algorithm will perform all kNumLassoSteps (unless it reaches the maximum
+  // number of epochs); this number is adjusted to 20% of all candidates if the
+  // total number of candidates is not large enough (see below).
+  static const int kMaxNonzeroCoefficients = 500;
+  // We expect the real underlying solution to have 1-norm equal to 1.0, and
+  // even more so, the solution of the penalized problem should have norm
+  // smaller than 1.0. Thus, we also want to stop the lasso computations before
+  // the 1-norm of the current solution vector (est_candidate_weights)
+  // approaches 1.0. This is closely related to the standard representation of
+  // the lasso problem. If we stop when the 1-norm equals 1.0, the lasso
+  // solution also solves the quadratic program: min || A x - y ||_2 subject to
+  // || x ||_2 <= 1.0. However, note that if there is an exact solution to Ax =
+  // y with || x ||_2 = 1.0, it will not be found in the lasso step because of
+  // penalty. It may be found in the second RAPPOR step where the penalty is
+  // insignificant.
+  static const float kMaxSolution1Norm = 0.9;
+  // alpha is a constant from parallel boosting with momentum paper,
+  // must be 0 < alpha < 1; lossmin library default initial choice is 0.5,
+  // but we need to be able to reset this value in minimizer if needed.
+  static const float alpha = 0.5;
+  // kNumRunsSecondStep is the number of runs to estimate standard deviations of
+  // coefficients in the second RAPPOR step (in GetSignificantNonZeros).
+  static const int kNumRunsSecondStep = 20;
+  // kMaxEpochsSingleRunSecondStep is the maximum number of epochs of a single
+  // solve in the second RAPPOR step
+  static const int kMaxEpochsSingleRunSecondStep = 500;
 
-  // Scale the penalty terms so that they have the same interpretation for any
-  // number of bits and cohorts. This is introduced because lossmin scales the
-  // gradient of the unpenalized part of the objective by
-  // 1 / candidate_matrix_.rows() == 1 / (num_bits * num_cohorts)
-  const uint32_t num_bits = config_->num_bits();
-  const uint32_t num_cohorts = config_->num_cohorts();
-  const float l1 = 0.5f / (num_bits * num_cohorts);
-  const float l2 = 1e-3f / (num_bits * num_cohorts);
-  const float kConvergenceThreshold = 1e-6;
-  const int kLossEpochs = 5;         // how often record loss
-  const int kConvergenceEpochs = 5;  // how often check convergence
-  const int kMaxEpochs = 10000;      // maximum number of iterations
-  const bool kUseSimpleConvergenceCheck = true;
+  // Perform initializations based on the chosen parameters.
+  // l1max is the smallest value such that the solution to the lasso problem is
+  // zero. It is equal to the infinity norm of the unpenalized objective
+  // gradient at zero.
+  const float l1max = initial_gradient.array().abs().maxCoeff();
+  const float l1min = kL1maxToL1minRatio * l1max;
+  const float l2 = kL2toL1Ratio * l1min;
+  const float l1delta = (l1max - l1min) / kNumLassoSteps;
+  const float initial_mean_gradient_norm =
+      initial_gradient.norm() / num_candidates;
+  const float kConvergenceThreshold = std::max(
+      1e-12f, kRelativeConvergenceThreshold * initial_mean_gradient_norm);
+  const float kInLassoPathConvergenceThreshold =
+      std::max(1e-12f, kRelativeInLassoPathConvergenceThreshold *
+                           initial_mean_gradient_norm);
+  // If the number of candidates is at most 10, find all coefficients. Otherwise
+  // find at most 20% of coefficients but no more than 500 and no less than 10.
+  const int max_nonzero_coeffs =
+      num_candidates < 10
+          ? num_candidates
+          : std::max(10, std::min(static_cast<int>(0.2 * num_candidates),
+                                  kMaxNonzeroCoefficients));
 
-  lossmin::ParallelBoostingWithMomentum minimizer(l1, l2, grad_eval);
-  minimizer.set_convergence_threshold(kConvergenceThreshold);
-  minimizer.set_use_simple_convergence_check(kUseSimpleConvergenceCheck);
-  minimizer.Setup();
+  int total_epochs_run = 0;
+  minimizer.set_zero_threshold(kZeroThreshold);
+  minimizer.set_convergence_threshold(kInLassoPathConvergenceThreshold);
+  minimizer.set_use_simple_convergence_check(
+      kInLassoPathUseSimpleConvergenceCheck);
+  minimizer.set_l2(l2);
+  // Learning rates must be re-computed when l2 penalty changes
+  minimizer.compute_and_set_learning_rates();
 
-  const int num_candidates = candidate_matrix_.cols();
-  // Initialize the weight vector to the constant 1/n vector.
-  lossmin::Weights est_candidate_weights =
-      lossmin::Weights::Constant(num_candidates, 1.0 / num_candidates);
+  VLOG(4) << "Initial gradient norm == " << initial_mean_gradient_norm;
+  VLOG(4) << "Convergence Threshold" << kConvergenceThreshold;
+
+  // Perform the lasso path computations
   std::vector<float> loss_history;
-  if (!minimizer.Run(kMaxEpochs, kLossEpochs, kConvergenceEpochs,
-                     &est_candidate_weights, &loss_history)) {
-    std::string message =
-        "ParallelBoostingWithMomentum did not converge after 10,000 epochs.";
-    LOG_STACKDRIVER_COUNT_METRIC(ERROR, kAnalyzeFailure) << message;
-    return grpc::Status(grpc::INTERNAL, message);
+  float solution_1_norm = 0;
+  int how_many_nonzero_coeffs = 0;  // number of identified nonzero coefficients
+  int i = 0;
+  for (; i < kNumLassoSteps + 1 && total_epochs_run < kMaxEpochs; i++) {
+    minimizer.set_l1(l1max - i * l1delta);
+    // Set minimizer input as in the parallel boosting with momentum paper
+    minimizer.set_phi_center(est_candidate_weights);
+    minimizer.set_converged(false);
+    minimizer.set_alpha(alpha);
+    minimizer.set_beta(1 - alpha);
+    // TODO(bazyli) define "per step" convergence thresholds?
+
+    // Compute the 1-norm of the current solution and the number of nonzero
+    // coefficients
+    solution_1_norm = est_candidate_weights.lpNorm<1>();
+    how_many_nonzero_coeffs = 0;
+    for (int j = 0; j < est_candidate_weights.size(); j++) {
+      if (est_candidate_weights[j] > kZeroThreshold) {
+        how_many_nonzero_coeffs++;
+      }
+    }
+
+    VLOG(4) << "Minimizing " << i
+            << "-th subproblem, with l1 == " << l1max - i * l1delta;
+    // TODO(bazyli) need to add a stopping rule if no new nonzeros have been
+    // added for a long time?
+    if (how_many_nonzero_coeffs >= max_nonzero_coeffs || i == kNumLassoSteps ||
+        solution_1_norm > kMaxSolution1Norm) {
+      // Enter the final lasso step
+      minimizer.set_convergence_threshold(kConvergenceThreshold);
+      minimizer.set_use_simple_convergence_check(kUseSimpleConvergenceCheck);
+      i = kNumLassoSteps;
+      VLOG(4) << "Entered last Run";
+    }
+
+    minimizer.Run(kMaxEpochs, kLossEpochs, kConvergenceEpochs,
+                  &est_candidate_weights, &loss_history);
+    VLOG(4) << "Ran" << minimizer.num_epochs_run() << "epochs in this step.";
+    total_epochs_run += minimizer.num_epochs_run();
+    // TODO(bazyli) decide if running out of epochs is an error
   }
 
-  // Save minimizer data afer run
-  minimizer_data_.num_epochs_run = minimizer.num_epochs_run();
+  VLOG(4) << "Ran " << total_epochs_run << " epochs in total.";
+
+  // We will need to construct the matrix for the second step. This matrix
+  // is composed of columns corresponding to identified nonzero candidates.
+  // how_many_nonzero_coeffs is an approximation of their number
+  std::vector<int> second_step_cols;
+  second_step_cols.reserve(how_many_nonzero_coeffs);
+  for (int i = 0; i < est_candidate_weights.size(); i++) {
+    if (est_candidate_weights[i] > kZeroThreshold) {
+      second_step_cols.push_back(i);
+    }
+  }
+
+  // Initialize second step matrix data
+  const uint32_t second_step_num_candidates = second_step_cols.size();
+  const uint32_t num_bits = config_->num_bits();
+  const uint32_t num_cohorts = config_->num_cohorts();
+  const uint32_t num_hashes = config_->num_hashes();
+  const uint32_t num_observations = bit_counter_.num_observations();
+  const int nonzero_matrix_entries =
+      num_bits * num_cohorts * num_hashes * second_step_num_candidates;
+
+  // We will construct the matrix from triplets which is simple and efficent
+  std::vector<Eigen::Triplet<float>> second_step_matrix_triplets;
+  second_step_matrix_triplets.reserve(nonzero_matrix_entries);
+
+  // Convert the candidate_matrix_ to colmajor format to iterate over columns
+  // efficiently.
+  // TODO(bazyli) Question: is it possible and better to have colmajor type
+  // everywhere, also in lossmin?
+  Eigen::SparseMatrix<float, Eigen::ColMajor> candidate_matrix_col_major =
+      candidate_matrix_;
+  for (uint32_t col_i = 0; col_i < second_step_num_candidates; col_i++) {
+    // Iterate over column column corresponding to this candidate and update
+    // triplets
+    for (Eigen::SparseMatrix<float, Eigen::ColMajor>::InnerIterator it(
+             candidate_matrix_col_major, second_step_cols[col_i]);
+         it; ++it) {
+      second_step_matrix_triplets.push_back(
+          Eigen::Triplet<float>(it.row(), col_i, it.value()));
+    }
+  }
+
+  // Finally build the second step matrix. Call it A_s
+  Eigen::SparseMatrix<float, Eigen::RowMajor> candidate_submatrix_second_step(
+      candidate_matrix_.rows(), second_step_num_candidates);
+  candidate_submatrix_second_step.setFromTriplets(
+      second_step_matrix_triplets.begin(), second_step_matrix_triplets.end());
+
+  lossmin::Weights est_candidate_weights_second_step =
+      lossmin::Weights(second_step_num_candidates);
+  for (uint32_t i = 0; i < second_step_num_candidates; i++) {
+    int first_step_col_num = second_step_cols[i];
+    est_candidate_weights_second_step[i] =
+        est_candidate_weights[first_step_col_num];
+  }
+
+  // We can now run the second step of RAPPOR.
+  // Note(bazyli) We will use parallel boosting with
+  // momentum again, with very small l1 and l2 penalties. We could use a
+  // standard least squares solver here (e.g. based on QR decomposition).
+  // However, we still cannot technically guarantee that the columns are
+  // linearly independent, and so a tiny penalty will prevent the coefficients
+  // from behaving ''wildly'' (this is a better-safe-than-sorry choice); also,
+  // we have a very good initial point from the lasso computations so we expect
+  // to converge fast (and the problem is smaller than before). Conceptually, we
+  // are just solving the least squares problem.
+  //
+  // The values from lasso computations are a bit biased (likely lower)
+  // because of penalty, so the solution from this step should be closer to the
+  // underlying distribution. Also, we want to reject the non-zeros which
+  // may have been identified as such incorrectly (accidentally). Ideally,
+  // for each coefficient, we would like to have a p-value for the null
+  // hypothesis that it is zero, or use some other principle to identify the
+  // significantly nonzero coefficients.
+  //
+  // The RAPPOR paper performs least squares computation at this point; it has
+  // closed-form expression for p-values of coefficients, which we could use
+  // (with null hypothesis for each coefficient being that it is zero). However,
+  // this expression involves the matrix (A_s^T A_s)^(-1) which a priori might
+  // not exist (or A_s^T A_s can be numerically singular or very
+  // ill-conditioned). Although unlikely, we do not want to check that (even
+  // computing the inverse might be difficult). The p-values in the linear
+  // regression problem min || A * x - b ||_2, are computed with the assumption
+  // that y_i = < a_i,x_i > + err_i, where err_i are i.i.d. gaussian errors (so
+  // technically speaking, these p-values are not correct in our case). Although
+  // we do not compute the theoretical p-values, we nevertheless make the same
+  // assumption that the noise of detecting y_i (in our case, this is the
+  // normalized count of bit i), is Gaussian with standard deviation equal to
+  // the standard error of y_i (stored in the est_std_errors). We assume these
+  // errors to be independent. We thus simulate the standard errors of the
+  // coefficients by introducing this noise directly in y (as_label_set)
+  // num_runs time, each time re-running the minimizer with the same input.
+  // Based on the values of standard errors we select significant and
+  // nonsignificant nonzeros (see the description of GetSignificantNonZeros for
+  // details).
+  //
+  // In any event, this process is conditioned on the choice made by the lasso
+  // step (as are p-values from least squares used in RAPPOR). They do not
+  // accout for anything random that happens in the first step above. Other
+  // possible choices to get the p-values include: 1. bootstrap on the pairs
+  // (a_i,y_i) -- but this could give zero columns. 2. p-values for the
+  // particular choice of final penalty in lasso -- described in "Statistical
+  // Learning with Sparsity: The Lasso and Generalizations" pp. 150
+
+  // Initialize the parameters. We are using l1 penalty value that is 100 times
+  // smaller than the final value in lasso path;
+  // Run the second step of RAPPOR.
+  const float l1_second_step = 1e-2 * minimizer.l1();
+  const float l2_second_step = kL2toL1Ratio * l1_second_step;
+  est_candidate_weights_second_step = GetSignificantNonZeros(
+      l1_second_step, l2_second_step, kNumRunsSecondStep,
+      kMaxEpochsSingleRunSecondStep, kLossEpochs, kConvergenceEpochs,
+      kZeroThreshold, est_candidate_weights_second_step, est_std_errors,
+      candidate_submatrix_second_step, as_label_set);
+
+  // Prepare the final solution vector
+  results_out->resize(num_candidates);
+  for (int i = 0; i < num_candidates; i++) {
+    results_out->at(i).count_estimate = 0;
+  }
+
+  for (uint32_t i = 0; i < second_step_num_candidates; i++) {
+    int first_step_col_num = second_step_cols[i];
+    results_out->at(first_step_col_num).count_estimate =
+        est_candidate_weights_second_step[i] * num_observations;
+  }
+
+  // Save minimizer data afer run (from first step)
+  minimizer_data_.num_epochs_run = total_epochs_run;
   minimizer_data_.converged = minimizer.converged();
   if (!loss_history.empty()) {
     minimizer_data_.final_loss = loss_history.back();
   }
+  // Save final penalties from lasso computations
   minimizer_data_.l1 = minimizer.l1();
   minimizer_data_.l2 = minimizer.l2();
   minimizer_data_.convergence_threshold = kConvergenceThreshold;
 
-  results_out->resize(num_candidates);
-  for (auto i = 0; i < num_candidates; i++) {
-    results_out->at(i).count_estimate =
-        est_candidate_weights(i) * bit_counter_.num_observations();
+  if (!minimizer.converged()) {
+    std::string message = "The last lasso subproblem did not converge.";
+    LOG_STACKDRIVER_COUNT_METRIC(ERROR, kAnalyzeFailure) << message;
+    return grpc::Status(grpc::DEADLINE_EXCEEDED, message);
+  }
+
+  if (i != kNumLassoSteps + 1) {
+    std::string message = "The lasso path did not reach the last subproblem.";
+    LOG_STACKDRIVER_COUNT_METRIC(ERROR, kAnalyzeFailure) << message;
+    return grpc::Status(grpc::DEADLINE_EXCEEDED, message);
   }
 
   return grpc::Status::OK;
 }
 
-grpc::Status RapporAnalyzer::ExtractEstimatedBitCountRatios(
-    Eigen::VectorXf* est_bit_count_ratios) {
-  VLOG(5) << "RapporAnalyzer::ExtractEstimatedBitCountRatios()";
+grpc::Status RapporAnalyzer::ExtractEstimatedBitCountRatiosAndStdErrors(
+    Eigen::VectorXf* est_bit_count_ratios, std::vector<float>* est_std_errors) {
+  VLOG(5) << "RapporAnalyzer::ExtractEstimatedBitCountRatiosAndStdErrors()";
   CHECK(est_bit_count_ratios);
 
   if (!config_->valid()) {
@@ -196,6 +497,7 @@ grpc::Status RapporAnalyzer::ExtractEstimatedBitCountRatios(
   const uint32_t num_cohorts = config_->num_cohorts();
 
   est_bit_count_ratios->resize(num_cohorts * num_bits);
+  est_std_errors->resize(num_cohorts * num_bits);
 
   const std::vector<CohortCounts>& estimated_counts =
       bit_counter_.EstimateCounts();
@@ -210,10 +512,12 @@ grpc::Status RapporAnalyzer::ExtractEstimatedBitCountRatios(
       (*est_bit_count_ratios)(cohort_block_base + bloom_index) =
           cohort_data.count_estimates[bit_index] /
           static_cast<double>(cohort_data.num_observations);
+      (*est_std_errors)[cohort_block_base + bloom_index] =
+          cohort_data.std_errors[bit_index] /
+          static_cast<double>(cohort_data.num_observations);
     }
     cohort_block_base += num_bits;
   }
-
   return grpc::Status::OK;
 }
 
@@ -325,16 +629,104 @@ grpc::Status RapporAnalyzer::BuildCandidateMap() {
   return grpc::Status::OK;
 }
 
+lossmin::Weights RapporAnalyzer::GetSignificantNonZeros(
+    const float l1, const float l2, const int num_runs, const int max_epochs,
+    const int loss_epochs, const int convergence_epochs,
+    const float zero_threshold, const lossmin::Weights& est_candidate_weights,
+    const std::vector<float>& est_standard_errs,
+    const lossmin::InstanceSet& instances,
+    const lossmin::LabelSet& as_label_set) {
+  static const float alpha = 0.5;
+  static const float kRelativeConvergenceThreshold = 1e-4;
+  const int num_candidates = est_candidate_weights.size();
+  const int num_labels = as_label_set.size();
+  int num_converged = 0;
+
+  // We will need the solutions from all runs to compute standard errors
+  std::vector<lossmin::Weights> est_weights_runs;
+  lossmin::Weights mean_est_weights = lossmin::Weights::Zero(num_candidates);
+  lossmin::LinearRegressionLossFunction loss_function;
+
+  // In each run create a new_label_set by adding gaussian noise to the original
+  // as_label_set
+  for (int i = 0; i < num_runs; i++) {
+    lossmin::LabelSet new_label_set = as_label_set;
+    lossmin::Weights new_candidate_weights = est_candidate_weights;
+
+    for (int j = 0; j < num_labels; j++) {
+      std::normal_distribution<float> nrm_distr(0, est_standard_errs[j]);
+      float noise = nrm_distr(random_dev_);
+      new_label_set(j) += noise;
+    }
+
+    // Run the minimizer for the right hand side with noise
+    // Each time use the est_candidate_weights as the initial guess
+    std::vector<float> loss_history_not_used;
+    lossmin::GradientEvaluator grad_eval(instances, new_label_set,
+                                         &loss_function);
+    lossmin::ParallelBoostingWithMomentum minimizer(l1, l2, grad_eval);
+
+    lossmin::Weights initial_gradient = lossmin::Weights(num_candidates);
+    minimizer.SparseInnerProductGradient(new_candidate_weights,
+                                         &initial_gradient);
+    float initial_mean_gradient_norm = initial_gradient.norm() / num_candidates;
+    float convergence_threshold = std::max(
+        1e-12f, kRelativeConvergenceThreshold * initial_mean_gradient_norm);
+
+    minimizer.set_phi_center(new_candidate_weights);
+    minimizer.set_convergence_threshold(convergence_threshold);
+    minimizer.set_zero_threshold(zero_threshold);
+    minimizer.set_use_simple_convergence_check(true);
+    minimizer.set_alpha(alpha);
+    minimizer.set_beta(1 - alpha);
+    minimizer.Run(max_epochs, loss_epochs, convergence_epochs,
+                  &new_candidate_weights, &loss_history_not_used);
+    if (minimizer.converged()) {
+      // Update the mean computation and store the current solution
+      mean_est_weights += new_candidate_weights;
+      est_weights_runs.push_back(new_candidate_weights);
+      num_converged++;
+    }
+  }
+  if (num_converged > 0) {
+    mean_est_weights /= num_converged;
+  } else {
+    mean_est_weights = est_candidate_weights;
+  }
+
+  // Compute the sample means and standard deviations (standard errors)
+  lossmin::Weights sample_stds = lossmin::Weights::Zero(num_candidates);
+  if (num_converged >= 5) {
+    for (auto& est_weight : est_weights_runs) {
+      sample_stds += (est_weight - mean_est_weights).array().pow(2).matrix();
+    }
+    sample_stds = sample_stds / (num_converged - 1);
+    sample_stds = sample_stds.array().sqrt();
+  }
+
+  // Determine a coefficient significant if above zero threshold + 2 standard
+  // errors
+  lossmin::Weights upper_bound = 2 * sample_stds;
+  upper_bound = upper_bound.array() + zero_threshold;
+  // Set nonsiginificant ones to zero; set others to the mean of computed values
+  lossmin::Weights significant_est_weights =
+      (mean_est_weights.array() >= upper_bound.array())
+          .select(mean_est_weights, 0)
+          .matrix();
+
+  return significant_est_weights;
+}
+
 }  // namespace rappor
 }  // namespace cobalt
 
 /*
 
-Justification for the formula used in ExtractEstimatedBitCountRatios
+Justification for the formula used in ExtractEstimatedBitCountRatiosAndStdErrors
 -------------------------------------------------------------------
 See the comments at the declaration of the method
-ExtractEstimatedBitCountRatios() in rappor_analyzer.h for the context and
-the definitions of the symbols used here.
+ExtractEstimatedBitCountRatiosAndStdErrors() in rappor_analyzer.h for the
+context and the definitions of the symbols used here.
 
 Here we justify the use of the formula
 
@@ -342,11 +734,11 @@ Here we justify the use of the formula
 
 Let A be the binary sparse matrix produced by the method BuildCandidateMap()
 and stored in candidate_matrix_. Let b be the column vector produced by
-the method ExtractEstimatedBitCountRatios() and stored in the variable
-est_bit_count_ratios.  In RapporAnalyzer::Analyze() we compute an estimate
-of a solution to the equation Ax = b. The question we want to address here
-is how do we know we are using the correct value of b? In particular, why is it
-appropriate to divide each entry by n_i, the number of observations from
+the method ExtractEstimatedBitCountRatiosAndStdErrors() and stored in the
+variable est_bit_count_ratios.  In RapporAnalyzer::Analyze() we compute an
+estimate of a solution to the equation Ax = b. The question we want to address
+here is how do we know we are using the correct value of b? In particular, why
+is it appropriate to divide each entry by n_i, the number of observations from
 cohort i?
 
 The assumption that underlies the justifcation is that the probability of

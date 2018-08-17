@@ -16,6 +16,7 @@
 #define COBALT_ALGORITHMS_RAPPOR_RAPPOR_ANALYZER_H_
 
 #include <memory>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -26,6 +27,7 @@
 #include "config/report_configs.pb.h"
 #include "grpc++/grpc++.h"
 #include "third_party/eigen/Eigen/SparseCore"
+#include "third_party/lossmin/lossmin/eigen-types.h"
 
 namespace cobalt {
 namespace rappor {
@@ -151,7 +153,41 @@ class RapporAnalyzer {
     float convergence_threshold;
   };
 
-  // Computes the column vector est_bit_count_ratios. This method should be
+  // Runs the second step of RAPPOR. Solves the problems
+  // min 1/(2N) || A * x - y_i ||_2^2 + |l1| * || x ||_1 + 1/2 * |l2| * || x
+  // ||_2^2 with variable x, where A == |instances|, y_i == |as_label_set| +
+  // err_i, for i = 1,2,..., |num_runs|. Here, (err_i)_j is a Gaussian error
+  // with standard deviation equal to |est_stand_errs|[j]. All (err_i)_j, are
+  // independent. N is equal to the number of rows of A.
+  //
+  // It then computes the standard errors ex_j from all runs for each of x_j. It
+  // sets x_j = 0 if x_j - 2 * ex_j < |zero_threshold|, otherwise sets x_j to
+  // the mean value from the computations that converged. Then x is returned.
+  // (If none of the problems converged, then unchanged |est_candidate_weights|
+  // will be returned. Also, if less than 5 problems converged, then standard
+  // errors are set to zero.)
+  //
+  // The problem is repeatedly solved using the parallel boosting with momentum
+  // algorithm with |est_candidate_weights| as the initial guess. The parameters
+  // |max_epochs|, |loss_epochs|, |zero_threshold| are used as parameters in the
+  // minimizer. Their use is analogous to the one in the first step of Analyze.
+  // Note(bazyli) Conceptually, l1 and l2 are negligibly small.
+  // TODO(bazyli) Currently, the function does not introduce any correction for
+  // multiple hypothesis testing such as bonferroni correction so this test is
+  // weak.
+  // TODO(bazyli) We can try to use QR in the same way instead or think if
+  // (pseudo?) inversion is an option.
+  // TODO(bazyli) maybe define the parameters as constants inside?
+  lossmin::Weights GetSignificantNonZeros(
+      const float l1, const float l2, const int num_runs, const int max_epochs,
+      const int loss_epochs, const int convergence_epochs,
+      const float zero_threshold, const lossmin::Weights& est_candidate_weights,
+      const std::vector<float>& est_standard_errs,
+      const lossmin::InstanceSet& instances,
+      const lossmin::LabelSet& as_label_set);
+
+  // Computes the column vector est_bit_count_ratios as well as a vector
+  // est_std_errors of the corresponding standard errors. This method should be
   // invoked after all Observations have been added via AddObservation().
   //
   // est_bit_count_ratios is a column vector of length m * k where
@@ -164,12 +200,18 @@ class RapporAnalyzer {
   //                 set in cohort i.
   // n_i           = the number of observations from cohort i
   //
+  // Likewise, est_std_errors[i*k + j] = std_error_i_j / n_i
+  // where
+  // std_error_i_j = the unbiased sample estimate of the standard deviation of
+  // est_count_i_j, and n_i is the same as above.
+  //
   // These values are extracted from the BloomBitCounter.
   //
   // See the note at the bottom of rappor_anlayzer.cc for a justification of
-  // this formula.
-  grpc::Status ExtractEstimatedBitCountRatios(
-      Eigen::VectorXf* est_bit_count_ratios);
+  // the formulas.
+  grpc::Status ExtractEstimatedBitCountRatiosAndStdErrors(
+      Eigen::VectorXf* est_bit_count_ratios,
+      std::vector<float>* est_std_errors);
 
   BloomBitCounter bit_counter_;
 
@@ -196,6 +238,10 @@ class RapporAnalyzer {
   Eigen::SparseMatrix<float, Eigen::RowMajor> candidate_matrix_;
 
   MinimizerData minimizer_data_;
+
+  // Random device (used for generating Gaussian noise in
+  // GetSignificantNonZeros)
+  std::random_device random_dev_;
 };
 
 }  // namespace rappor

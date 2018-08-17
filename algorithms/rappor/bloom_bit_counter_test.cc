@@ -33,18 +33,6 @@ namespace rappor {
 using encoder::ClientSecret;
 
 namespace {
-
-// Given a string of "0"s and "1"s of length a multiple of 8, and a cohort,
-// returns a RapporObservation for the given cohort whose data is equal to the
-// bytes whose binary representation is given by the string.
-RapporObservation RapporObservationFromString(
-    uint32_t cohort, const std::string& binary_string) {
-  RapporObservation obs;
-  obs.set_cohort(cohort);
-  obs.set_data(BinaryStringToData(binary_string));
-  return obs;
-}
-
 // Makes a RapporConfig with the given data (and num_hashes=2).
 RapporConfig Config(uint32_t num_bloom_bits, uint32_t num_cohorts, double p,
                     double q) {
