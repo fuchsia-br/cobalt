@@ -16,6 +16,8 @@ namespace encoder {
 // tests.
 class SystemDataInterface {
  public:
+  virtual ~SystemDataInterface() = default;
+
   // Returns the SystemProfile for the current system.
   virtual const SystemProfile& system_profile() const = 0;
 };
