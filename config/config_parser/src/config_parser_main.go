@@ -8,7 +8,6 @@
 package main
 
 import (
-	"config"
 	"config_parser"
 	"config_validator"
 	"flag"
@@ -122,19 +121,23 @@ func main() {
 	}
 
 	// First, we parse the configuration from the specified location.
-	var c config.CobaltConfig
+	configs := []config_parser.ProjectConfig{}
+	var pc config_parser.ProjectConfig
 	var err error
 	if *repoUrl != "" {
 		gitTimeout := time.Duration(*gitTimeoutSec) * time.Second
-		c, err = config_parser.ReadConfigFromRepo(*repoUrl, gitTimeout)
+		configs, err = config_parser.ReadConfigFromRepo(*repoUrl, gitTimeout)
 	} else if *configFile != "" {
-		c, err = config_parser.ReadConfigFromYaml(*configFile, uint32(*customerId), uint32(*projectId))
+		pc, err = config_parser.ReadConfigFromYaml(*configFile, uint32(*customerId), uint32(*projectId))
+		configs = append(configs, pc)
 	} else if *customerId >= 0 && *projectId >= 0 {
-		c, err = config_parser.ReadProjectConfigFromDir(*configDir, uint32(*customerId), uint32(*projectId))
+		pc, err = config_parser.ReadProjectConfigFromDir(*configDir, uint32(*customerId), uint32(*projectId))
+		configs = append(configs, pc)
 	} else if *customerId >= 0 && *projectName != "" {
-		c, err = config_parser.ReadProjectConfigFromDirByName(*configDir, uint32(*customerId), *projectName)
+		pc, err = config_parser.ReadProjectConfigFromDirByName(*configDir, uint32(*customerId), *projectName)
+		configs = append(configs, pc)
 	} else {
-		c, err = config_parser.ReadConfigFromDir(*configDir)
+		configs, err = config_parser.ReadConfigFromDir(*configDir)
 	}
 
 	if err != nil {
@@ -142,10 +145,14 @@ func main() {
 	}
 
 	if !*skipValidation {
-		if err = config_validator.ValidateConfig(&c); err != nil {
-			glog.Exit(err)
+		for _, c := range configs {
+			if err = config_validator.ValidateProjectConfig(&c); err != nil {
+				glog.Exit(err)
+			}
 		}
 	}
+
+	c := config_parser.MergeConfigs(configs)
 
 	// Then, we serialize the configuration.
 	configBytes, err := outputFormatter(&c)

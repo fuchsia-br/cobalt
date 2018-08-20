@@ -20,7 +20,7 @@ func TestValidateSystemProfileFields(t *testing.T) {
 			config:      &config.CobaltConfig{},
 		},
 		{
-			expectedErr: "SystemProfileField: BOARD_NAME, but metric (1, 1, 1) does not supply it",
+			expectedErr: "SystemProfileField: BOARD_NAME, but metric 1 does not supply it",
 			config: &config.CobaltConfig{
 				MetricConfigs: []*config.Metric{makeMetric(1, nil)},
 				ReportConfigs: []*config.ReportConfig{

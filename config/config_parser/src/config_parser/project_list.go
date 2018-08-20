@@ -20,16 +20,17 @@ package config_parser
 
 import (
 	"fmt"
+	"regexp"
+
 	yaml "github.com/go-yaml/yaml"
 	"github.com/golang/glog"
-	"regexp"
 )
 
 var validNameRegexp = regexp.MustCompile("^[a-zA-Z][_a-zA-Z0-9]{1,81}$")
 
-// Parse a list of customers appending all their projects to the projectConfig
+// Parse a list of customers appending all their projects to the ProjectConfig
 // list that was passed in.
-func parseCustomerList(content string, l *[]projectConfig) (err error) {
+func parseCustomerList(content string, l *[]ProjectConfig) (err error) {
 	var y []map[string]interface{}
 	if err := yaml.Unmarshal([]byte(content), &y); err != nil {
 		return fmt.Errorf("Error while parsing the yaml for a list of Cobalt customer definitions: %v", err)
@@ -81,14 +82,14 @@ func parseCustomerList(content string, l *[]projectConfig) (err error) {
 			fmt.Errorf("Project list for customer %v is invalid. It should be a yaml list.", customerName)
 		}
 
-		c := []projectConfig{}
+		c := []ProjectConfig{}
 		if err := populateProjectList(projectsAsList, &c); err != nil {
 			return fmt.Errorf("Project list for customer %v is invalid:", customerName, err)
 		}
 
 		for i := range c {
-			c[i].customerId = uint32(customerId)
-			c[i].customerName = customerName
+			c[i].CustomerId = uint32(customerId)
+			c[i].CustomerName = customerName
 		}
 		*l = append(*l, c...)
 	}
@@ -101,7 +102,7 @@ func parseCustomerList(content string, l *[]projectConfig) (err error) {
 // a map as returned by a call to yaml.Unmarshal. For more details, see
 // populateProjectConfig. This function also validates that project names and
 // ids are unique.
-func populateProjectList(y []interface{}, l *[]projectConfig) (err error) {
+func populateProjectList(y []interface{}, l *[]ProjectConfig) (err error) {
 	projectNames := map[string]bool{}
 	projectIds := map[uint32]bool{}
 	for i, v := range y {
@@ -113,20 +114,20 @@ func populateProjectList(y []interface{}, l *[]projectConfig) (err error) {
 		if err != nil {
 			return fmt.Errorf("Entry %v in project list is not valid: %v", i, err)
 		}
-		c := projectConfig{}
+		c := ProjectConfig{}
 		if err := populateProjectConfig(p, &c); err != nil {
 			return fmt.Errorf("Error in entry %v in project list: %v", i, err)
 		}
 
-		if projectNames[c.projectName] {
-			return fmt.Errorf("Project name '%v' repeated. Project names must be unique.", c.projectName)
+		if projectNames[c.ProjectName] {
+			return fmt.Errorf("Project name '%v' repeated. Project names must be unique.", c.ProjectName)
 		}
-		projectNames[c.projectName] = true
+		projectNames[c.ProjectName] = true
 
-		if projectIds[c.projectId] {
-			return fmt.Errorf("Project id %v for project %v is repeated. Project ids must be unique.", c.projectId, c.projectName)
+		if projectIds[c.ProjectId] {
+			return fmt.Errorf("Project id %v for project %v is repeated. Project ids must be unique.", c.ProjectId, c.ProjectName)
 		}
-		projectIds[c.projectId] = true
+		projectIds[c.ProjectId] = true
 
 		*l = append(*l, c)
 	}
@@ -135,66 +136,66 @@ func populateProjectList(y []interface{}, l *[]projectConfig) (err error) {
 
 // populateProjectConfig populates a cobalt project given in the form of a map
 // as returned by a call to yaml.Unmarshal. It populates the name, projectId and
-// contact fields of the projectConfig it returns. It also validates those
+// contact fields of the ProjectConfig it returns. It also validates those
 // values. The project id must be a positive integer. The project must have
 // name, id and contact fields.
-func populateProjectConfig(p map[string]interface{}, c *projectConfig) (err error) {
+func populateProjectConfig(p map[string]interface{}, c *ProjectConfig) (err error) {
 	v, ok := p["name"]
 	if !ok {
 		return fmt.Errorf("Missing name in project list.")
 	}
-	c.projectName, ok = v.(string)
+	c.ProjectName, ok = v.(string)
 	if !ok {
 		return fmt.Errorf("Project name '%v' is not a string.", v)
 	}
-	if !validNameRegexp.MatchString(c.projectName) {
-		return fmt.Errorf("Project name '%v' is invalid. Project names must match the regular expression '%v'", c.projectName, validNameRegexp)
+	if !validNameRegexp.MatchString(c.ProjectName) {
+		return fmt.Errorf("Project name '%v' is invalid. Project names must match the regular expression '%v'", c.ProjectName, validNameRegexp)
 	}
 
-	c.cobaltVersion = cobaltVersion0
+	c.CobaltVersion = CobaltVersion0
 	v, ok = p["cobalt_version"]
 	if ok {
 		version, ok := v.(int)
 		if !ok {
-			return fmt.Errorf("Cobalt version '%v' for project %v is not an integer.", v, c.projectName)
+			return fmt.Errorf("Cobalt version '%v' for project %v is not an integer.", v, c.ProjectName)
 		}
 		if version == 0 {
-			c.cobaltVersion = cobaltVersion0
+			c.CobaltVersion = CobaltVersion0
 		} else if version == 1 {
-			c.cobaltVersion = cobaltVersion1
+			c.CobaltVersion = CobaltVersion1
 		} else {
-			return fmt.Errorf("Version '%v' for project %v is not '1' or '0'.", version, c.projectName)
+			return fmt.Errorf("Version '%v' for project %v is not '1' or '0'.", version, c.ProjectName)
 		}
 	}
 
-	if c.cobaltVersion == cobaltVersion1 {
+	if c.CobaltVersion == CobaltVersion1 {
 		_, ok = p["id"]
 		if ok {
-			return fmt.Errorf("Project %v is using version 1.0. Version 1.0 projects may not specify an id.", c.projectName)
+			return fmt.Errorf("Project %v is using version 1.0. Version 1.0 projects may not specify an id.", c.ProjectName)
 		}
-		c.projectId = idFromName(c.projectName)
+		c.ProjectId = idFromName(c.ProjectName)
 	} else {
 		v, ok = p["id"]
 		if !ok {
-			return fmt.Errorf("Missing id for project %v.", c.projectName)
+			return fmt.Errorf("Missing id for project %v.", c.ProjectName)
 		}
 		projectId, ok := v.(int)
 		if !ok {
-			return fmt.Errorf("Id '%v' for project %v is not an integer.", v, c.projectName)
+			return fmt.Errorf("Id '%v' for project %v is not an integer.", v, c.ProjectName)
 		}
 		if projectId <= 0 {
-			return fmt.Errorf("Id for project %v is not a positive integer.", c.projectName)
+			return fmt.Errorf("Id for project %v is not a positive integer.", c.ProjectName)
 		}
-		c.projectId = uint32(projectId)
+		c.ProjectId = uint32(projectId)
 	}
 
 	v, ok = p["contact"]
 	if !ok {
-		return fmt.Errorf("Missing contact for project %v.", c.projectName)
+		return fmt.Errorf("Missing contact for project %v.", c.ProjectName)
 	}
-	c.contact, ok = v.(string)
+	c.Contact, ok = v.(string)
 	if !ok {
-		return fmt.Errorf("Contact '%v' for project %v is not a string.", v, c.projectName)
+		return fmt.Errorf("Contact '%v' for project %v is not a string.", v, c.ProjectName)
 	}
 
 	return nil

@@ -21,62 +21,61 @@ import (
 // It is assumed that <rootDir>/projects.yaml contains the customers and projects list. (see project_list.go)
 // It is assumed that <rootDir>/<customerName>/<projectName>/config.yaml
 // contains the configuration for a project. (see project_config.go)
-func ReadConfigFromDir(rootDir string) (c config.CobaltConfig, err error) {
+func ReadConfigFromDir(rootDir string) (c []ProjectConfig, err error) {
 	r, err := newConfigReaderForDir(rootDir)
 	if err != nil {
 		return c, err
 	}
 
-	l := []projectConfig{}
-	if err := readConfig(r, &l); err != nil {
+	if err := readConfig(r, &c); err != nil {
 		return c, err
 	}
 
-	return mergeConfigs(l), nil
+	return c, nil
 }
 
-func ReadProjectConfigFromDir(rootDir string, customerId uint32, projectId uint32) (c config.CobaltConfig, err error) {
+func ReadProjectConfigFromDir(rootDir string, customerId uint32, projectId uint32) (c ProjectConfig, err error) {
 	r, err := newConfigReaderForDir(rootDir)
 	if err != nil {
 		return c, err
 	}
 
-	l := []projectConfig{}
+	l := []ProjectConfig{}
 	if err = readProjectsList(r, &l); err != nil {
 		return c, err
 	}
 
 	for i := range l {
 		config := &l[i]
-		if config.customerId == customerId && config.projectId == projectId {
+		if config.CustomerId == customerId && config.ProjectId == projectId {
 			if err = readProjectConfig(r, config); err != nil {
-				return c, fmt.Errorf("Error reading config for %v %v: %v", config.customerName, config.projectName, err)
+				return c, fmt.Errorf("Error reading config for %v %v: %v", config.CustomerName, config.ProjectName, err)
 			}
-			return config.projectConfig, nil
+			return *config, nil
 		}
 	}
 
 	return c, fmt.Errorf("Could not find config for customer %d, project %d", customerId, projectId)
 }
 
-func ReadProjectConfigFromDirByName(rootDir string, customerId uint32, projectName string) (c config.CobaltConfig, err error) {
+func ReadProjectConfigFromDirByName(rootDir string, customerId uint32, projectName string) (c ProjectConfig, err error) {
 	r, err := newConfigReaderForDir(rootDir)
 	if err != nil {
 		return c, err
 	}
 
-	l := []projectConfig{}
+	l := []ProjectConfig{}
 	if err = readProjectsList(r, &l); err != nil {
 		return c, err
 	}
 
 	for i := range l {
 		config := &l[i]
-		if config.customerId == customerId && config.projectName == projectName {
+		if config.CustomerId == customerId && config.ProjectName == projectName {
 			if err = readProjectConfig(r, config); err != nil {
-				return c, fmt.Errorf("Error reading config for %v %v: %v", config.customerName, config.projectName, err)
+				return c, fmt.Errorf("Error reading config for %v %v: %v", config.CustomerName, config.ProjectName, err)
 			}
-			return config.projectConfig, nil
+			return *config, nil
 		}
 	}
 
@@ -85,22 +84,17 @@ func ReadProjectConfigFromDirByName(rootDir string, customerId uint32, projectNa
 
 // ReadConfigFromYaml reads the configuration for a single project from a single yaml file.
 // See project_config.go for the format.
-func ReadConfigFromYaml(yamlConfigPath string, customerId uint32, projectId uint32) (c config.CobaltConfig, err error) {
+func ReadConfigFromYaml(yamlConfigPath string, customerId uint32, projectId uint32) (c ProjectConfig, err error) {
 	r, err := newConfigReaderForFile(yamlConfigPath)
 	if err != nil {
 		return c, err
 	}
 
-	p := projectConfig{}
-	p.customerId = customerId
-	p.projectId = projectId
-	if err := readProjectConfig(r, &p); err != nil {
+	c.CustomerId = customerId
+	c.ProjectId = projectId
+	if err := readProjectConfig(r, &c); err != nil {
 		return c, err
 	}
-
-	c.EncodingConfigs = p.projectConfig.EncodingConfigs
-	c.MetricConfigs = p.projectConfig.MetricConfigs
-	c.ReportConfigs = p.projectConfig.ReportConfigs
 
 	return c, nil
 }
@@ -115,7 +109,7 @@ func GetConfigFilesListFromConfigDir(rootDir string) (files []string, err error)
 		return files, err
 	}
 
-	l := []projectConfig{}
+	l := []ProjectConfig{}
 	if err := readProjectsList(r, &l); err != nil {
 		return files, err
 	}
@@ -124,7 +118,7 @@ func GetConfigFilesListFromConfigDir(rootDir string) (files []string, err error)
 
 	for i, _ := range l {
 		c := &(l[i])
-		files = append(files, r.projectFilePath(c.customerName, c.projectName))
+		files = append(files, r.projectFilePath(c.CustomerName, c.ProjectName))
 	}
 	return files, nil
 }
@@ -232,7 +226,7 @@ func (r *configFileReader) Project(_ string, _ string) (string, error) {
 	return string(projectConfig), nil
 }
 
-func readProjectsList(r configReader, l *[]projectConfig) (err error) {
+func readProjectsList(r configReader, l *[]ProjectConfig) (err error) {
 	// First, we get and parse the customer list.
 	customerListYaml, err := r.Customers()
 	if err != nil {
@@ -247,7 +241,7 @@ func readProjectsList(r configReader, l *[]projectConfig) (err error) {
 }
 
 // readConfig reads and parses the configuration for all projects from a configReader.
-func readConfig(r configReader, l *[]projectConfig) (err error) {
+func readConfig(r configReader, l *[]ProjectConfig) (err error) {
 	if err = readProjectsList(r, l); err != nil {
 		return err
 	}
@@ -256,7 +250,7 @@ func readConfig(r configReader, l *[]projectConfig) (err error) {
 	for i, _ := range *l {
 		c := &((*l)[i])
 		if err = readProjectConfig(r, c); err != nil {
-			return fmt.Errorf("Error reading config for %v %v: %v", c.customerName, c.projectName, err)
+			return fmt.Errorf("Error reading config for %v %v: %v", c.CustomerName, c.ProjectName, err)
 		}
 	}
 
@@ -264,8 +258,8 @@ func readConfig(r configReader, l *[]projectConfig) (err error) {
 }
 
 // readProjectConfig reads the configuration of a particular project.
-func readProjectConfig(r configReader, c *projectConfig) (err error) {
-	configYaml, err := r.Project(c.customerName, c.projectName)
+func readProjectConfig(r configReader, c *ProjectConfig) (err error) {
+	configYaml, err := r.Project(c.CustomerName, c.ProjectName)
 	if err != nil {
 		return err
 	}
@@ -300,15 +294,15 @@ func cmpConfigEntry(i, j interface{}) bool {
 	return false
 }
 
-// mergeConfigs accepts a list of projectConfigs each of which contains the
+// MergeConfigs accepts a list of CobaltConfig protos each of which contains the
 // encoding, metric and report configs for a particular project and aggregates
 // all those into a single CobaltConfig proto.
-func mergeConfigs(l []projectConfig) (s config.CobaltConfig) {
+func MergeConfigs(l []ProjectConfig) (s config.CobaltConfig) {
 	for _, c := range l {
-		s.EncodingConfigs = append(s.EncodingConfigs, c.projectConfig.EncodingConfigs...)
-		s.MetricConfigs = append(s.MetricConfigs, c.projectConfig.MetricConfigs...)
-		s.ReportConfigs = append(s.ReportConfigs, c.projectConfig.ReportConfigs...)
-		s.MetricDefinitions = append(s.MetricDefinitions, c.projectConfig.MetricDefinitions...)
+		s.EncodingConfigs = append(s.EncodingConfigs, c.ProjectConfig.EncodingConfigs...)
+		s.MetricConfigs = append(s.MetricConfigs, c.ProjectConfig.MetricConfigs...)
+		s.ReportConfigs = append(s.ReportConfigs, c.ProjectConfig.ReportConfigs...)
+		s.MetricDefinitions = append(s.MetricDefinitions, c.ProjectConfig.MetricDefinitions...)
 	}
 
 	// In order to ensure that we output a stable order in the binary protobuf, we

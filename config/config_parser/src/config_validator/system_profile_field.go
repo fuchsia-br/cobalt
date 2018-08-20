@@ -23,20 +23,18 @@ func containsSystemProfileField(metric *config.Metric, e config.SystemProfileFie
 // validateSystemProfileFields makes sure that all system_profile_fields used in
 // reports are present in their associated metrics.
 func validateSystemProfileFields(config *config.CobaltConfig) error {
-	metrics := map[string]uint32{}
+	metrics := map[uint32]uint32{}
 
 	for i, metric := range config.MetricConfigs {
-		key := formatId(metric.CustomerId, metric.ProjectId, metric.Id)
+		key := metric.Id
 		metrics[key] = uint32(i)
 	}
 
 	for _, report := range config.ReportConfigs {
-		metric := config.MetricConfigs[metrics[formatId(report.CustomerId, report.ProjectId, report.MetricId)]]
+		metric := config.MetricConfigs[metrics[report.MetricId]]
 		for _, field := range report.SystemProfileField {
 			if !containsSystemProfileField(metric, field) {
-				metricId := formatId(metric.CustomerId, metric.ProjectId, metric.Id)
-				reportId := formatId(report.CustomerId, report.ProjectId, report.Id)
-				return fmt.Errorf("report %s uses SystemProfileField: %v, but metric %s does not supply it", reportId, field, metricId)
+				return fmt.Errorf("report %d uses SystemProfileField: %v, but metric %d does not supply it", report.Id, field, metric.Id)
 			}
 		}
 	}

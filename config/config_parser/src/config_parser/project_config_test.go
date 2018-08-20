@@ -16,9 +16,10 @@ package config_parser
 
 import (
 	"config"
-	proto "github.com/golang/protobuf/proto"
 	"reflect"
 	"testing"
+
+	proto "github.com/golang/protobuf/proto"
 )
 
 // Basic test for parseProjectConfig.
@@ -43,10 +44,10 @@ report_configs:
 - id: 2
   metric_id: 1
 `
-	c := projectConfig{
-		customerId:    1,
-		projectId:     10,
-		cobaltVersion: cobaltVersion0,
+	c := ProjectConfig{
+		CustomerId:    1,
+		ProjectId:     10,
+		CobaltVersion: CobaltVersion0,
 	}
 
 	if err := parseProjectConfig(y, &c); err != nil {
@@ -104,8 +105,8 @@ report_configs:
 		},
 	}
 
-	if !reflect.DeepEqual(e, c.projectConfig) {
-		t.Errorf("%v\n!=\n%v", proto.MarshalTextString(&e), proto.MarshalTextString(&c.projectConfig))
+	if !reflect.DeepEqual(e, c.ProjectConfig) {
+		t.Errorf("%v\n!=\n%v", proto.MarshalTextString(&e), proto.MarshalTextString(&c.ProjectConfig))
 	}
 }
 
@@ -126,10 +127,10 @@ metric_definitions:
   - report_name: the_report
     report_type: NUMERIC_PERF_RAW_DUMP
 `
-	c := projectConfig{
-		customerId:    1,
-		projectId:     10,
-		cobaltVersion: cobaltVersion1,
+	c := ProjectConfig{
+		CustomerId:    1,
+		ProjectId:     10,
+		CobaltVersion: CobaltVersion1,
 	}
 
 	if err := parseProjectConfig(y, &c); err != nil {
@@ -174,8 +175,8 @@ metric_definitions:
 		},
 	}
 
-	if !reflect.DeepEqual(e, c.projectConfig) {
-		t.Errorf("%v\n!=\n%v", proto.MarshalTextString(&e), proto.MarshalTextString(&c.projectConfig))
+	if !reflect.DeepEqual(e, c.ProjectConfig) {
+		t.Errorf("%v\n!=\n%v", proto.MarshalTextString(&e), proto.MarshalTextString(&c.ProjectConfig))
 	}
 
 }
@@ -202,9 +203,9 @@ report_configs:
 - id: 2
 `
 
-	c := projectConfig{
-		customerId: 1,
-		projectId:  10,
+	c := ProjectConfig{
+		CustomerId: 1,
+		ProjectId:  10,
 	}
 
 	if err := parseProjectConfig(y, &c); err == nil {

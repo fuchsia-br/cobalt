@@ -120,24 +120,24 @@ report_configs:
 func TestReadProjectConfig(t *testing.T) {
 	r := memConfigReader{}
 	r.SetProject("customer", "project", projectConfigYaml)
-	c := projectConfig{
-		customerName: "customer",
-		customerId:   10,
-		projectName:  "project",
-		projectId:    5,
+	c := ProjectConfig{
+		CustomerName: "customer",
+		CustomerId:   10,
+		ProjectName:  "project",
+		ProjectId:    5,
 	}
 	if err := readProjectConfig(r, &c); err != nil {
 		t.Errorf("Error reading project config: %v", err)
 	}
 
-	if 2 != len(c.projectConfig.EncodingConfigs) {
-		t.Errorf("Unexpected number of encoding configs: %v", len(c.projectConfig.EncodingConfigs))
+	if 2 != len(c.ProjectConfig.EncodingConfigs) {
+		t.Errorf("Unexpected number of encoding configs: %v", len(c.ProjectConfig.EncodingConfigs))
 	}
-	if 2 != len(c.projectConfig.MetricConfigs) {
-		t.Errorf("Unexpected number of metric configs: %v", len(c.projectConfig.MetricConfigs))
+	if 2 != len(c.ProjectConfig.MetricConfigs) {
+		t.Errorf("Unexpected number of metric configs: %v", len(c.ProjectConfig.MetricConfigs))
 	}
-	if 2 != len(c.projectConfig.ReportConfigs) {
-		t.Errorf("Unexpected number of report configs: %v", len(c.projectConfig.ReportConfigs))
+	if 2 != len(c.ProjectConfig.ReportConfigs) {
+		t.Errorf("Unexpected number of report configs: %v", len(c.ProjectConfig.ReportConfigs))
 	}
 }
 
@@ -148,7 +148,7 @@ func TestReadConfig(t *testing.T) {
 	r.SetProject("fuchsia", "ledger", projectConfigYaml)
 	r.SetProject("fuchsia", "module_usage_tracking", projectConfigYaml)
 	r.SetProject("test_customer", "test_project", projectConfigYaml)
-	l := []projectConfig{}
+	l := []ProjectConfig{}
 	if err := readConfig(r, &l); err != nil {
 		t.Errorf("Error reading project config: %v", err)
 	}
@@ -158,14 +158,14 @@ func TestReadConfig(t *testing.T) {
 	}
 
 	for _, c := range l {
-		if 2 != len(c.projectConfig.EncodingConfigs) {
-			t.Errorf("Unexpected number of encoding configs for %v: %v", c.projectName, len(c.projectConfig.EncodingConfigs))
+		if 2 != len(c.ProjectConfig.EncodingConfigs) {
+			t.Errorf("Unexpected number of encoding configs for %v: %v", c.ProjectName, len(c.ProjectConfig.EncodingConfigs))
 		}
-		if 2 != len(c.projectConfig.MetricConfigs) {
-			t.Errorf("Unexpected number of metric configs for %v: %v", c.projectName, len(c.projectConfig.MetricConfigs))
+		if 2 != len(c.ProjectConfig.MetricConfigs) {
+			t.Errorf("Unexpected number of metric configs for %v: %v", c.ProjectName, len(c.ProjectConfig.MetricConfigs))
 		}
-		if 2 != len(c.projectConfig.ReportConfigs) {
-			t.Errorf("Unexpected number of report configs for %v: %v", c.projectName, len(c.projectConfig.ReportConfigs))
+		if 2 != len(c.ProjectConfig.ReportConfigs) {
+			t.Errorf("Unexpected number of report configs for %v: %v", c.ProjectName, len(c.ProjectConfig.ReportConfigs))
 		}
 	}
 }

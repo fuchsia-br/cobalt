@@ -7,7 +7,6 @@
 package config_parser
 
 import (
-	"config"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -68,7 +67,7 @@ func checkUrl(repoUrl string) (err error) {
 // configuration from it. For the organization expected of the repository, see
 // ReadConfigFromDir in config_reader.go.
 // gitTimeout is the maximum amount of time to wait for a git command to finish.
-func ReadConfigFromRepo(repoUrl string, gitTimeout time.Duration) (c config.CobaltConfig, err error) {
+func ReadConfigFromRepo(repoUrl string, gitTimeout time.Duration) (c []ProjectConfig, err error) {
 	if err = checkUrl(repoUrl); err != nil {
 		return c, err
 	}

@@ -24,59 +24,59 @@ import (
 	"yamlpb"
 )
 
-type cobaltVersion int
+type CobaltVersion int
 
 const (
 	// Cobalt version 0.1
-	cobaltVersion0 = iota
+	CobaltVersion0 = iota
 
 	// Cobalt version 1.0
-	cobaltVersion1
+	CobaltVersion1
 )
 
 // Represents the configuration of a single project.
-type projectConfig struct {
-	customerName  string
-	customerId    uint32
-	projectName   string
-	projectId     uint32
-	contact       string
-	cobaltVersion cobaltVersion
-	projectConfig config.CobaltConfig
+type ProjectConfig struct {
+	CustomerName  string
+	CustomerId    uint32
+	ProjectName   string
+	ProjectId     uint32
+	Contact       string
+	CobaltVersion CobaltVersion
+	ProjectConfig config.CobaltConfig
 }
 
 // Parse the configuration for one project from the yaml string provided into
-// the config field in projectConfig.
-func parseProjectConfig(y string, c *projectConfig) (err error) {
-	if err := yamlpb.UnmarshalString(y, &c.projectConfig); err != nil {
+// the config field in ProjectConfig.
+func parseProjectConfig(y string, c *ProjectConfig) (err error) {
+	if err := yamlpb.UnmarshalString(y, &c.ProjectConfig); err != nil {
 		return fmt.Errorf("Error while parsing yaml: %v", err)
 	}
 
 	// Set of encoding ids. Used to detect duplicates.
 	encodingIds := map[uint32]bool{}
 
-	for i, e := range c.projectConfig.EncodingConfigs {
+	for i, e := range c.ProjectConfig.EncodingConfigs {
 		if encodingIds[e.Id] {
 			return fmt.Errorf("Encoding id '%v' is repeated in encoding config entry number %v. Encoding ids must be unique.", e.Id, i)
 		}
 		encodingIds[e.Id] = true
-		e.CustomerId = c.customerId
-		e.ProjectId = uint32(c.projectId)
+		e.CustomerId = c.CustomerId
+		e.ProjectId = uint32(c.ProjectId)
 	}
 
-	for _, e := range c.projectConfig.MetricConfigs {
-		e.CustomerId = c.customerId
-		e.ProjectId = uint32(c.projectId)
+	for _, e := range c.ProjectConfig.MetricConfigs {
+		e.CustomerId = c.CustomerId
+		e.ProjectId = uint32(c.ProjectId)
 	}
 
-	for _, e := range c.projectConfig.ReportConfigs {
-		e.CustomerId = c.customerId
-		e.ProjectId = uint32(c.projectId)
+	for _, e := range c.ProjectConfig.ReportConfigs {
+		e.CustomerId = c.CustomerId
+		e.ProjectId = uint32(c.ProjectId)
 	}
 
-	for _, e := range c.projectConfig.MetricDefinitions {
-		e.CustomerId = c.customerId
-		e.ProjectId = c.projectId
+	for _, e := range c.ProjectConfig.MetricDefinitions {
+		e.CustomerId = c.CustomerId
+		e.ProjectId = c.ProjectId
 		e.Id = idFromName(e.MetricName)
 		for _, r := range e.Reports {
 			r.Id = idFromName(r.ReportName)

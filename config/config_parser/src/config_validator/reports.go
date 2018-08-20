@@ -12,13 +12,13 @@ import (
 
 func validateConfiguredReports(config *config.CobaltConfig) (err error) {
 	// Mapping of metric ids to their order in the MetricConfigs slice.
-	metrics := map[string]uint32{}
+	metrics := map[uint32]uint32{}
 
 	// Set of report ids. Used to detect duplicates.
-	reportIds := map[string]bool{}
+	reportIds := map[uint32]bool{}
 
 	for i, metric := range config.MetricConfigs {
-		metrics[formatId(metric.CustomerId, metric.ProjectId, metric.Id)] = uint32(i)
+		metrics[metric.Id] = uint32(i)
 	}
 
 	for i, report := range config.ReportConfigs {
@@ -26,13 +26,13 @@ func validateConfiguredReports(config *config.CobaltConfig) (err error) {
 			return fmt.Errorf("Error validating report %v: Report id '0' is invalid.", report.Name)
 		}
 
-		reportKey := formatId(report.CustomerId, report.ProjectId, report.Id)
+		reportKey := report.Id
 		if reportIds[reportKey] {
 			return fmt.Errorf("Report id %s is repeated in report config entry number %v. Report ids must be unique.", reportKey, i+1)
 		}
 		reportIds[reportKey] = true
 
-		metricKey := formatId(report.CustomerId, report.ProjectId, report.MetricId)
+		metricKey := report.MetricId
 		if _, ok := metrics[metricKey]; !ok {
 			return fmt.Errorf("Error validating report %v (%v): There is no metric id %v.", report.Name, report.Id, metricKey)
 		}
