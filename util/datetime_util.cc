@@ -58,19 +58,30 @@ CalendarDate TimeInfoToCalendarDate(const TimeInfo& time_info) {
 
 }  // namespace
 
-uint32_t TimeToDayIndex(time_t time, Metric::TimeZonePolicy time_zone) {
+template <typename T>
+inline uint32_t TimeToDayIndex(time_t time,
+                               typename T::TimeZonePolicy time_zone) {
   TimeInfo time_info;
   switch (time_zone) {
-    case Metric::LOCAL:
+    case T::LOCAL:
       localtime_r(&time, &time_info);
       break;
-    case Metric::UTC:
+    case T::UTC:
       gmtime_r(&time, &time_info);
       break;
     default:
       return UINT32_MAX;
   }
   return CalendarDateToDayIndex(TimeInfoToCalendarDate(time_info));
+}
+
+uint32_t TimeToDayIndex(time_t time, Metric::TimeZonePolicy time_zone) {
+  return TimeToDayIndex<Metric>(time, time_zone);
+}
+
+uint32_t TimeToDayIndex(time_t time,
+                        MetricDefinition::TimeZonePolicy time_zone) {
+  return TimeToDayIndex<MetricDefinition>(time, time_zone);
 }
 
 uint32_t CalendarDateToDayIndex(const CalendarDate& calendar_date) {

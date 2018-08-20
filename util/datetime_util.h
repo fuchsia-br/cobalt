@@ -59,6 +59,7 @@
 #include <chrono>
 #include <cstdint>
 
+#include "config/metric_definition.pb.h"
 #include "config/metrics.pb.h"
 
 namespace cobalt {
@@ -93,6 +94,8 @@ struct CalendarDate {
 // or UINT32_MAX if |time_zone| is not valid. |time| must be a Unix timestamp,
 // that is a number of Unix seconds since the Unix epoch.
 uint32_t TimeToDayIndex(time_t time, Metric::TimeZonePolicy time_zone);
+uint32_t TimeToDayIndex(time_t time,
+                        MetricDefinition::TimeZonePolicy time_zone);
 
 // Returns the Unix time for midnight of the day with the given |day_index|
 // in UTC.
@@ -146,7 +149,6 @@ int64_t ToUnixSeconds(std::chrono::system_clock::time_point t);
 
 // Returns the given number of seconds since the Unix epoch as a time_point.
 std::chrono::system_clock::time_point FromUnixSeconds(int64_t seconds);
-
 
 }  // namespace util
 }  // namespace cobalt
