@@ -187,17 +187,17 @@ Status RapporEncoder::Encode(const ValuePart& value,
     return kInvalidConfig;
   }
   if (!client_secret_.valid()) {
-    VLOG(3) << "client_secret is not valid";
+    LOG(ERROR) << "client_secret is not valid";
     return kInvalidConfig;
   }
   if (cohort_num_ == UINT32_MAX) {
-    VLOG(1) << "Unable to derive cohort from client_secret.";
+    LOG(ERROR) << "Unable to derive cohort from client_secret.";
     return kInvalidConfig;
   }
 
   std::string data = MakeBloomBits(value);
   if (data.empty()) {
-    VLOG(3) << "MakeBloomBits failed on input: " << DebugString(value);
+    LOG(ERROR) << "MakeBloomBits failed on input: " << DebugString(value);
     return kInvalidInput;
   }
 
@@ -226,13 +226,14 @@ Status BasicRapporEncoder::Encode(const ValuePart& value,
     return kInvalidConfig;
   }
   if (!client_secret_.valid()) {
-    VLOG(3) << "client_secret is not valid";
+    LOG(ERROR) << "client_secret is not valid";
     return kInvalidConfig;
   }
   auto bit_index = config_->bit_index(value);
   if (bit_index == -1) {
-    VLOG(3) << "BasicRapporEncoder::Encode(): The given value was not one of "
-            << "the categories: " << DebugString(value);
+    LOG(ERROR)
+        << "BasicRapporEncoder::Encode(): The given value was not one of "
+        << "the categories: " << DebugString(value);
     return kInvalidInput;
   }
 

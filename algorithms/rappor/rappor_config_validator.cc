@@ -31,19 +31,19 @@ namespace {
 bool CommonValidate(float prob_0_becomes_1, float prob_1_stays_1,
                     float prob_rr) {
   if (prob_0_becomes_1 < 0.0 || prob_0_becomes_1 > 1.0) {
-    VLOG(1) << "prob_0_becomes_1 is not valid";
+    LOG(ERROR) << "prob_0_becomes_1 is not valid";
     return false;
   }
   if (prob_1_stays_1 < 0.0 || prob_1_stays_1 > 1.0) {
-    VLOG(1) << "prob_1_stays_1 < 0.0  is not valid";
+    LOG(ERROR) << "prob_1_stays_1 < 0.0  is not valid";
     return false;
   }
   if (prob_0_becomes_1 == prob_1_stays_1) {
-    VLOG(1) << "prob_0_becomes_1 == prob_1_stays_1";
+    LOG(ERROR) << "prob_0_becomes_1 == prob_1_stays_1";
     return false;
   }
   if (prob_rr != 0.0) {
-    VLOG(1) << "prob_rr not supported";
+    LOG(ERROR) << "prob_rr not supported";
     return false;
   }
   return true;
@@ -86,6 +86,7 @@ bool ExtractCategories(const BasicRapporConfig& config,
     case BasicRapporConfig::kIndexedCategories: {
       uint32_t num_categories = config.indexed_categories().num_categories();
       if (num_categories >= 1024) {
+        LOG(ERROR) << "BasicRappor: The maximum number of categories is 1024";
         return false;
       }
       for (uint32_t i = 0; i < num_categories; i++) {
@@ -129,27 +130,27 @@ RapporConfigValidator::RapporConfigValidator(const RapporConfig& config)
     return;
   }
   if (num_bits_ <= 1 || num_bits_ > 1024) {
-    VLOG(1) << "For k = num_bits we require 1 < k <= 1024.";
+    LOG(ERROR) << "For k = num_bits we require 1 < k <= 1024.";
     return;
   }
   if ((num_bits_ & (num_bits_ - 1)) != 0) {
-    VLOG(1) << "k = num_bits must be a power of 2.";
+    LOG(ERROR) << "k = num_bits must be a power of 2.";
     return;
   }
   if (num_hashes_ < 1 || num_hashes_ > 8 || num_hashes_ >= num_bits_) {
-    VLOG(1) << "For k = num_bits and h = num_hashes we require  1 <= h <= 8 "
-               "and h < k.";
+    LOG(ERROR) << "For k = num_bits and h = num_hashes we require  1 <= h <= 8 "
+                  "and h < k.";
     return;
   }
   // We consume 2 bytes of the digest per hash.
   if (num_hashes_ * 2 > DIGEST_SIZE) {
     // This should not happen unless DIGEST_SIZE is changed to a value that is
     // too small.
-    VLOG(1) << "DIGEST_SIZE too small for number of hashes: " << DIGEST_SIZE;
+    LOG(ERROR) << "DIGEST_SIZE too small for number of hashes: " << DIGEST_SIZE;
     return;
   }
   if (num_cohorts_ < 1 || num_cohorts_ > 1024) {
-    VLOG(1) << "For m = num_cohorts we require 1 <= m <= 1024.";
+    LOG(ERROR) << "For m = num_cohorts we require 1 <= m <= 1024.";
     return;
   }
   num_cohorts_2_power_ = MinPower2Above((uint16_t(num_cohorts_)));
