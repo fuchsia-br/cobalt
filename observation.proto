@@ -204,6 +204,7 @@ message SystemProfile {
 
   // This represents the build state of the system artifact.
   // Currently assumed to be the build version of the package calling Cobalt.
+  // DEPRECATED.
   BuildLevel build_level = 6;
 }
 

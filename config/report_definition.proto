@@ -50,7 +50,7 @@ message ReportDefinition{
 
   // A Report has one of the following types.
   enum ReportType {
-    UNSET = 0;
+    REPORT_TYPE_UNSET = 0;
 
     // Gives the total, daily, fleet-wide count of the number of occurrences of
     // each of a set of event types. Supports the use of local differential
@@ -331,17 +331,21 @@ message ReportDefinition{
 
   // A level of random noise to use when encoding observations for RAPPOR.
   enum LocalPrivacyNoiseLevel {
+    // local_privacy_noise_level must be explicitly set when using
+    // Basic RAPPOR or String RAPPOR.
+    NOISE_LEVEL_UNSET = 0;
+
     // p = 0.0, q = 1.0
-    NONE = 0;
+    NONE = 1;
 
     // p = 0.01, q = 0.99
-    SMALL = 1;
+    SMALL = 2;
 
     // p = 0.1, q = 0.9
-    MEDIUM = 2;
+    MEDIUM = 3;
 
     // p = 0.25, q = 0.75
-    LARGE = 3;
+    LARGE = 4;
   }
 
   // This field is used only with Report types SIMPLE_OCCURRENCE_COUNT and
@@ -355,7 +359,7 @@ message ReportDefinition{
   // in collecting data for the report. This helps to tune the RAPPOR
   // algorithm. This must not be changed after data collection has
   // begun or the data may become corrupted.
-  int32 expected_population_size = 5;
+  uint32 expected_population_size = 5;
 
   // This field is used only with Report type
   // HIGH_FREQUENCY_STRING_COUNTS.
@@ -363,7 +367,7 @@ message ReportDefinition{
   // be logged. This helps to tune the RAPPOR algorithm. This
   // must not be changed after data collection has begun or the data may
   // become corrupted.
-  int32 expected_string_set_size = 6;
+  uint32 expected_string_set_size = 6;
 
   // This field is used only with Report type STRING_COUNTS_WITH_THRESHOLD.
   // The threshold. Only strings that have been used by at least this many

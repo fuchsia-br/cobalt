@@ -82,15 +82,26 @@ message Observation2 {
 //     NUMERIC_PERF_RAW_DUMP. In this case the Observation again is
 //     immediate. The |value| field contains the number of bytes.
 message IntegerEventObservation {
-  // The index of the event that occurred.
-  uint32 event_index = 1;
+  // The index of the event type that occurred.
+  uint32 event_type_index = 1;
 
-   // A hash of the component name.
-  string component_name_hash = 2;
+   // A hash of the component name. If component_name is empty then this field
+   // will be empty. Otherwise this field will contain the 32-byte SHA256
+   // hash of component_name.
+  bytes component_name_hash = 2;
 
   int64 value = 3;
 }
 
+// A pair consisting of a bucket index and a count. Each bucket is
+// an integer range. The definition of the buckets and their indices
+// is given in the MetricDefinition.
+message HistogramBucket {
+  // The index of one of the buckets.
+  uint32 index = 1;
+  // The count for that bucket.
+  uint64 count = 2;
+};
 
 // Observations of type HistogramObservation contain an event type specified
 // by its index, a component specified by its hash, and a histogram of
@@ -103,25 +114,16 @@ message IntegerEventObservation {
 // the Event is logged.
 message HistogramObservation {
   // The index of the event that occurred.
-  uint32 event_index = 1;
+  uint32 event_type_index = 1;
 
-   // A hash of the component name.
-  string component_name_hash = 2;
-
-  // A pair consisting of a bucket index and a count. Each bucket is
-  // an integer range. The definition of the buckets and their indices
-  // is given in the MetricDefinition.
-  message Bucket {
-    // The index of one of the buckets.
-    uint32 index = 1;
-    // The count for that bucket.
-    uint64 count = 2;
-  };
+   // A hash of the component name. If component_name is empty then this field
+   // will be empty. Otherwise this field will contain the 32-byte SHA256
+   // hash of component_name.
+  bytes component_name_hash = 2;
 
   // The set of bucket indices and their corresponding counts.
-  repeated Bucket buckets = 3;
+  repeated HistogramBucket buckets = 3;
 };
-
 
 // Observations of this type contain a custom number of parts each with a
 // custom name and a custom type.
@@ -136,7 +138,7 @@ message HistogramObservation {
 // type defined in the CUSTOM. A CustomObservation directly stores those
 // pairs.
 message CustomObservation {
-  // The keys are the names of the metric parts to which each Value
+  // The keys are the names of the metric dimensions to which each ValuePart
   // is associated.
   map<string, ValuePart> values = 1;
 }
