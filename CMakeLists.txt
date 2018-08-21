@@ -617,7 +617,7 @@ cobalt_make_protobuf_cpp_lib(cobalt_proto_lib
                              COBALT_PROTO_HDRS
                              false
                              encrypted_message
-                             observation)
+                             observation observation2)
 
 # Generate the go bindings for the Cobalt proto files in the root directory.
 cobalt_protobuf_generate_go(generate_cobalt_pb_go_files
@@ -681,6 +681,7 @@ add_subdirectory(client/collection)
 add_subdirectory(config)
 add_subdirectory(encoder)
 add_subdirectory(end_to_end_tests)
+add_subdirectory(logger)
 add_subdirectory(shuffler)
 add_subdirectory(tools)
 add_subdirectory(util)
