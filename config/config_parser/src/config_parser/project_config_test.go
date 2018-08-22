@@ -143,17 +143,17 @@ metric_definitions:
 				CustomerId:     1,
 				ProjectId:      10,
 				MetricName:     "the_metric_name",
-				Id:             idFromName("the_metric_name"),
+				Id:             IdFromName("the_metric_name"),
 				TimeZonePolicy: config.MetricDefinition_UTC,
 				Reports: []*config.ReportDefinition{
 					&config.ReportDefinition{
 						ReportName: "the_report",
-						Id:         idFromName("the_report"),
+						Id:         IdFromName("the_report"),
 						ReportType: config.ReportDefinition_CUSTOM_RAW_DUMP,
 					},
 					&config.ReportDefinition{
 						ReportName: "the_other_report",
-						Id:         idFromName("the_other_report"),
+						Id:         IdFromName("the_other_report"),
 						ReportType: config.ReportDefinition_STRING_COUNTS_WITH_THRESHOLD,
 					},
 				},
@@ -162,12 +162,12 @@ metric_definitions:
 				CustomerId:     1,
 				ProjectId:      10,
 				MetricName:     "the_other_metric_name",
-				Id:             idFromName("the_other_metric_name"),
+				Id:             IdFromName("the_other_metric_name"),
 				TimeZonePolicy: config.MetricDefinition_LOCAL,
 				Reports: []*config.ReportDefinition{
 					&config.ReportDefinition{
 						ReportName: "the_report",
-						Id:         idFromName("the_report"),
+						Id:         IdFromName("the_report"),
 						ReportType: config.ReportDefinition_NUMERIC_PERF_RAW_DUMP,
 					},
 				},

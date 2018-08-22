@@ -12,7 +12,7 @@ import (
 	"hash/fnv"
 )
 
-func idFromName(name string) uint32 {
+func IdFromName(name string) uint32 {
 	hash := fnv.New32()
 	hash.Write([]byte(name))
 	return hash.Sum32()

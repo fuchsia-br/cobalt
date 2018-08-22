@@ -173,7 +173,7 @@ func populateProjectConfig(p map[string]interface{}, c *ProjectConfig) (err erro
 		if ok {
 			return fmt.Errorf("Project %v is using version 1.0. Version 1.0 projects may not specify an id.", c.ProjectName)
 		}
-		c.ProjectId = idFromName(c.ProjectName)
+		c.ProjectId = IdFromName(c.ProjectName)
 	} else {
 		v, ok = p["id"]
 		if !ok {
