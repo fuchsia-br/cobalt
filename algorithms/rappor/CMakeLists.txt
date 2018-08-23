@@ -18,6 +18,9 @@
 set_source_files_properties(${COBALT_PROTO_HDRS} PROPERTIES GENERATED TRUE)
 set_source_files_properties(${CONFIG_PROTO_HDRS} PROPERTIES GENERATED TRUE)
 
+# Use O3 level optimizations for RAPPOR
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+
 add_library(rappor_config_validator rappor_config_validator.cc ${CONFIG_PROTO_HDRS})
 target_link_libraries(rappor_config_validator
                       client_secret)
