@@ -618,6 +618,7 @@ cobalt_make_protobuf_cpp_lib(cobalt_proto_lib
                              COBALT_PROTO_HDRS
                              false
                              encrypted_message
+                             event
                              observation observation2)
 
 # Generate the go bindings for the Cobalt proto files in the root directory.

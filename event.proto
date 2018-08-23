@@ -1,0 +1,114 @@
+// Copyright 2018 The Fuchsia Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package cobalt;
+
+import "observation2.proto";
+
+// An Event is the unit of data logged in Cobalt.
+//
+// Events are associated with a specific Metric. There is a different Event
+// type for each Metric type. Events are also tagged with a day index indicating
+// the day on which the event occurred.
+message Event {
+  // An Event has one of the following types. These types correspond to
+  // the various Metric types defined in config/metric_definitions.proto.
+  oneof type {
+    OccurrenceEvent occurrence_event = 1;
+    CountEvent count_event = 2;
+    ElapsedTimeEvent elapsed_time_event = 3;
+    FrameRateEvent frame_rate_event = 4;
+    MemoryUsageEvent memory_usage_event = 5;
+    IntHistogramEvent int_histogram_event = 6;
+    StringUsedEvent string_used_event = 7;
+    CustomEvent custom_event = 999;
+  }
+
+  // The three-part unique numerical identifier of the Metric that this
+  // Event is associated with.
+  uint32 cutomer_id = 1000;
+  uint32 project_id = 1001;
+  uint32 metric_id = 1002;
+
+  // The index of the day on which this Event occurred.
+  uint32 day_index = 1003;
+}
+
+// Records that an event has occurred.
+message OccurrenceEvent {
+  // The index of the event type that occurred.
+  uint32 event_type_index = 1;
+}
+
+// Records that an event occurred a number of times.
+message CountEvent {
+  // The index of the event type that occurred.
+  uint32 event_type_index = 1;
+  // The associated system component
+  string component = 2;
+  // Time over which the count was taken, in microseconds.
+  int64 period_duration_micros = 3;
+  // The number of times the event occurred.
+  int32 count = 4;
+}
+
+// Records that an event occurred a number of times.
+message ElapsedTimeEvent {
+  // The index of the event type that occurred.
+  uint32 event_type_index = 1;
+  // The associated system component
+  string component = 2;
+  // The elapsed time in microseconds.
+  int64 elapsed_micros = 3;
+}
+
+// Records a frame-rate.
+message FrameRateEvent {
+  // The index of the event type that occurred.
+  uint32 event_type_index = 1;
+  // The associated system component
+  string component = 2;
+  // round(frames-per-second * 1000)
+  int64 frames_per_1000_seconds = 3;
+}
+
+// Records a memory-usage.
+message MemoryUsageEvent {
+  // The index of the event type that occurred.
+  uint32 event_type_index = 1;
+  // The associated system component
+  string component = 2;
+  // Memory usage in bytes.
+  int64 bytes = 3;
+}
+
+// Records a histogram over a set of integer buckets. The semantics of the
+// Metric must be specified in comments near the Metric definition. The
+// numerical values of the buckets is specified in the |int_buckets|
+// field of the MetricDefinition.
+message IntHistogramEvent  {
+  // The index of the event type that occurred.
+  uint32 event_type_index = 1;
+  // The associated system component
+  string component = 2;
+
+  // The set of bucket indices and their corresponding counts.
+  repeated HistogramBucket buckets = 3;
+}
+
+// Records that a given string was used in a specific context. The semantics
+// of the Metric must be specified in comments near the MetricDefintion.
+//
+// See comments in metric_definion.proto for Metric type STRING_USED.
+message StringUsedEvent {
+  string str = 1;
+}
+
+// Allows users of Cobalt to define custom Metrics with custom semantics.
+message CustomEvent {
+// Note(rudominer) The custom event feature is still being designed.
+}
+

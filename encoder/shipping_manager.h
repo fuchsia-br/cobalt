@@ -18,6 +18,7 @@
 #include "./logging.h"
 #include "encoder/envelope_maker.h"
 #include "encoder/observation_store.h"
+#include "encoder/observation_store_update_recipient.h"
 #include "encoder/send_retryer.h"
 #include "encoder/shuffler_client.h"
 #include "third_party/clearcut/uploader.h"
@@ -26,15 +27,6 @@ namespace cobalt {
 namespace encoder {
 
 using send_retryer::SendRetryerInterface;
-
-// An ObservationStoreUpdateRecipient is any component that wishes to receive
-// notifications when an Observation has been added to the ObservationStore.
-class ObservationStoreUpdateRecipient {
- public:
-  // Notifies the Recipient that AddEncryptedObservation() has been invoked on
-  // the ObservationStore.
-  virtual void NotifyObservationsAdded() = 0;
-};
 
 // ShippingManager is a central coordinator for collecting encoded Observations
 // and sending them to the Shuffler. Observations are accumulated in the

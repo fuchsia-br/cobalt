@@ -37,7 +37,7 @@ const std::string& ProjectContext::MetricRef::metric_name() const {
 }
 
 const ProjectContext::MetricRef ProjectContext::RefMetric(
-    const MetricDefinition* metric_definition) {
+    const MetricDefinition* metric_definition) const {
   return MetricRef(this, metric_definition);
 }
 

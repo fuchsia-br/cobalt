@@ -42,7 +42,6 @@ class Project {
   const ReleaseStage release_stage_;
 };
 
-
 // ProjectContext stores the Cobalt configuration for a single Cobalt project.
 class ProjectContext {
  public:
@@ -76,7 +75,7 @@ class ProjectContext {
   // metric_definition (which should have been obtained via GetMetric()).
   // This ProjectContext must remain valid as long as the returned MetricRef
   // is being used.
-  const MetricRef RefMetric(const MetricDefinition* metric_definition);
+  const MetricRef RefMetric(const MetricDefinition* metric_definition) const;
 
   const Project& project() const { return project_; }
 
