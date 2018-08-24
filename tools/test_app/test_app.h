@@ -45,13 +45,6 @@
 
 namespace cobalt {
 
-// An abstract interface that may be mocked in unit tests.
-class AnalyzerClientInterface {
- public:
-  virtual void SendToAnalyzer(const Envelope& envelope) = 0;
-  virtual ~AnalyzerClientInterface() = default;
-};
-
 // The Cobalt testing client application.
 class TestApp {
  public:
@@ -66,20 +59,18 @@ class TestApp {
     // loop.
     kInteractive = 0,
 
-    // In this mode the TestApp sends a single RPC to the Shuffler or Analyzer.
+    // In this mode the TestApp sends a single RPC to the Shuffler.
     kSendOnce = 1,
 
     // In this mode the TestApp loops forever generating random Observations and
-    // sending many RPCs to the Shuffler or Analyzer.
+    // sending many RPCs to the Shuffler.
     kAutomatic = 2
   };
 
   // Constructor. The |ostream| is used for emitting output in interactive mode.
   TestApp(std::shared_ptr<encoder::ProjectContext> project_context,
-          std::shared_ptr<AnalyzerClientInterface> analyzer_client,
           std::shared_ptr<encoder::ShufflerClientInterface> shuffler_client,
-          std::unique_ptr<encoder::SystemData> system_data,
-          Mode mode,
+          std::unique_ptr<encoder::SystemData> system_data, Mode mode,
           const std::string& analyzer_public_key_pem,
           EncryptedMessage::EncryptionScheme analyzer_encryption_scheme,
           const std::string& shuffler_public_key_pem,
@@ -87,8 +78,6 @@ class TestApp {
           std::ostream* ostream);
 
   void set_metric(uint32_t metric_id) { metric_ = metric_id; }
-
-  void set_skip_shuffler(bool b) { skip_shuffler_ = b; }
 
   // Run() is invoked by main(). It invokes either CommandLoop(),
   // SendAndQuit(), or RunAutomatic() depending on the mode.
@@ -199,11 +188,9 @@ class TestApp {
   uint32_t project_id_ = 1;
   uint32_t encoding_config_id_ = 1;
   uint32_t metric_ = 1;
-  bool skip_shuffler_ = false;
   // The TestApp is in interactive mode unless set_mode() is invoked.
   Mode mode_ = kInteractive;
   std::shared_ptr<encoder::ProjectContext> project_context_;
-  std::shared_ptr<AnalyzerClientInterface> analyzer_client_;
   std::shared_ptr<encoder::ShufflerClientInterface> shuffler_client_;
   std::unique_ptr<encoder::send_retryer::SendRetryer> send_retryer_;
   std::unique_ptr<encoder::SystemData> system_data_;

@@ -230,7 +230,6 @@ def _test(args):
       # it multiple times.
       num_times_to_try = 3
       analyzer_pk_pem_file=E2E_TEST_ANALYZER_PUBLIC_KEY_PEM
-      analyzer_uri = "localhost:%d" % DEFAULT_ANALYZER_SERVICE_PORT
       report_master_uri = "localhost:%d" % DEFAULT_REPORT_MASTER_PORT
       shuffler_pk_pem_file=E2E_TEST_SHUFFLER_PUBLIC_KEY_PEM
       shuffler_uri = "localhost:%d" % DEFAULT_SHUFFLER_PORT
@@ -243,7 +242,6 @@ def _test(args):
         public_uris = container_util.get_public_uris(args.cluster_name,
             args.cloud_project_prefix, args.cloud_project_name,
             args.cluster_zone)
-        analyzer_uri = public_uris["analyzer"]
         report_master_uri = public_uris["report_master"]
         shuffler_uri = public_uris["shuffler"]
         if args.use_cloud_bt:
@@ -268,7 +266,6 @@ def _test(args):
           or report_master_uri)
       shuffler_uri = (args.shuffler_preferred_address or shuffler_uri)
       test_args = [
-          "-analyzer_uri=%s" % analyzer_uri,
           "-analyzer_pk_pem_file=%s" % analyzer_pk_pem_file,
           "-shuffler_uri=%s" % shuffler_uri,
           "-shuffler_pk_pem_file=%s" % shuffler_pk_pem_file,

@@ -212,19 +212,6 @@ std::shared_ptr<ProjectContext> GetTestProject() {
       kCustomerId, kProjectId, metric_registry, encoding_registry));
 }
 
-// An implementation of AnalyzerClientInterface that just stores the
-// Envelope for inspection by a test.
-class FakeAnalyzerClient : public AnalyzerClientInterface {
- public:
-  virtual ~FakeAnalyzerClient() = default;
-
-  void SendToAnalyzer(const Envelope& e) override {
-    // Copy the EnvelopeMaker's Envelope.
-    envelope = e;
-  }
-  Envelope envelope;
-};
-
 // An implementation of ShufflerClientInterface that just stores the
 // Envelope for inspection by a test.
 class FakeShufflerClient : public ShufflerClientInterface {
@@ -257,12 +244,11 @@ Observation ParseUnencryptedObservation(const EncryptedMessage& em) {
 class TestAppTest : public ::testing::Test {
  public:
   TestAppTest()
-      : fake_analyzer_client_(new FakeAnalyzerClient()),
-        fake_shuffler_client_(new FakeShufflerClient()),
-        test_app_(GetTestProject(), fake_analyzer_client_,
-                  fake_shuffler_client_, std::unique_ptr<SystemData>(),
-                  TestApp::kInteractive, "", EncryptedMessage::NONE, "",
-                  EncryptedMessage::NONE, &output_stream_) {}
+      : fake_shuffler_client_(new FakeShufflerClient()),
+        test_app_(GetTestProject(), fake_shuffler_client_,
+                  std::unique_ptr<SystemData>(), TestApp::kInteractive, "",
+                  EncryptedMessage::NONE, "", EncryptedMessage::NONE,
+                  &output_stream_) {}
 
  protected:
   // Clears the contents of the TestApp's output stream and returns the
@@ -282,7 +268,6 @@ class TestAppTest : public ::testing::Test {
   // Is the TestApp's output stream curently empty?
   bool NoOutput() { return output_stream_.str().empty(); }
 
-  std::shared_ptr<FakeAnalyzerClient> fake_analyzer_client_;
   std::shared_ptr<FakeShufflerClient> fake_shuffler_client_;
 
   // The output stream that the TestApp has been given.
@@ -341,7 +326,6 @@ TEST_F(TestAppTest, ProcessCommandLineSetAndLs) {
   EXPECT_TRUE(test_app_.ProcessCommandLine("ls"));
   EXPECT_TRUE(OutputContains("Metric ID: 1"));
   EXPECT_TRUE(OutputContains("Encoding Config ID: 1"));
-  EXPECT_TRUE(OutputContains("Skip Shuffler: 0"));
   ClearOutput();
 
   EXPECT_TRUE(test_app_.ProcessCommandLine("set metric 2"));
@@ -350,7 +334,6 @@ TEST_F(TestAppTest, ProcessCommandLineSetAndLs) {
   EXPECT_TRUE(test_app_.ProcessCommandLine("ls"));
   EXPECT_TRUE(OutputContains("Metric ID: 2"));
   EXPECT_TRUE(OutputContains("Encoding Config ID: 1"));
-  EXPECT_TRUE(OutputContains("Skip Shuffler: 0"));
   ClearOutput();
 
   EXPECT_TRUE(test_app_.ProcessCommandLine("set encoding 2"));
@@ -359,25 +342,11 @@ TEST_F(TestAppTest, ProcessCommandLineSetAndLs) {
   EXPECT_TRUE(test_app_.ProcessCommandLine("ls"));
   EXPECT_TRUE(OutputContains("Metric ID: 2"));
   EXPECT_TRUE(OutputContains("Encoding Config ID: 2"));
-  EXPECT_TRUE(OutputContains("Skip Shuffler: 0"));
   ClearOutput();
-
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set skip_shuffler true"));
-  EXPECT_TRUE(NoOutput());
 
   EXPECT_TRUE(test_app_.ProcessCommandLine("ls"));
   EXPECT_TRUE(OutputContains("Metric ID: 2"));
   EXPECT_TRUE(OutputContains("Encoding Config ID: 2"));
-  EXPECT_TRUE(OutputContains("Skip Shuffler: 1"));
-  ClearOutput();
-
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set skip_shuffler false"));
-  EXPECT_TRUE(NoOutput());
-
-  EXPECT_TRUE(test_app_.ProcessCommandLine("ls"));
-  EXPECT_TRUE(OutputContains("Metric ID: 2"));
-  EXPECT_TRUE(OutputContains("Encoding Config ID: 2"));
-  EXPECT_TRUE(OutputContains("Skip Shuffler: 0"));
   ClearOutput();
 }
 
@@ -523,61 +492,6 @@ TEST_F(TestAppTest, ProcessCommandLineEncodeAndSend) {
   // hours-of-the-day.
   EXPECT_TRUE(test_app_.ProcessCommandLine("set encoding 2"));
   EXPECT_TRUE(test_app_.ProcessCommandLine("set metric 2"));
-
-  // Set skip_shuffler true.
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set skip_shuffler true"));
-  EXPECT_TRUE(NoOutput());
-
-  EXPECT_TRUE(test_app_.ProcessCommandLine("encode 100 8"));
-  EXPECT_TRUE(test_app_.ProcessCommandLine("encode 200 9"));
-  EXPECT_TRUE(test_app_.ProcessCommandLine("send"));
-  EXPECT_TRUE(NoOutput());
-  // The received envelope should contain 1 batch.
-  envelope = fake_analyzer_client_->envelope;
-  ASSERT_EQ(1, envelope.batch_size());
-  // That batch should contain 300 messages.
-  const ObservationBatch& batch2 = envelope.batch(0);
-  EXPECT_EQ(300, batch2.encrypted_observation_size());
-  // The metric ID should be 2.
-  EXPECT_EQ(2u, batch2.meta_data().metric_id());
-  // All of the Observations should have a single part named "hour" that has an
-  // encoding config ID of 2
-  for (const auto& encrypted_message : batch2.encrypted_observation()) {
-    auto observation = ParseUnencryptedObservation(encrypted_message);
-    EXPECT_EQ(1, observation.parts_size());
-    auto part = observation.parts().at("hour");
-    EXPECT_EQ(2u, part.encoding_config_id());
-  }
-
-  // Switch to metric 4 encoding 5 which is Basic RAPPOR with
-  // events encoded as indices
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set encoding 5"));
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set metric 4"));
-
-  // Set skip_shuffler true.
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set skip_shuffler true"));
-  EXPECT_TRUE(NoOutput());
-
-  EXPECT_TRUE(test_app_.ProcessCommandLine("encode 100 index=0"));
-  EXPECT_TRUE(test_app_.ProcessCommandLine("encode 200 index=1"));
-  EXPECT_TRUE(test_app_.ProcessCommandLine("send"));
-  EXPECT_TRUE(NoOutput());
-  // The received envelope should contain 1 batch.
-  envelope = fake_analyzer_client_->envelope;
-  ASSERT_EQ(1, envelope.batch_size());
-  // That batch should contain 300 messages.
-  const ObservationBatch& batch3 = envelope.batch(0);
-  EXPECT_EQ(300, batch3.encrypted_observation_size());
-  // The metric ID should be 4.
-  EXPECT_EQ(4u, batch3.meta_data().metric_id());
-  // All of the Observations should have a single part named "event" that has an
-  // encoding config ID of 5
-  for (const auto& encrypted_message : batch3.encrypted_observation()) {
-    auto observation = ParseUnencryptedObservation(encrypted_message);
-    EXPECT_EQ(1, observation.parts_size());
-    auto part = observation.parts().at("event");
-    EXPECT_EQ(5u, part.encoding_config_id());
-  }
 }
 
 // Tests processing a multi-encode and send operation.
@@ -710,10 +624,10 @@ TEST_F(TestAppTest, ProcessCommandLineQuit) {
 // Tests the Run() method in send-once mode.
 TEST_F(TestAppTest, RunSendAndQuit) {
   // Reconstruct TestApp in send-once mode.
-  test_app_ = TestApp(GetTestProject(), fake_analyzer_client_,
-                      fake_shuffler_client_, std::unique_ptr<SystemData>(),
-                      TestApp::kSendOnce, "", EncryptedMessage::NONE, "",
-                      EncryptedMessage::NONE, &output_stream_);
+  test_app_ = TestApp(GetTestProject(), fake_shuffler_client_,
+                      std::unique_ptr<SystemData>(), TestApp::kSendOnce, "",
+                      EncryptedMessage::NONE, "", EncryptedMessage::NONE,
+                      &output_stream_);
   test_app_.set_metric(3);
   FLAGS_num_clients = 31;
   FLAGS_values = "fruit:apple:3,rating:10:4";
@@ -743,10 +657,10 @@ TEST_F(TestAppTest, RunSendAndQuit) {
 // Tests the Run() method in send-once mode with invalid flags.
 TEST_F(TestAppTest, RunSendAndQuitBad) {
   // Reconstruct TestApp in send-once mode.
-  test_app_ = TestApp(GetTestProject(), fake_analyzer_client_,
-                      fake_shuffler_client_, std::unique_ptr<SystemData>(),
-                      TestApp::kSendOnce, "", EncryptedMessage::NONE, "",
-                      EncryptedMessage::NONE, &output_stream_);
+  test_app_ = TestApp(GetTestProject(), fake_shuffler_client_,
+                      std::unique_ptr<SystemData>(), TestApp::kSendOnce, "",
+                      EncryptedMessage::NONE, "", EncryptedMessage::NONE,
+                      &output_stream_);
   test_app_.set_metric(3);
 
   // Misspell "fruit"

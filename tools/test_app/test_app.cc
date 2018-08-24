@@ -54,12 +54,12 @@ using encoder::MemoryObservationStore;
 using encoder::ObservationStore;
 using encoder::ObservationStoreDispatcher;
 using encoder::ProjectContext;
+using encoder::send_retryer::SendRetryer;
 using encoder::ShippingDispatcher;
 using encoder::ShippingManager;
 using encoder::ShufflerClient;
 using encoder::ShufflerClientInterface;
 using encoder::SystemData;
-using encoder::send_retryer::SendRetryer;
 using google::protobuf::Empty;
 using grpc::Channel;
 using grpc::ClientContext;
@@ -115,8 +115,6 @@ DEFINE_string(config_bin_proto_path, "",
 // Category 2: Flags consumed by CreateFromFlagsOrDie() that set values that
 // may be overidden by a set command in interactive mode.
 DEFINE_uint32(metric, 1, "Metric ID to use.");
-DEFINE_bool(skip_shuffler, false,
-            "If true send Observations directly to the analyzer.");
 
 // Category 3: Flags used only in send-once or automatic modes. These are not
 // consumed by CreateFromFlagsOrDie().
@@ -185,7 +183,6 @@ void PrintHelp(std::ostream* ostream) {
            << std::endl;
   *ostream << "set encoding <id>        \tSet encoding config id." << std::endl;
   *ostream << "set metric <id>          \tSet metric id." << std::endl;
-  *ostream << "set skip_shuffler <bool> \tSet skip_shuffler." << std::endl;
   *ostream << "show config              \tDisplay the current Metric and "
               "Encoding configurations."
            << std::endl;
@@ -290,10 +287,6 @@ std::shared_ptr<ProjectContext> LoadProjectContext(
       FLAGS_customer, FLAGS_project, metric_registry, encoding_registry));
 }
 
-bool ParseBool(const std::string& str) {
-  return (str == "true" || str == "True" || str == "1");
-}
-
 // Given a |line| of text, breaks it into tokens separated by white space.
 std::vector<std::string> Tokenize(const std::string& line) {
   std::istringstream line_stream(line);
@@ -323,19 +316,6 @@ std::vector<std::string> ParseCSV(const std::string& line) {
   return cells;
 }
 
-std::shared_ptr<grpc::ChannelCredentials> CreateChannelCredentials(
-    bool use_tls, const char* pem_root_certs = nullptr) {
-  if (use_tls) {
-    auto opts = grpc::SslCredentialsOptions();
-    if (pem_root_certs) {
-      opts.pem_root_certs = pem_root_certs;
-    }
-    return grpc::SslCredentials(opts);
-  } else {
-    return grpc::InsecureChannelCredentials();
-  }
-}
-
 template <class T>
 std::string ToString(std::vector<T> v) {
   std::ostringstream stream;
@@ -347,85 +327,10 @@ std::string ToString(std::vector<T> v) {
 
 }  // namespace
 
-// An implementation of AnalyzerClientInterface that actually sends Envelopes.
-class AnalyzerClient : public AnalyzerClientInterface {
- public:
-  // The mode is used only to determine whether to print error messages to
-  // the logs or the the console.
-  AnalyzerClient(std::unique_ptr<analyzer::Analyzer::Stub> analyzer_stub,
-                 TestApp::Mode mode)
-      : analyzer_stub_(std::move(analyzer_stub)), mode_(mode) {}
-
-  virtual ~AnalyzerClient() = default;
-
- private:
-  void SendToAnalyzer(const Envelope& envelope) {
-    if (!analyzer_stub_) {
-      if (mode_ == TestApp::kInteractive) {
-        std::cout
-            << "The flag -analyzer_uri was not specified so you cannot "
-               "send directly to the analyzer. Try 'set skip_shuffler false'."
-            << std::endl;
-      } else {
-        LOG(ERROR) << "-analyzer_uri was not specified.";
-      }
-      return;
-    }
-
-    if (envelope.batch_size() == 0) {
-      if (mode_ == TestApp::kInteractive) {
-        std::cout << "There are no Observations to send yet." << std::endl;
-      } else {
-        LOG(ERROR) << "Not sending to analyzer. No observations were "
-                      "successfully encoded.";
-      }
-      return;
-    }
-
-    Empty resp;
-
-    for (const ObservationBatch& batch : envelope.batch()) {
-      if (mode_ == TestApp::kInteractive) {
-      } else {
-        VLOG(2) << "Sending to analyzer with deadline = "
-                << FLAGS_deadline_seconds << " seconds...";
-      }
-      std::unique_ptr<grpc::ClientContext> context(new grpc::ClientContext());
-      context->set_deadline(std::chrono::system_clock::now() +
-                            std::chrono::seconds(FLAGS_deadline_seconds));
-
-      auto status =
-          analyzer_stub_->AddObservations(context.get(), batch, &resp);
-      if (status.ok()) {
-        if (mode_ == TestApp::kInteractive) {
-          std::cout << "Sent to Analyzer" << std::endl;
-        } else {
-          VLOG(2) << "Sent to Analyzer";
-        }
-      } else {
-        if (mode_ == TestApp::kInteractive) {
-          std::cout << "Send to analyzer failed with status="
-                    << status.error_code() << " " << status.error_message()
-                    << std::endl;
-        } else {
-          LOG(ERROR) << "Send to analyzer failed with status="
-                     << status.error_code() << " " << status.error_message();
-        }
-        return;
-      }
-    }
-  }
-
-  std::unique_ptr<analyzer::Analyzer::Stub> analyzer_stub_;
-  TestApp::Mode mode_;
-};
-
 void TestApp::SendToShuffler() {
   if (!shuffler_client_) {
     if (mode_ == TestApp::kInteractive) {
-      std::cout << "The flag -shuffler_uri was not specified so you cannot "
-                   "send to the shuffler. Try 'set skip_shuffler true'."
-                << std::endl;
+      std::cout << "The flag -shuffler_uri must be specified." << std::endl;
     } else {
       LOG(ERROR) << "-shuffler_uri was not specified.";
     }
@@ -474,19 +379,9 @@ std::unique_ptr<TestApp> TestApp::CreateFromFlagsOrDie(int argc, char* argv[]) {
   std::shared_ptr<encoder::ProjectContext> project_context =
       LoadProjectContext(config_bin_proto_path);
 
-  CHECK(!FLAGS_analyzer_uri.empty() || !FLAGS_shuffler_uri.empty())
-      << "You must specify either -shuffler_uri or -analyzer_uri";
-
-  std::unique_ptr<analyzer::Analyzer::Stub> analyzer_stub;
-  if (!FLAGS_analyzer_uri.empty()) {
-    analyzer_stub = Analyzer::NewStub(grpc::CreateChannel(
-        FLAGS_analyzer_uri, CreateChannelCredentials(FLAGS_use_tls)));
-  }
+  CHECK(!FLAGS_shuffler_uri.empty()) << "You must specify -shuffler_uri";
 
   auto mode = ParseMode();
-  std::shared_ptr<AnalyzerClientInterface> analyzer_client(
-      new AnalyzerClient(std::move(analyzer_stub), mode));
-
   std::shared_ptr<encoder::ShufflerClient> shuffler_client;
   if (!FLAGS_shuffler_uri.empty()) {
     VLOG(2) << "Connecting to Shuffler at " << FLAGS_shuffler_uri;
@@ -536,17 +431,15 @@ std::unique_ptr<TestApp> TestApp::CreateFromFlagsOrDie(int argc, char* argv[]) {
   }
 
   auto test_app = std::unique_ptr<TestApp>(new TestApp(
-      project_context, analyzer_client, shuffler_client, std::move(system_data),
-      mode, analyzer_public_key_pem, analyzer_encryption_scheme,
+      project_context, shuffler_client, std::move(system_data), mode,
+      analyzer_public_key_pem, analyzer_encryption_scheme,
       shuffler_public_key_pem, shuffler_encryption_scheme, &std::cout));
   test_app->set_metric(FLAGS_metric);
-  test_app->set_skip_shuffler(FLAGS_skip_shuffler);
   return test_app;
 }
 
 TestApp::TestApp(
     std::shared_ptr<ProjectContext> project_context,
-    std::shared_ptr<AnalyzerClientInterface> analyzer_client,
     std::shared_ptr<encoder::ShufflerClientInterface> shuffler_client,
     std::unique_ptr<encoder::SystemData> system_data, Mode mode,
     const std::string& analyzer_public_key_pem,
@@ -557,7 +450,6 @@ TestApp::TestApp(
       project_id_(project_context->project_id()),
       mode_(mode),
       project_context_(project_context),
-      analyzer_client_(analyzer_client),
       shuffler_client_(shuffler_client),
       send_retryer_(new SendRetryer(shuffler_client_.get())),
       system_data_(std::move(system_data)),
@@ -669,22 +561,7 @@ void TestApp::SendAndQuit() {
   }
 }
 
-void TestApp::SendAccumulatedObservations() {
-  if (skip_shuffler_) {
-    auto observation_store_or =
-        store_dispatcher_->GetStore(ObservationMetadata::LEGACY_BACKEND);
-    if (!observation_store_or.ok()) {
-      VLOG(2) << "Unabel to retrieve LEGACY ObservationStore "
-              << observation_store_or.status().error_message();
-      return;
-    }
-    auto envelope_maker =
-        observation_store_or.ConsumeValueOrDie()->TakeNextEnvelopeHolder();
-    analyzer_client_->SendToAnalyzer(envelope_maker->GetEnvelope());
-  } else {
-    SendToShuffler();
-  }
-}
+void TestApp::SendAccumulatedObservations() { SendToShuffler(); }
 
 void TestApp::CommandLoop() {
   std::string command_line;
@@ -1064,13 +941,11 @@ void TestApp::ListParameters() {
   *ostream_ << "---------------" << std::endl;
   *ostream_ << "Metric ID: " << metric_ << std::endl;
   *ostream_ << "Encoding Config ID: " << encoding_config_id_ << std::endl;
-  *ostream_ << "Skip Shuffler: " << skip_shuffler_ << std::endl;
   *ostream_ << std::endl;
   *ostream_ << "Values set by flag at startup." << std::endl;
   *ostream_ << "-----------------------------" << std::endl;
   *ostream_ << "Customer ID: " << customer_id_ << std::endl;
   *ostream_ << "Project ID: " << project_id_ << std::endl;
-  *ostream_ << "Analyzer URI: " << FLAGS_analyzer_uri << std::endl;
   *ostream_ << "Shuffler URI: " << FLAGS_shuffler_uri << std::endl;
   *ostream_ << std::endl;
 }
@@ -1102,8 +977,6 @@ void TestApp::SetParameter(const std::vector<std::string>& command) {
       return;
     }
     encoding_config_id_ = id;
-  } else if (command[1] == "skip_shuffler") {
-    skip_shuffler_ = ParseBool(command[2]);
   } else {
     *ostream_ << command[1] << " is not a settable parameter." << std::endl;
   }

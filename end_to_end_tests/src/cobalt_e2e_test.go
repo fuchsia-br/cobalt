@@ -354,7 +354,6 @@ var (
 	bigtableToolPath       = flag.String("bigtable_tool_path", "", "The full path to the Cobalt bigtable_tool binary")
 	configBinProtoPath     = flag.String("config_bin_proto_path", "", "The full path to the serialized CobaltConfig proto from which the configuration is to be read.")
 
-	analyzerUri     = flag.String("analyzer_uri", "", "The URI of the Analyzer Service")
 	reportMasterUri = flag.String("report_master_uri", "", "The URI of the Report Master")
 	shufflerUri     = flag.String("shuffler_uri", "", "The URI of the Shuffler")
 
@@ -576,22 +575,21 @@ func waitForObservations(metricId uint32, expectedNum uint32) error {
 
 // sendObservations calls sendObservationGroup with 2 different board names, to
 // simulate getting some observations from different boards.
-func sendObservations(metricId uint32, values []ValuePart, skipShuffler bool, numClients uint, repeatCount uint) error {
-	err := sendObservationGroup(metricId, values, skipShuffler, numClients/2, repeatCount, "CobaltE2EBoardName")
+func sendObservations(metricId uint32, values []ValuePart, numClients uint, repeatCount uint) error {
+	err := sendObservationGroup(metricId, values, numClients/2, repeatCount, "CobaltE2EBoardName")
 	if err != nil {
 		return err
 	}
-	err = sendObservationGroup(metricId, values, skipShuffler, numClients-(numClients/2), repeatCount, "CobaltE2EBoardName2")
+	err = sendObservationGroup(metricId, values, numClients-(numClients/2), repeatCount, "CobaltE2EBoardName2")
 	return err
 }
 
 // sendObservationGroup uses the cobalt_test_app to encode the given values into
-// observations and send the observations to the Shuffler or the Analyzer.
-func sendObservationGroup(metricId uint32, values []ValuePart, skipShuffler bool, numClients uint, repeatCount uint, boardName string) error {
+// observations and send the observations to the Shuffler.
+func sendObservationGroup(metricId uint32, values []ValuePart, numClients uint, repeatCount uint, boardName string) error {
 	cmd := exec.Command(*testAppPath,
 		"-mode", "send-once",
 		"-config_bin_proto_path", *configBinProtoPath,
-		"-analyzer_uri", *analyzerUri,
 		"-analyzer_pk_pem_file", *analyzerPkPemFile,
 		"-shuffler_uri", *shufflerUri,
 		"-shuffler_pk_pem_file", *shufflerPkPemFile,
@@ -606,7 +604,6 @@ func sendObservationGroup(metricId uint32, values []ValuePart, skipShuffler bool
 		// additional Observations to be saved in the ObservationStore but
 		// -num_adds_per_observation does not.
 		"-repeat", strconv.Itoa(int(repeatCount)),
-		fmt.Sprintf("-skip_shuffler=%t", skipShuffler),
 		// Each obervation is sent to the Shuffler 3 times. This allows us to test
 		// that the add-observation operation is idempotent.
 		"-num_adds_per_observation", "3",
@@ -630,7 +627,6 @@ func sendObservationGroup(metricId uint32, values []ValuePart, skipShuffler bool
 // observations will be sent. The process of adding and sending will be repeated
 // |repeatCount| times.
 func sendStringObservations(metricId uint32, partName string, encodingConfigId uint32, value string, numClients uint, repeatCount uint, t *testing.T) {
-	const skipShuffler = false
 	values := []ValuePart{
 		ValuePart{
 			partName,
@@ -638,7 +634,7 @@ func sendStringObservations(metricId uint32, partName string, encodingConfigId u
 			encodingConfigId,
 		},
 	}
-	if err := sendObservations(metricId, values, skipShuffler, numClients, repeatCount); err != nil {
+	if err := sendObservations(metricId, values, numClients, repeatCount); err != nil {
 		t.Fatalf("url=%s, numClient=%d, err=%v", value, numClients, err)
 	}
 }
@@ -647,7 +643,6 @@ func sendStringObservations(metricId uint32, partName string, encodingConfigId u
 // for the specified metric part, using the specified encoding. |numClients| different, independent
 // observations will be sent. The process of adding and sending will be repeated |repeatCount| times.
 func sendIntObservations(metricId uint32, partName string, encodingConfigId uint32, value int, numClients uint, repeatCount uint, t *testing.T) {
-	const skipShuffler = false
 	values := []ValuePart{
 		ValuePart{
 			hourMetricPartName,
@@ -655,7 +650,7 @@ func sendIntObservations(metricId uint32, partName string, encodingConfigId uint
 			basicRapporStringsEncodingConfigId,
 		},
 	}
-	if err := sendObservations(hourMetricId, values, skipShuffler, numClients, repeatCount); err != nil {
+	if err := sendObservations(hourMetricId, values, numClients, repeatCount); err != nil {
 		t.Fatalf("hour=%d, numClient=%d, err=%v", value, numClients, err)
 	}
 }
@@ -664,7 +659,6 @@ func sendIntObservations(metricId uint32, partName string, encodingConfigId uint
 // |numClients| different, independent observations will be sent. The process of adding and sending will be repeated
 // |repeatCount| times.
 func sendIndexedObservations(metricId uint32, partName string, encodingConfigId uint32, index int, numClients uint, repeatCount uint, t *testing.T) {
-	const skipShuffler = false
 	values := []ValuePart{
 		ValuePart{
 			partName,
@@ -672,7 +666,7 @@ func sendIndexedObservations(metricId uint32, partName string, encodingConfigId 
 			encodingConfigId,
 		},
 	}
-	if err := sendObservations(metricId, values, skipShuffler, numClients, repeatCount); err != nil {
+	if err := sendObservations(metricId, values, numClients, repeatCount); err != nil {
 		t.Fatalf("index=%d, numClient=%d, err=%v", index, numClients, err)
 	}
 }
