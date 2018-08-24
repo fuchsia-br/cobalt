@@ -131,7 +131,7 @@ TEST_F(RapporAnalyzerTest, CompareAnalyzeToRegression) {
 // Note: encoding observations is time consuming so large tests may take long.
 TEST_F(RapporAnalyzerTest, PowerLawExperiment) {
   static const uint32_t kNumCandidates = 20000;
-  static const uint32_t kNumCohorts = 128;
+  static const uint32_t kNumCohorts = 64;
   static const uint32_t kNumHashes = 2;
   static const uint32_t kNumBloomBits = 128;
   static const uint32_t kNumObservations = 1e+6;
@@ -184,11 +184,11 @@ TEST_F(RapporAnalyzerTest, PowerLawExperiment) {
 // This is the same as PowerLawExperiment but the distribution of observations
 // is exponential.
 TEST_F(RapporAnalyzerTest, ExponentialExperiment) {
-  static const uint32_t kNumCandidates = 10000;
-  static const uint32_t kNumCohorts = 128;
+  static const uint32_t kNumCandidates = 100;
+  static const uint32_t kNumCohorts = 2;
   static const uint32_t kNumHashes = 2;
   static const uint32_t kNumBloomBits = 128;
-  static const uint32_t kNumObservations = 1e+6;
+  static const uint32_t kNumObservations = 1e+5;
   static const bool print_estimates = true;
   static const double lambda = 1.0;  // the support of pdf for lambda == 1.0 ...
   static const double approximate_max_generated_num =
@@ -237,9 +237,9 @@ TEST_F(RapporAnalyzerTest, ExponentialExperiment) {
 // comes from normal distribution.
 TEST_F(RapporAnalyzerTest, NormalDistExperiment) {
   static const uint32_t kNumCandidates = 100;
-  static const uint32_t kNumCohorts = 8;
+  static const uint32_t kNumCohorts = 2;
   static const uint32_t kNumHashes = 2;
-  static const uint32_t kNumBloomBits = 8;
+  static const uint32_t kNumBloomBits = 128;
   static const uint32_t kNumObservations = 1e+5;
   static const bool print_estimates = true;
   const double mean = static_cast<const double>(kNumCandidates / 2);

@@ -646,8 +646,6 @@ class HistogramAnalysisEngineTest : public ::testing::Test {
       return;
     }
     for (const auto& report_row : report_rows) {
-      // In String RAPPOR we currently do not implement std_error.
-      EXPECT_EQ(0, report_row.histogram().std_error());
       EXPECT_GT(report_row.histogram().count_estimate(), 0);
       ValuePart recovered_value;
       EXPECT_TRUE(report_row.histogram().has_value());
@@ -708,8 +706,6 @@ class HistogramAnalysisEngineTest : public ::testing::Test {
     int foo_count = 0;
     int bar_count = 0;
     for (const auto& report_row : report_rows) {
-      // In String RAPPOR we currently do not implement std_error.
-      EXPECT_EQ(0, report_row.histogram().std_error());
       EXPECT_GT(report_row.histogram().count_estimate(), 0);
       ValuePart recovered_value;
       EXPECT_TRUE(report_row.histogram().has_value());

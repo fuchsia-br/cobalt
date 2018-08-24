@@ -261,9 +261,9 @@ TEST_F(RapporAnalyzerTest, SimpleAnalyzeTest) {
   candidate_indices.insert(candidate_indices.end(), 60, 9);
   true_candidate_counts = {0, 20, 0, 0, 20, 0, 0, 0, 0, 60};
   ShortExperimentWithAnalyze("p=0, q=1, several candidates", kNumCandidates,
-                          kNumBloomBits, kNumCohorts, kNumHashes,
-                          candidate_indices, true_candidate_counts,
-                          print_estimates);
+                             kNumBloomBits, kNumCohorts, kNumHashes,
+                             candidate_indices, true_candidate_counts,
+                             print_estimates);
 
   prob_0_becomes_1_ = 0.1;
   prob_1_stays_1_ = 0.9;
@@ -271,18 +271,157 @@ TEST_F(RapporAnalyzerTest, SimpleAnalyzeTest) {
   candidate_indices = std::vector<int>(100, 5);
   true_candidate_counts = {0, 0, 0, 0, 0, 100, 0, 0, 0, 0};
   ShortExperimentWithAnalyze("p=0.1, q=0.9, only candidate 5", kNumCandidates,
-                          kNumBloomBits, kNumCohorts, kNumHashes,
-                          candidate_indices, true_candidate_counts,
-                          print_estimates);
+                             kNumBloomBits, kNumCohorts, kNumHashes,
+                             candidate_indices, true_candidate_counts,
+                             print_estimates);
 
   candidate_indices = std::vector<int>(20, 1);
   candidate_indices.insert(candidate_indices.end(), 20, 4);
   candidate_indices.insert(candidate_indices.end(), 60, 9);
   true_candidate_counts = {0, 20, 0, 0, 20, 0, 0, 0, 0, 60};
   ShortExperimentWithAnalyze("p=0.1, q=0.9, several candidates", kNumCandidates,
-                          kNumBloomBits, kNumCohorts, kNumHashes,
-                          candidate_indices, true_candidate_counts,
-                          print_estimates);
+                             kNumBloomBits, kNumCohorts, kNumHashes,
+                             candidate_indices, true_candidate_counts,
+                             print_estimates);
+}
+
+// Runs Analyze() on the corner-case of one candidate and one cohort.
+// The result should be exact.
+TEST_F(RapporAnalyzerTest, SingleCandidateTest) {
+  static const uint32_t kNumCandidates = 1;
+  static const uint32_t kNumCohorts = 1;
+  static const uint32_t kNumHashes = 2;
+  static const uint32_t kNumBloomBits = 8;
+  SetAnalyzer(kNumCandidates, kNumBloomBits, kNumCohorts, kNumHashes);
+
+  std::vector<int> candidate_indices(100, 0);
+  AddObservationsForCandidates(candidate_indices);
+
+  // No noise introduced
+  prob_0_becomes_1_ = 0.0;
+  prob_1_stays_1_ = 1.0;
+
+  std::vector<CandidateResult> results;
+  auto status = analyzer_->Analyze(&results);
+
+  EXPECT_EQ(results.size(), kNumCandidates);
+  EXPECT_GE(results[0].count_estimate, 99);
+  EXPECT_LE(results[0].count_estimate, 101);
+}
+
+// Runs Analyze with one cohort and the number of bits much larger than the
+// number of candidates. No noise is introduced. The heavy hitter should be
+// reproduced nearly exactly (assuming second step of RAPPOR is "on" and
+// working). Note(bazyli): this test is based on the assumption that the number
+// of bits in the cohort is so large that no or almost no of the candidates will
+// share a non-zero bit with the heavy hitter.
+TEST_F(RapporAnalyzerTest, ExactSolutionTest) {
+  // The probability that the heaviest hitter will not share a nonzero bit with
+  // any other candidate when kNumCandidates = 10, kNumCohorts = 1, kNumHashes =
+  // 2, kNumBloomBits = 128, is (125 * 126 / (127 * 128))^ 9 = 0.75. In that
+  // case, the heaviest hitter must be solved exactly. Even if it does share a
+  // bit or two with some other candidate(s), this is unlikely to alter the
+  // result significantly.
+  static const uint32_t kNumCandidates = 10;
+  static const uint32_t kNumCohorts = 1;
+  static const uint32_t kNumHashes = 2;
+  static const uint32_t kNumBloomBits = 128;
+  SetAnalyzer(kNumCandidates, kNumBloomBits, kNumCohorts, kNumHashes);
+
+  std::vector<int> candidate_indices(0, 10);
+  candidate_indices.insert(candidate_indices.end(), 10, 1);
+  candidate_indices.insert(candidate_indices.end(), 10, 2);
+  candidate_indices.insert(candidate_indices.end(), 10, 3);
+  candidate_indices.insert(candidate_indices.end(), 10, 4);
+  candidate_indices.insert(candidate_indices.end(), 100, 9);
+  AddObservationsForCandidates(candidate_indices);
+
+  // No noise introduced.
+  prob_0_becomes_1_ = 0.0;
+  prob_1_stays_1_ = 1.0;
+
+  std::vector<CandidateResult> results;
+  auto status = analyzer_->Analyze(&results);
+
+  // Check that the heavy hitter is reproduced almost exactly
+  EXPECT_GE(results[9].count_estimate, 95);
+  EXPECT_LE(results[9].count_estimate, 105);
+}
+
+// Runs Analyzer with two cohorts and large number of bits. Very small noise is
+// introduced. The heaviest hitter should be reproduced very well (assuming
+// second step of RAPPOR is "on" and working). This test is based on similar
+// assumptions that ExactSolutionTest but the check is relaxed because of noise
+// and multiple cohorts.
+TEST_F(RapporAnalyzerTest, HighAccuracySolutionTest) {
+  static const uint32_t kNumCandidates = 10;
+  static const uint32_t kNumCohorts = 2;
+  static const uint32_t kNumHashes = 2;
+  static const uint32_t kNumBloomBits = 64;
+  SetAnalyzer(kNumCandidates, kNumBloomBits, kNumCohorts, kNumHashes);
+
+  std::vector<int> candidate_indices(0, 10);
+  candidate_indices.insert(candidate_indices.end(), 10, 1);
+  candidate_indices.insert(candidate_indices.end(), 10, 2);
+  candidate_indices.insert(candidate_indices.end(), 10, 3);
+  candidate_indices.insert(candidate_indices.end(), 10, 4);
+  candidate_indices.insert(candidate_indices.end(), 100, 9);
+  AddObservationsForCandidates(candidate_indices);
+  std::vector<int> true_candidate_counts = {10, 10, 10, 10, 10,
+                                            0,  0,  0,  0,  100};
+
+  // Small noise introduced.
+  prob_0_becomes_1_ = 0.05;
+  prob_1_stays_1_ = 0.95;
+
+  std::vector<CandidateResult> results;
+  auto status = analyzer_->Analyze(&results);
+
+  EXPECT_GE(results[9].count_estimate, 70);
+  EXPECT_LE(results[9].count_estimate, 120);
+}
+
+// Runs Analyzer on a moderately under-determined system (number of rows <
+// number of columns) with more than one cohort. Small noise is introduced.
+// There are a number of (equal) heavy hitters, which should be identified.
+// TODO(bazyli): this test is heuristic; make sure it is good for a unit test.
+TEST_F(RapporAnalyzerTest, KHeavyHittersTest) {
+  static const uint32_t kNumCandidates = 100;
+  static const uint32_t kNumCohorts = 4;
+  static const uint32_t kNumHashes = 2;
+  static const uint32_t kNumBloomBits = 16;
+  SetAnalyzer(kNumCandidates, kNumBloomBits, kNumCohorts, kNumHashes);
+
+  std::vector<int> candidate_indices;
+  candidate_indices.insert(candidate_indices.end(), 100, 1);
+  candidate_indices.insert(candidate_indices.end(), 100, 2);
+  candidate_indices.insert(candidate_indices.end(), 100, 4);
+  candidate_indices.insert(candidate_indices.end(), 100, 8);
+  candidate_indices.insert(candidate_indices.end(), 100, 16);
+  candidate_indices.insert(candidate_indices.end(), 100, 32);
+  candidate_indices.insert(candidate_indices.end(), 100, 64);
+  AddObservationsForCandidates(candidate_indices);
+
+  // small noise introduced
+  prob_0_becomes_1_ = 0.1;
+  prob_1_stays_1_ = 0.9;
+
+  std::vector<CandidateResult> results;
+  auto status = analyzer_->Analyze(&results);
+
+  // Check if the heavy hitters are identified
+  EXPECT_GE(results[1].count_estimate, 50);
+  EXPECT_LE(results[1].count_estimate, 150);
+  EXPECT_GE(results[2].count_estimate, 50);
+  EXPECT_LE(results[2].count_estimate, 150);
+  EXPECT_GE(results[4].count_estimate, 50);
+  EXPECT_LE(results[4].count_estimate, 150);
+  EXPECT_GE(results[8].count_estimate, 50);
+  EXPECT_LE(results[8].count_estimate, 150);
+  EXPECT_GE(results[16].count_estimate, 50);
+  EXPECT_LE(results[16].count_estimate, 150);
+  EXPECT_GE(results[32].count_estimate, 50);
+  EXPECT_LE(results[32].count_estimate, 150);
 }
 
 }  // namespace rappor

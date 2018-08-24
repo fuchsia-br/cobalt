@@ -144,13 +144,15 @@ class RapporAnalyzer {
 
     bool converged;
 
-    float final_loss;
+    bool reached_solution;
 
-    float l1;
+    double final_loss;
 
-    float l2;
+    double l1;
 
-    float convergence_threshold;
+    double l2;
+
+    double convergence_threshold;
   };
 
   // Runs the second step of RAPPOR. Solves the problems
@@ -162,10 +164,11 @@ class RapporAnalyzer {
   //
   // It then computes the standard errors ex_j from all runs for each of x_j. It
   // sets x_j = 0 if x_j - 2 * ex_j < |zero_threshold|, otherwise sets x_j to
-  // the mean value from the computations that converged. Then x is returned.
-  // (If none of the problems converged, then unchanged |est_candidate_weights|
-  // will be returned. Also, if less than 5 problems converged, then standard
-  // errors are set to zero.)
+  // the mean value from the computations that converged. Then x is written to
+  // |significant_candidate_weights|. (If none of the problems converged, then
+  // unchanged |est_candidate_weights| will be written). The standard errors are
+  // written to |est_candidate_errors|. (However, if less than 5 problems
+  // converged, then standard errors are set to zero.)
   //
   // The problem is repeatedly solved using the parallel boosting with momentum
   // algorithm with |est_candidate_weights| as the initial guess. The parameters
@@ -178,13 +181,17 @@ class RapporAnalyzer {
   // TODO(bazyli) We can try to use QR in the same way instead or think if
   // (pseudo?) inversion is an option.
   // TODO(bazyli) maybe define the parameters as constants inside?
-  lossmin::Weights GetSignificantNonZeros(
-      const float l1, const float l2, const int num_runs, const int max_epochs,
-      const int loss_epochs, const int convergence_epochs,
-      const float zero_threshold, const lossmin::Weights& est_candidate_weights,
-      const std::vector<float>& est_standard_errs,
-      const lossmin::InstanceSet& instances,
-      const lossmin::LabelSet& as_label_set);
+  void GetSignificantNonZeros(const double l1, const double l2,
+                              const int num_runs, const int max_epochs,
+                              const int loss_epochs,
+                              const int convergence_epochs,
+                              const double zero_threshold,
+                              const lossmin::Weights& est_candidate_weights,
+                              const std::vector<float>& est_standard_errs,
+                              const lossmin::InstanceSet& instances,
+                              const lossmin::LabelSet& as_label_set,
+                              lossmin::Weights* significant_candidate_weights,
+                              lossmin::Weights* est_candidate_errors);
 
   // Computes the column vector est_bit_count_ratios as well as a vector
   // est_std_errors of the corresponding standard errors. This method should be
