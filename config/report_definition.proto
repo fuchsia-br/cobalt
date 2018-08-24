@@ -5,6 +5,7 @@ syntax = "proto3";
 
 package cobalt;
 
+import "window_size.proto";
 import "config/metrics.proto";
 import "config/report_configs.proto";
 
@@ -65,14 +66,15 @@ message ReportDefinition{
     //     Encoding: Basic RAPPOR
     //     Observation type: BasicRapporObservation
     //
-    // ReportDefintion fields particular to this type:
+    // ReportDefinition fields particular to this type:
     //   - local_privacy_noise_level # Gives Basic RAPPOR parameters
     //
     // Report fields:
     //   - date # The date on which the events occurred, as measured on the
     //          # device
-    //   - system_profile # One or more fields describing the profile of the
-    //                    # system on which the events occurred.
+    //   - system_profile # One or more fields from the SystemProfile message
+    //                      type (cobalt/observation.proto) describing the
+    //                      system on which the events occurred.
     //   - event # The name of the event type.
     //   - count # The total count of the event occurrence on that date, over
     //             all reporting devices with that system profile. Unless the
@@ -100,13 +102,15 @@ message ReportDefinition{
     //     Observation type: IntegerEventObservation
     //     Observation value field: count
     //
-    // ReportDefintion fields particular to this type:
+    // ReportDefinition fields particular to this type:
     //   - candidate_list # All known component names
     //   - candidate_file # File with all known component names
     //
     // Report fields:
     //   - date
-    //   - system_profile
+    //   - system_profile # One or more fields from the SystemProfile message
+    //                      type (cobalt/observation.proto) describing the
+    //                      system on which the events occurred.
     //   - event
     //   - component # The name of the component
     //   - count # The total count of occurrence for that event-type, for that
@@ -133,13 +137,15 @@ message ReportDefinition{
     //     Observation value field: Respectively, duration_microseconds
     //                              round(fps * 100), bytes
     //
-    // ReportDefintion fields particular to this type:
+    // ReportDefinition fields particular to this type:
     //   - candidate_list # All known component names
     //   - candidate_file # File with all known component names
     //
     // Report fields:
     //   - date
-    //   - system_profile
+    //   - system_profile # One or more fields from the SystemProfile message
+    //                      type (cobalt/observation.proto) describing the
+    //                      system on which the events occurred.
     //   - event
     //   - component
     //   - count
@@ -168,7 +174,7 @@ message ReportDefinition{
     //     Encoding: Component name is hashed, values are bucketed
     //     Observation type: HistogramObservation
     //
-    // ReportDefintion fields particular to this type:
+    // ReportDefinition fields particular to this type:
     //   - candidate_list # All known component names
     //   - candidate_file # File with all known component names
     //   - int_buckets # Definition of integer-range buckets for histogram
@@ -177,7 +183,9 @@ message ReportDefinition{
     //
     // Report fields:
     //   - date
-    //   - system_profile
+    //   - system_profile # One or more fields from the SystemProfile message
+    //                      type (cobalt/observation.proto) describing the
+    //                      system on which the events occurred.
     //   - event
     //   - component
     //   - bucket-1, bucket-2,...
@@ -204,7 +212,7 @@ message ReportDefinition{
     //     Encoding: String RAPPOR
     //     Observation type: StringRapporObservation
     //
-    // ReportDefintion fields particular to this type:
+    // ReportDefinition fields particular to this type:
     //   - local_privacy_noise_level # Gives RAPPOR parameters p,q
     //   - expected_population_size  # Hint for RAPPOR num cohorts
     //   - expected_string_set_size  # Hint for RAPPOR num bits
@@ -213,7 +221,9 @@ message ReportDefinition{
     //
     // Report fields:
     //   - date
-    //   - systemProfile
+    //   - system_profile # One or more fields from the SystemProfile message
+    //                      type (cobalt/observation.proto) describing the
+    //                      system on which the events occurred.
     //   - string # The string that was used
     //   - count # An estimate of the total number of times the string was used
     //           # for the given date, over devices with that system profile.
@@ -247,13 +257,15 @@ message ReportDefinition{
     //     Encoding: Forculus threshold encryption
     //     Observation type: ForculusObservation
     //
-    // ReportDefintion fields particular to this type:
+    // ReportDefinition fields particular to this type:
     //   - threshold # The number of distinct devices that must log a string
     //               # before that string my be decrypted on the server.
     //
     // Report fields:
     //   - date
-    //   - systemProfile
+    //   - system_profile # One or more fields from the SystemProfile message
+    //                      type (cobalt/observation.proto) describing the
+    //                      system on which the events occurred.
     //   - string # The string that was used
     //   - count # The total number of times the string was used
     //           # for the given date, over devices with that system profile.
@@ -278,13 +290,15 @@ message ReportDefinition{
     //     Observation value field: Respectively, duration_microseconds
     //                              round(fps * 100), bytes
     //
-    // ReportDefintion fields particular to this type:
+    // ReportDefinition fields particular to this type:
     //   - candidate_list # All known component names
     //   - candidate_file # File with all known component names
     //
     // Report fields:
     //   - date
-    //   - system_profile
+    //   - system_profile # One or more fields from the SystemProfile message
+    //                      type (cobalt/observation.proto) describing the
+    //                      system on which the events occurred.
     //   - event
     //   - component
     //   - value # The integer value from the Observation
@@ -297,7 +311,78 @@ message ReportDefinition{
     // 2018-7-25,<sys-prof 2>,"Component 1","Event 2",34567
     // 2018-7-25,<sys-prof 1>,"Component 2","Event 1",12345
     // 2018-7-25,<sys-prof 2>,"Component 2","Event 3",78901
-    NUMERIC_PERF_RAW_DUMP = 998;
+    NUMERIC_PERF_RAW_DUMP = 7;
+
+    ////////////////////// Locally aggregated ReportTypes //////////////////////
+    //
+    // Report types for which logged Events are aggregated on each device over a
+    // specified number of days. Each day, each device sends an Observation of
+    // the aggregate of the Events over the rolling window ending on that day.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    // For each of a set of events, gives an estimate of the number of unique
+    // devices on which that event occurred at least once during a rolling
+    // window. Supports the use of local differential privacy with Basic RAPPOR.
+    //
+    // Each device sends an observation each day for each window size registered
+    // in a Report Definition of this type, whether or not any of the associated
+    // events occurred in the window ending on that day.
+    //
+    // Supported Input Types:
+    //   - Metric type: EVENT_OCCURRED
+    //   - Encoding: Basic RAPPOR. In the decoding step one should not assume
+    //               that the true bit vector has exactly 1 bit set, but rather
+    //               can have any number of bits set. This encoding/decoding
+    //               scheme is the same as the Instantanous Randomized Response
+    //               in the RAPPOR paper (https://arxiv.org/pdf/1407.6981.pdf).
+    //   - Observation type: UniqueActivesObservation
+    //
+    // ReportDefinition fields particular to this type:
+    //   - local_privacy_noise_level # Gives Basic RAPPOR parameters.
+    //   - window_size # A list of window sizes in days.
+    //
+    // Report fields:
+    //   - date # The date on which the aggregated Observation was created, as
+    //            measured on the device. This is the last date included in the
+    //            window for this report.
+    //   - system_profile # One or more fields from the SystemProfile message
+    //                      type (cobalt/observation.proto) describing the
+    //                      system on which the events occurred.
+    //   - window_size # A WindowSize enum (cobalt/window_size.proto) specifying
+    //                   the time window over which to report activity.
+    //   - samples # The number of Observations received for the window of
+    //               this window_size ending on this date, for this
+    //               system_profile. This is equal to the number of Fuchsia
+    //               devices with that system_profile which were awake at the
+    //               time that locally aggregated Observations for this Report
+    //               Definition were created and uploaded, whether or not this
+    //               event_type occurred on the device during the window.
+    //   - event_type # The name of the event type.
+    //   - unique_actives # The number of unique devices with this
+    //                      system_profile on which this event_type occurred at
+    //                      least once during the window of size window_size
+    //                      ending on this date.
+    //                      Unless local_privacy_noise_level is set to NONE,
+    //                      this value is an estimate.
+    //   - std_err # The standard error in the value of the unique_actives
+    //               estimate.
+    //
+    // Example report:
+    //
+    // Date,SystemProfile,WindowSize,Samples,EventType,UniqueActives,StdErr
+    // -------------------------------------------------------------------------
+    // 2018-7-25, <sys-prof-1>, MONTHLY_WINDOW, 54321, "Event 1", 4321, 1.3
+    // 2018-7-25, <sys-prof-1>, MONTHLY_WINDOW, 54321, "Event 2", 3210, 1.3
+    // 2018-7-25, <sys-prof-1>, WEEKLY_WINDOW,  65432, "Event 1", 5432, 1.1
+    // 2018-7-25, <sys-prof-1>, WEEKLY_WINDOW,  65432, "Event 2", 2109, 1.1
+    // 2018-7-25, <sys-prof-2>, MONTHLY_WINDOW, 76543, "Event 1", 5432, 1.0
+    // 2018-7-25, <sys-prof-2>, MONTHLY_WINDOW, 76543, "Event 2", 4567, 1.0
+    // 2018-7-25, <sys-prof-2>, WEEKLY_WINDOW,  87654, "Event 1", 7654, 0.9
+    // 2018-7-25, <sys-prof-2>, WEEKLY_WINDOW,  87654, "Event 2", 9876, 0.9
+    UNIQUE_N_DAY_ACTIVES = 8;
+
+    /////////////////////// Custom Raw Dump Report /////////////////////////////
 
     // Gives a raw dump of the Observations for a CustomMetric for a day.
     //
@@ -306,11 +391,13 @@ message ReportDefinition{
     //     Encoding: none
     //     Observation type: CustomObservation
     //
-    // ReportDefintion fields particular to this type: none
+    // ReportDefinition fields particular to this type: none
     //
     // Report fields:
     //   - date
-    //   - system_profile
+    //   - system_profile # One or more fields from the SystemProfile message
+    //                      type (cobalt/observation.proto) describing the
+    //                      system on which the events occurred.
     //   - event
     //   - component
     //   - part-1, part-2, ... # The values of the custom parts
@@ -330,8 +417,7 @@ message ReportDefinition{
   }
   ReportType report_type = 3;
 
-
-  ////////////////  Fields specific to some metric types ////////////////
+  ////////////////  Fields specific to some metric types /////////////////
 
   // A level of random noise to use when encoding observations for RAPPOR.
   enum LocalPrivacyNoiseLevel {
@@ -399,17 +485,23 @@ message ReportDefinition{
   // the INT_HISTOGRAM Metric ype.
   IntegerBuckets int_buckets = 10;
 
+  // This field is used only with the UNIQUE_N_DAY_ACTIVES Report type.
+  // Used to specify the length in days of the rolling window for that
+  // report type. Cobalt will send a separate Observation for each
+  // WindowSize specified.
+  repeated WindowSize window_size = 11;
+
   ///////////////////  Fields used by all metric types ///////////////////
 
   // The list of SystemProfileFields to include in each row of the report.
   // Optional. If not specified a reasonable default will be used.
-  repeated SystemProfileField system_profile_field = 11;
+  repeated SystemProfileField system_profile_field = 100;
 
   // Configuration of differentially private release for this report.
-  DifferentialPrivacyConfig dp_release_config = 12;
+  DifferentialPrivacyConfig dp_release_config = 101;
 
   // Overrides the location to where Cobalt exports this Report.
   // This field is implementation-specific. If omitted Cobalt will use its
   // default settings to determine the location of the exported report.
-  string export_location_override = 13;
+  string export_location_override = 102;
 }

@@ -13,9 +13,10 @@ config("cobalt_config") {
 
 proto_library("cobalt_proto") {
   sources = [
+    "clearcut_extensions.proto",
     "encrypted_message.proto",
     "observation.proto",
-    "clearcut_extensions.proto",
+    "window_size.proto",
   ]
   import_dirs = [ "//third_party/protobuf/src" ]
   generate_python = false

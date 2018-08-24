@@ -552,7 +552,7 @@ macro(cobalt_protobuf_generate_go TARGET_NAME SRCS_OUT USE_GRPC)
             -I ${CMAKE_SOURCE_DIR}
             -I ${PROTOBUF_INCLUDE_DIR}
             -I ${CMAKE_SOURCE_DIR}/third_party/go/src
-            --go_out=plugins=${_plugin_prefix}Mobservation.proto=cobalt,Mencrypted_message.proto=cobalt:${_gen_root_dir}
+            --go_out=plugins=${_plugin_prefix}Mobservation.proto=cobalt,Mencrypted_message.proto=cobalt,Mwindow_size.proto=cobalt:${_gen_root_dir}
     DEPENDS ${_protofiles}
     DEPENDS build_external_projects
   )
@@ -619,14 +619,17 @@ cobalt_make_protobuf_cpp_lib(cobalt_proto_lib
                              false
                              encrypted_message
                              event
-                             observation observation2)
+                             observation
+                             observation2
+                             window_size)
 
 # Generate the go bindings for the Cobalt proto files in the root directory.
 cobalt_protobuf_generate_go(generate_cobalt_pb_go_files
                             COBALT_PB_GO_FILES
                             false
                             encrypted_message
-                            observation)
+                            observation
+                            window_size)
 
 # Analagous targets to the two above also appear in the config directory for
 # the config protos. But the variables that are generated there are not
@@ -635,13 +638,14 @@ cobalt_protobuf_generate_go(generate_cobalt_pb_go_files
 set(CONFIG_PROTO_HDRS
     "${CMAKE_BINARY_DIR}/config/encodings.pb.h"
     "${CMAKE_BINARY_DIR}/config/metrics.pb.h"
-    "${CMAKE_BINARY_DIR}/config/report_configs.pb.h")
+    "${CMAKE_BINARY_DIR}/config/report_configs.pb.h"
+    "${CMAKE_BINARY_DIR}/config/report_definition.pb.h")
 set(CONFIG_PB_GO_FILES
     "${GO_PROTO_GEN_SRC_DIR}/config/cobalt_config.pb.go"
     "${GO_PROTO_GEN_SRC_DIR}/config/encodings.pb.go"
     "${GO_PROTO_GEN_SRC_DIR}/config/metrics.pb.go"
     "${GO_PROTO_GEN_SRC_DIR}/config/report_configs.pb.go"
-)
+    "${GO_PROTO_GEN_SRC_DIR}/config/report_definition.pb.go")
 
 macro(declare_proto_files_are_generated)
   set_source_files_properties(${COBALT_PROTO_HDRS} PROPERTIES GENERATED TRUE)

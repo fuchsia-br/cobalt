@@ -7,6 +7,7 @@ syntax = "proto3";
 package cobalt;
 
 import "observation.proto";
+import "window_size.proto";
 
 // An Observation is a piece of data sent from a Cobalt client to the Cobalt
 // server as input to a Report.
@@ -44,6 +45,7 @@ message Observation2 {
     BasicRapporObservation basic_rappor = 3;
     RapporObservation string_rappor = 4;
     ForculusObservation forculus = 5;
+    UniqueActivesObservation unique_actives = 6;
     CustomObservation custom = 1000;
   }
 
@@ -125,6 +127,30 @@ message HistogramObservation {
   repeated HistogramBucket buckets = 3;
 };
 
+// Observations of type UniqueActivesObservation are used when a
+// MetricDefinition of type EVENT_OCCURRED is reported with a
+// ReportDefinition of type UNIQUE_N_DAY_ACTIVES. An Observation
+// of this type is created by aggregating Events on-device over
+// a rolling window of 1, 7, or 30 days.
+//
+// A UniqueActivesObservation has 2 fields: a WindowSize (defined in
+// cobalt/window_size.proto), which is the length in days of the rolling
+// window, and a BasicRapporObservation. In reference to the
+// |max_num_event_types| and |event_types| fields of a MetricDefinition of
+// type EVENT_OCCURRED, the BasicRapporObservation is the Basic RAPPOR-
+// encoding of a bit vector of length |max_num_event_types| with the
+// k-th bit set if the event represented by the k-th element of |event_types|
+// occurred at least once on the device during the window.
+message UniqueActivesObservation {
+  // The size in days of the rolling window for which activity is being
+  // observed.
+  WindowSize window_size = 1;
+
+  // A BasicRapporObservation representing indicators of event occurrences
+  // on the device over the rolling window.
+  BasicRapporObservation basic_rappor_obs = 2;
+};
+
 // Observations of this type contain a custom number of parts each with a
 // custom name and a custom type.
 //
@@ -142,4 +168,3 @@ message CustomObservation {
   // is associated.
   map<string, ValuePart> values = 1;
 }
-
