@@ -15,6 +15,8 @@
 namespace cobalt {
 namespace logger {
 
+std::string MetricDebugString(const MetricDefinition& metric);
+
 // Project represents some of the metadata about a Cobalt project including
 // the name and ID of the project and customer and also the
 // project's declared release stage. An instance of Project does not contain
@@ -70,6 +72,7 @@ class ProjectContext {
                  ReleaseStage release_stage = GA);
 
   const MetricDefinition* GetMetric(const std::string& metric_name) const;
+  const MetricDefinition* GetMetric(const uint32_t metric_id) const;
 
   // Makes a MetricRef that wraps this ProjectContext and the given
   // metric_definition (which should have been obtained via GetMetric()).
@@ -84,7 +87,8 @@ class ProjectContext {
  private:
   Project project_;
   const std::unique_ptr<MetricDefinitions> metric_definitions_;
-  std::map<const std::string, const MetricDefinition*> metrics_;
+  std::map<const std::string, const MetricDefinition*> metrics_by_name_;
+  std::map<const uint32_t, const MetricDefinition*> metrics_by_id_;
 };
 
 }  // namespace logger

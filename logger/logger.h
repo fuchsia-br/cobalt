@@ -61,7 +61,7 @@ class Logger {
 
   // Logs the fact that an event has occurred.
   //
-  // |metric_name| Name of the Metric the logged Event will belong to. It must
+  // |metric_id| ID of the Metric the logged Event will belong to. It must
   // be one of the Metrics from the ProjectContext passed to the constructor,
   // and it must be of type EVENT_OCCURRED.
   //
@@ -69,11 +69,11 @@ class Logger {
   // set of all event types is specified in the Metric definition. Use 0
   // if there is no natural notion of event type.
   //
-  Status LogEvent(const std::string& metric_name, uint32_t event_type_index);
+  Status LogEvent(uint32_t metric_id, uint32_t event_type_index);
 
   // Logs that an event has occurred a given number of times.
   //
-  // |metric_name| Name of the Metric the logged Event will belong to. It must
+  // |metric_id| ID of the Metric the logged Event will belong to. It must
   // be one of the Metrics from the ProjectContext passed to the constructor,
   // and it must be of type EVENT_COUNT.
   //
@@ -93,13 +93,13 @@ class Logger {
   // always set this value to 1 and always set |period_duration_micros| to 0
   // in order to achieve a semantics similar to the LogEventOccurred() method,
   // but with a |component|.
-  Status LogEventCount(const std::string& metric_name,
-                       uint32_t event_type_index, const std::string& component,
+  Status LogEventCount(uint32_t metric_id, uint32_t event_type_index,
+                       const std::string& component,
                        int64_t period_duration_micros, uint32_t count);
 
   // Logs that an event lasted a given amount of time.
   //
-  // |metric_name| Name of the Metric the logged Event will belong to. It must
+  // |metric_id| ID of the Metric the logged Event will belong to. It must
   // be one of the Metrics from the ProjectContext passed to the constructor,
   // and it must be of type ELAPSED_TIME.
   //
@@ -112,13 +112,12 @@ class Logger {
   //
   // |elapsed_micros| The elapsed time of the event, specified as a number
   // of microseconds.
-  Status LogElapsedTime(const std::string& metric_name,
-                        uint32_t event_type_index, const std::string& component,
-                        int64_t elpased_micros);
+  Status LogElapsedTime(uint32_t metric_id, uint32_t event_type_index,
+                        const std::string& component, int64_t elpased_micros);
 
   // Logs a measured average frame rate.
   //
-  // |metric_name| Name of the Metric the logged Event will belong to. It must
+  // |metric_id| ID of the Metric the logged Event will belong to. It must
   // be one of the Metrics from the ProjectContext passed to the constructor,
   // and it must be of type FRAME_RATE.
   //
@@ -130,12 +129,12 @@ class Logger {
   // logged. Use the empty string if there is no natural notion of component.
   //
   // |fps| The average-frame rate in frames-per-second.
-  Status LogFrameRate(const std::string& metric_name, uint32_t event_type_index,
+  Status LogFrameRate(uint32_t metric_id, uint32_t event_type_index,
                       const std::string& component, float fps);
 
   // Logs a measured memory usage.
   //
-  // |metric_name| Name of the Metric the logged Event will belong to. It must
+  // |metric_id| ID of the Metric the logged Event will belong to. It must
   // be one of the Metrics from the ProjectContext passed to the constructor,
   // and it must be of type MEMORY_USAGE.
   //
@@ -147,14 +146,13 @@ class Logger {
   // logged. Use the empty string if there is no natural notion of component.
   //
   // |bytes| The memory used, in bytes.
-  Status LogMemoryUsage(const std::string& metric_name,
-                        uint32_t event_type_index, const std::string& component,
-                        int64_t bytes);
+  Status LogMemoryUsage(uint32_t metric_id, uint32_t event_type_index,
+                        const std::string& component, int64_t bytes);
 
   // Logs a histogram over a set of integer buckets. The meaning of the
   // Metric and the buckets is specified in the Metric definition.
   //
-  // |metric_name| Name of the Metric the logged Event will belong to. It must
+  // |metric_id| ID of the Metric the logged Event will belong to. It must
   // be one of the Metrics from the ProjectContext passed to the constructor,
   // and it must be of type INT_HISTOGRAM.
   //
@@ -168,8 +166,7 @@ class Logger {
   // |histogram| The histogram to log. Each HistogramBucket gives the count
   //  for one bucket of the histogram. The definitions of the buckets is
   //  given in the Metric definition.
-  Status LogIntHistogram(const std::string& metric_name,
-                         uint32_t event_type_index,
+  Status LogIntHistogram(uint32_t metric_id, uint32_t event_type_index,
                          const std::string& component, HistogramPtr histogram);
 
   // Logs the fact that a given string was used, in a specific context.
@@ -184,12 +181,12 @@ class Logger {
   //    most commonly used strings from S over the population of all Fuchsia
   //    devices.
   //
-  // |metric_name| Name of the Metric the logged Event will belong to. It must
+  // |metric_id| ID of the Metric the logged Event will belong to. It must
   // be one of the Metrics from the ProjectContext passed to the constructor,
   // and it must be of type STRING_USED.
   //
   // |str| The human-readable string to log.
-  Status LogString(const std::string& metric_name, const std::string& str);
+  Status LogString(uint32_t metric_id, const std::string& str);
 
   // Note(rudominer) LogCustomEvent() is missing because it is still being
   // designed.

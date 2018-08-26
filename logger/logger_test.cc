@@ -46,6 +46,15 @@ static const uint32_t kProjectId = 1;
 static const char kCustomerName[] = "Fuchsia";
 static const char kProjectName[] = "Cobalt";
 
+// Metric IDs
+const uint32_t kErrorOccurredMetricId = 1;
+const uint32_t kReadCacheHitsMetricId = 2;
+const uint32_t kModuleLoadTimeMetricId = 3;
+const uint32_t kLoginModuleFrameRateMetricId = 4;
+const uint32_t kLedgerMemoryUsageMetricId = 5;
+const uint32_t kFileSystemWriteTimesMetricId = 6;
+const uint32_t kModuleDownloadsMetricId = 7;
+
 static const char kMetricDefinitions[] = R"(
 metric {
   metric_name: "ErrorOccurred"
@@ -359,7 +368,7 @@ class LoggerTest : public ::testing::Test {
 
 // Tests the method LogEvent().
 TEST_F(LoggerTest, LogEvent) {
-  ASSERT_EQ(kOK, logger_->LogEvent("ErrorOccurred", 42));
+  ASSERT_EQ(kOK, logger_->LogEvent(kErrorOccurredMetricId, 42));
   Observation2 observation;
   uint32_t expected_report_id = 123;
   ASSERT_TRUE(
@@ -371,8 +380,8 @@ TEST_F(LoggerTest, LogEvent) {
 // Tests the method LogEventCount().
 TEST_F(LoggerTest, LogEventcount) {
   std::vector<uint32_t> expected_report_ids = {111};
-  ASSERT_EQ(kOK,
-            logger_->LogEventCount("ReadCacheHits", 43, "component2", 1, 303));
+  ASSERT_EQ(kOK, logger_->LogEventCount(kReadCacheHitsMetricId, 43,
+                                        "component2", 1, 303));
   EXPECT_TRUE(CheckNumericEventObservations(expected_report_ids, 43u,
                                             "component2", 303));
 }
@@ -380,8 +389,8 @@ TEST_F(LoggerTest, LogEventcount) {
 // Tests the method LogElapsedTime().
 TEST_F(LoggerTest, LogElapsedTime) {
   std::vector<uint32_t> expected_report_ids = {121, 221, 321};
-  ASSERT_EQ(kOK,
-            logger_->LogElapsedTime("ModuleLoadTime", 44, "component4", 4004));
+  ASSERT_EQ(kOK, logger_->LogElapsedTime(kModuleLoadTimeMetricId, 44,
+                                         "component4", 4004));
   EXPECT_TRUE(CheckNumericEventObservations(expected_report_ids, 44u,
                                             "component4", 4004));
 }
@@ -389,8 +398,8 @@ TEST_F(LoggerTest, LogElapsedTime) {
 // Tests the method LogFrameRate().
 TEST_F(LoggerTest, LogFrameRate) {
   std::vector<uint32_t> expected_report_ids = {131, 231, 331};
-  ASSERT_EQ(kOK, logger_->LogFrameRate("LoginModuleFrameRate", 45, "component5",
-                                       5.123));
+  ASSERT_EQ(kOK, logger_->LogFrameRate(kLoginModuleFrameRateMetricId, 45,
+                                       "component5", 5.123));
   EXPECT_TRUE(CheckNumericEventObservations(expected_report_ids, 45u,
                                             "component5", 5123));
 }
@@ -398,8 +407,8 @@ TEST_F(LoggerTest, LogFrameRate) {
 // Tests the method LogMemoryUsage().
 TEST_F(LoggerTest, LogMemoryUsage) {
   std::vector<uint32_t> expected_report_ids = {141, 241};
-  ASSERT_EQ(
-      kOK, logger_->LogMemoryUsage("LedgerMemoryUsage", 46, "component6", 606));
+  ASSERT_EQ(kOK, logger_->LogMemoryUsage(kLedgerMemoryUsageMetricId, 46,
+                                         "component6", 606));
   EXPECT_TRUE(CheckNumericEventObservations(expected_report_ids, 46u,
                                             "component6", 606));
 }
@@ -409,7 +418,7 @@ TEST_F(LoggerTest, LogIntHistogram) {
   std::vector<uint32_t> indices = {0, 1, 2, 3};
   std::vector<uint32_t> counts = {100, 101, 102, 103};
   auto histogram = NewHistogram(indices, counts);
-  ASSERT_EQ(kOK, logger_->LogIntHistogram("FileSystemWriteTimes", 47,
+  ASSERT_EQ(kOK, logger_->LogIntHistogram(kFileSystemWriteTimesMetricId, 47,
                                           "component7", std::move(histogram)));
   Observation2 observation;
   uint32_t expected_report_id = 151;
@@ -430,7 +439,8 @@ TEST_F(LoggerTest, LogIntHistogram) {
 
 // Tests the method LogString().
 TEST_F(LoggerTest, LogString) {
-  ASSERT_EQ(kOK, logger_->LogString("ModuleDownloads", "www.mymodule.com"));
+  ASSERT_EQ(kOK,
+            logger_->LogString(kModuleDownloadsMetricId, "www.mymodule.com"));
   std::vector<Observation2> observations(2);
   std::vector<uint32_t> expected_report_ids = {161, 261};
   ASSERT_TRUE(FetchImmediateObservations(&observations, expected_report_ids));

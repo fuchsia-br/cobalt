@@ -52,7 +52,8 @@ ProjectContext::ProjectContext(
   for (const auto& metric : metric_definitions_->metric()) {
     if (metric.customer_id() == project_.customer_id() &&
         metric.project_id() == project_.project_id()) {
-      metrics_[metric.metric_name()] = &metric;
+      metrics_by_name_[metric.metric_name()] = &metric;
+      metrics_by_id_[metric.id()] = &metric;
     } else {
       LOG(ERROR) << "ProjectContext constructor found a MetricDefinition "
                     "for the wrong project. Expected customer "
@@ -66,9 +67,18 @@ ProjectContext::ProjectContext(
 }
 
 const MetricDefinition* ProjectContext::GetMetric(
+    const uint32_t metric_id) const {
+  auto iter = metrics_by_id_.find(metric_id);
+  if (iter == metrics_by_id_.end()) {
+    return nullptr;
+  }
+  return iter->second;
+}
+
+const MetricDefinition* ProjectContext::GetMetric(
     const std::string& metric_name) const {
-  auto iter = metrics_.find(metric_name);
-  if (iter == metrics_.end()) {
+  auto iter = metrics_by_name_.find(metric_name);
+  if (iter == metrics_by_name_.end()) {
     return nullptr;
   }
   return iter->second;
@@ -77,6 +87,12 @@ const MetricDefinition* ProjectContext::GetMetric(
 const std::string Project::DebugString() const {
   std::ostringstream stream;
   stream << customer_name_ << "." << project_name_;
+  return stream.str();
+}
+
+std::string MetricDebugString(const MetricDefinition& metric) {
+  std::ostringstream stream;
+  stream << metric.metric_name() << " (" << metric.id() << ")";
   return stream.str();
 }
 

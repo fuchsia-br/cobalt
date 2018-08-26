@@ -50,10 +50,10 @@ class EventLogger {
 
   virtual ~EventLogger() = default;
 
-  // Finds the Metric named by |metric_name|. Expects that this has type
+  // Finds the Metric with the given ID. Expects that this has type
   // |expected_metric_type|. If not logs an error and returns.
   // If so then Logs the Event specified by |event_record| to Cobalt.
-  Status Log(const std::string metric_name,
+  Status Log(uint32_t metric_id,
              MetricDefinition::MetricType expected_metric_type,
              EventRecord* event_record);
 
@@ -65,7 +65,7 @@ class EventLogger {
 
  private:
   // Sets up |event_record| with initial data.
-  Status InitializeEvent(const std::string& metric_name,
+  Status InitializeEvent(uint32_t metric_id,
                          MetricDefinition::MetricType expected_type,
                          EventRecord* event_record);
 
@@ -233,18 +233,16 @@ Logger::Logger(const Encoder* encoder,
   // system_data is allowed to be NULL.
 }
 
-Status Logger::LogEvent(const std::string& metric_name,
-                        uint32_t event_type_index) {
+Status Logger::LogEvent(uint32_t metric_id, uint32_t event_type_index) {
   EventRecord event_record;
   auto* occurrence_event = event_record.event->mutable_occurrence_event();
   occurrence_event->set_event_type_index(event_type_index);
   auto event_logger = std::make_unique<OccurrenceEventLogger>(this);
-  return event_logger->Log(metric_name, MetricDefinition::EVENT_OCCURRED,
+  return event_logger->Log(metric_id, MetricDefinition::EVENT_OCCURRED,
                            &event_record);
 }
 
-Status Logger::LogEventCount(const std::string& metric_name,
-                             uint32_t event_type_index,
+Status Logger::LogEventCount(uint32_t metric_id, uint32_t event_type_index,
                              const std::string& component,
                              int64_t period_duration_micros, uint32_t count) {
   EventRecord event_record;
@@ -254,12 +252,11 @@ Status Logger::LogEventCount(const std::string& metric_name,
   count_event->set_period_duration_micros(period_duration_micros);
   count_event->set_count(count);
   auto event_logger = std::make_unique<CountEventLogger>(this);
-  return event_logger->Log(metric_name, MetricDefinition::EVENT_COUNT,
+  return event_logger->Log(metric_id, MetricDefinition::EVENT_COUNT,
                            &event_record);
 }
 
-Status Logger::LogElapsedTime(const std::string& metric_name,
-                              uint32_t event_type_index,
+Status Logger::LogElapsedTime(uint32_t metric_id, uint32_t event_type_index,
                               const std::string& component,
                               int64_t elapsed_micros) {
   EventRecord event_record;
@@ -268,12 +265,11 @@ Status Logger::LogElapsedTime(const std::string& metric_name,
   elapsed_time_event->set_component(component);
   elapsed_time_event->set_elapsed_micros(elapsed_micros);
   auto event_logger = std::make_unique<ElapsedTimeEventLogger>(this);
-  return event_logger->Log(metric_name, MetricDefinition::ELAPSED_TIME,
+  return event_logger->Log(metric_id, MetricDefinition::ELAPSED_TIME,
                            &event_record);
 }
 
-Status Logger::LogFrameRate(const std::string& metric_name,
-                            uint32_t event_type_index,
+Status Logger::LogFrameRate(uint32_t metric_id, uint32_t event_type_index,
                             const std::string& component, float fps) {
   EventRecord event_record;
   auto* frame_rate_event = event_record.event->mutable_frame_rate_event();
@@ -281,12 +277,11 @@ Status Logger::LogFrameRate(const std::string& metric_name,
   frame_rate_event->set_component(component);
   frame_rate_event->set_frames_per_1000_seconds(std::round(fps * 1000.0));
   auto event_logger = std::make_unique<FrameRateEventLogger>(this);
-  return event_logger->Log(metric_name, MetricDefinition::FRAME_RATE,
+  return event_logger->Log(metric_id, MetricDefinition::FRAME_RATE,
                            &event_record);
 }
 
-Status Logger::LogMemoryUsage(const std::string& metric_name,
-                              uint32_t event_type_index,
+Status Logger::LogMemoryUsage(uint32_t metric_id, uint32_t event_type_index,
                               const std::string& component, int64_t bytes) {
   EventRecord event_record;
   auto* memory_usage_event = event_record.event->mutable_memory_usage_event();
@@ -294,12 +289,11 @@ Status Logger::LogMemoryUsage(const std::string& metric_name,
   memory_usage_event->set_component(component);
   memory_usage_event->set_bytes(bytes);
   auto event_logger = std::make_unique<MemoryUsageEventLogger>(this);
-  return event_logger->Log(metric_name, MetricDefinition::MEMORY_USAGE,
+  return event_logger->Log(metric_id, MetricDefinition::MEMORY_USAGE,
                            &event_record);
 }
 
-Status Logger::LogIntHistogram(const std::string& metric_name,
-                               uint32_t event_type_index,
+Status Logger::LogIntHistogram(uint32_t metric_id, uint32_t event_type_index,
                                const std::string& component,
                                HistogramPtr histogram) {
   EventRecord event_record;
@@ -308,17 +302,16 @@ Status Logger::LogIntHistogram(const std::string& metric_name,
   int_histogram_event->set_component(component);
   int_histogram_event->mutable_buckets()->Swap(histogram.get());
   auto event_logger = std::make_unique<IntHistogramEventLogger>(this);
-  return event_logger->Log(metric_name, MetricDefinition::INT_HISTOGRAM,
+  return event_logger->Log(metric_id, MetricDefinition::INT_HISTOGRAM,
                            &event_record);
 }
 
-Status Logger::LogString(const std::string& metric_name,
-                         const std::string& str) {
+Status Logger::LogString(uint32_t metric_id, const std::string& str) {
   EventRecord event_record;
   auto* string_used_event = event_record.event->mutable_string_used_event();
   string_used_event->set_str(str);
   auto event_logger = std::make_unique<StringUsedEventLogger>(this);
-  return event_logger->Log(metric_name, MetricDefinition::STRING_USED,
+  return event_logger->Log(metric_id, MetricDefinition::STRING_USED,
                            &event_record);
 }
 
@@ -345,13 +338,12 @@ Status Logger::WriteObservation(const Observation2& observation,
 
 //////////////////// EventLogger method implementations ////////////////////////
 
-Status EventLogger::Log(const std::string metric_name,
+Status EventLogger::Log(uint32_t metric_id,
                         MetricDefinition::MetricType expected_metric_type,
                         EventRecord* event_record) {
   // TODO(rudominer) Check the ReleaseStage of the Metric against the
   // ReleaseStage of the project.
-  auto status =
-      InitializeEvent(metric_name, expected_metric_type, event_record);
+  auto status = InitializeEvent(metric_id, expected_metric_type, event_record);
   if (status != kOK) {
     return status;
   }
@@ -382,19 +374,20 @@ Status EventLogger::Log(const std::string metric_name,
   return kOK;
 }
 
-Status EventLogger::InitializeEvent(const std::string& metric_name,
+Status EventLogger::InitializeEvent(uint32_t metric_id,
                                     MetricDefinition::MetricType expected_type,
                                     EventRecord* event_record) {
-  event_record->metric = project_context()->GetMetric(metric_name);
+  event_record->metric = project_context()->GetMetric(metric_id);
   if (event_record->metric == nullptr) {
-    LOG(ERROR) << "There is no metric named '" << metric_name << "' registered "
+    LOG(ERROR) << "There is no metric with ID '" << metric_id << "' registered "
                << "in project '" << project_context()->DebugString() << "'.";
     return kInvalidArguments;
   }
   if (event_record->metric->metric_type() != expected_type) {
-    LOG(ERROR) << "Metric '" << metric_name << "' in project '"
-               << project_context()->DebugString() << "' is not of type "
-               << ProtoUtils::EnumName(expected_type) << ".";
+    LOG(ERROR) << "Metric '" << MetricDebugString(*event_record->metric)
+               << "' in project '" << project_context()->DebugString()
+               << "' is not of type " << ProtoUtils::EnumName(expected_type)
+               << ".";
     return kInvalidArguments;
   }
 
@@ -448,7 +441,7 @@ Encoder::Result EventLogger::MaybeEncodeImmediateObservation(
 Encoder::Result EventLogger::BadReportType(const MetricDefinition& metric,
                                            const ReportDefinition& report) {
   LOG(ERROR) << "Invalid Cobalt config: Report " << report.report_name()
-             << " for metric " << metric.metric_name() << " in project "
+             << " for metric " << MetricDebugString(metric) << " in project "
              << project_context()->DebugString()
              << " is not of an appropriate type for the metric type.";
   Encoder::Result encoder_result;
@@ -466,7 +459,7 @@ Status OccurrenceEventLogger::ValidateEvent(const EventRecord& event_record) {
     LOG(ERROR) << "The event_type_index " << occurrence_event.event_type_index()
                << " exceeds " << event_record.metric->max_event_type_index()
                << ", the max_event_type_index for Metric "
-               << event_record.metric->metric_name() << " in project "
+               << MetricDebugString(*event_record.metric) << " in project "
                << project_context()->DebugString() << ".";
     return kInvalidArguments;
   }
@@ -600,7 +593,7 @@ Status IntHistogramEventLogger::ValidateEvent(const EventRecord& event_record) {
   const auto& int_histogram_event = event_record.event->int_histogram_event();
   const auto& metric = *(event_record.metric);
   if (!metric.has_int_buckets()) {
-    LOG(ERROR) << "Invalid Cobalt config: Metric " << metric.metric_name()
+    LOG(ERROR) << "Invalid Cobalt config: Metric " << MetricDebugString(metric)
                << " in project " << project_context()->DebugString()
                << " does not have an |int_buckets| field set.";
     return kInvalidConfig;
@@ -615,8 +608,9 @@ Status IntHistogramEventLogger::ValidateEvent(const EventRecord& event_record) {
       num_valid_buckets = int_buckets.linear().num_buckets();
       break;
     case IntegerBuckets::BUCKETS_NOT_SET:
-      LOG(ERROR) << "Invalid Cobalt config: Metric " << metric.metric_name()
-                 << " in project " << project_context()->DebugString()
+      LOG(ERROR) << "Invalid Cobalt config: Metric "
+                 << MetricDebugString(metric) << " in project "
+                 << project_context()->DebugString()
                  << " has an invalid |int_buckets| field. Either exponential "
                     "or linear buckets must be specified.";
       return kInvalidConfig;
@@ -632,7 +626,7 @@ Status IntHistogramEventLogger::ValidateEvent(const EventRecord& event_record) {
       LOG(ERROR) << "The provided histogram is invalid. The index value of "
                  << int_histogram_event.buckets(i).index() << " in position "
                  << i << " is out of bounds for Metric "
-                 << event_record.metric->metric_name() << " in project "
+                 << MetricDebugString(*event_record.metric) << " in project "
                  << project_context()->DebugString() << ".";
       return kInvalidArguments;
     }
