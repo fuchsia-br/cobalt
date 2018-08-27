@@ -10,7 +10,7 @@ import (
 )
 
 func TestValidateMetricNoNilMetricPart(t *testing.T) {
-	config := &config.CobaltConfig{
+	config := &config.ProjectConfigFile{
 		MetricConfigs: []*config.Metric{
 			&config.Metric{
 				Parts: map[string]*config.MetricPart{"int_part": nil},
@@ -25,7 +25,7 @@ func TestValidateMetricNoNilMetricPart(t *testing.T) {
 
 // Test that metric parts with a name that starts with an underscore are rejected.
 func TestValidateMetricInvalidMetricPartName(t *testing.T) {
-	config := &config.CobaltConfig{
+	config := &config.ProjectConfigFile{
 		MetricConfigs: []*config.Metric{
 			&config.Metric{
 				Parts: map[string]*config.MetricPart{"_int_part": &config.MetricPart{}},
@@ -40,7 +40,7 @@ func TestValidateMetricInvalidMetricPartName(t *testing.T) {
 
 // Tests that we catch encodings with id = 0.
 func TestValidateNoZeroMetricIds(t *testing.T) {
-	config := &config.CobaltConfig{
+	config := &config.ProjectConfigFile{
 		MetricConfigs: []*config.Metric{
 			makeMetric(0, nil),
 		},
@@ -53,7 +53,7 @@ func TestValidateNoZeroMetricIds(t *testing.T) {
 
 // Tests that we catch non-unique metric ids.
 func TestValidateUniqueMetricIds(t *testing.T) {
-	config := &config.CobaltConfig{
+	config := &config.ProjectConfigFile{
 		MetricConfigs: []*config.Metric{
 			makeMetric(1, nil), makeMetric(1, nil),
 		},

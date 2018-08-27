@@ -11,7 +11,7 @@ import (
 
 // Test that a report config with an unknown metric id gets rejected.
 func TestProjectConfigUnknownMetricIdInReportConfig(t *testing.T) {
-	config := &config.CobaltConfig{
+	config := &config.ProjectConfigFile{
 		ReportConfigs: []*config.ReportConfig{
 			makeReport(1, 10, nil),
 		},
@@ -24,7 +24,7 @@ func TestProjectConfigUnknownMetricIdInReportConfig(t *testing.T) {
 
 // Check that valid report variables are accepted.
 func TestValidateReportVariables(t *testing.T) {
-	config := &config.CobaltConfig{
+	config := &config.ProjectConfigFile{
 		MetricConfigs: []*config.Metric{
 			&config.Metric{
 				Parts: map[string]*config.MetricPart{
@@ -62,7 +62,7 @@ func TestValidateReportVariables(t *testing.T) {
 
 // Test that a report variable referring to an unknown metric part will be rejected.
 func TestValidateReportVariablesUnknownMetricPart(t *testing.T) {
-	config := &config.CobaltConfig{
+	config := &config.ProjectConfigFile{
 		MetricConfigs: []*config.Metric{},
 		ReportConfigs: []*config.ReportConfig{
 			&config.ReportConfig{
@@ -83,7 +83,7 @@ func TestValidateReportVariablesUnknownMetricPart(t *testing.T) {
 // Test that if a report variable specifies index labels, the metric part it
 // refers to must be of type index.
 func TestValidateReportVariablesIndexLablesNonIndexMetric(t *testing.T) {
-	config := &config.CobaltConfig{
+	config := &config.ProjectConfigFile{
 		MetricConfigs: []*config.Metric{
 			&config.Metric{
 				Parts: map[string]*config.MetricPart{
@@ -111,7 +111,7 @@ func TestValidateReportVariablesIndexLablesNonIndexMetric(t *testing.T) {
 // Test that if a report variable specifies rappor candidates, the metric part
 // it refers to must be of type string.
 func TestValidateReportVarialesRapporCandidatesNonStringMetric(t *testing.T) {
-	config := &config.CobaltConfig{
+	config := &config.ProjectConfigFile{
 		MetricConfigs: []*config.Metric{
 			&config.Metric{
 				Parts: map[string]*config.MetricPart{
@@ -138,7 +138,7 @@ func TestValidateReportVarialesRapporCandidatesNonStringMetric(t *testing.T) {
 
 // Tests that we catch reports with id = 0.
 func TestValidateNoZeroReportIds(t *testing.T) {
-	config := &config.CobaltConfig{
+	config := &config.ProjectConfigFile{
 		ReportConfigs: []*config.ReportConfig{
 			makeReport(0, 1, nil),
 		},
@@ -151,7 +151,7 @@ func TestValidateNoZeroReportIds(t *testing.T) {
 
 // Tests that we catch non-unique report ids.
 func TestValidateUniqueReportIds(t *testing.T) {
-	config := &config.CobaltConfig{
+	config := &config.ProjectConfigFile{
 		ReportConfigs: []*config.ReportConfig{
 			makeReport(1, 1, nil), makeReport(1, 1, nil),
 		},

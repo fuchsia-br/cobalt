@@ -10,7 +10,7 @@ import (
 	"github.com/golang/glog"
 )
 
-func validateConfiguredReports(config *config.CobaltConfig) (err error) {
+func validateConfiguredReports(config *config.ProjectConfigFile) (err error) {
 	// Mapping of metric ids to their order in the MetricConfigs slice.
 	metrics := map[uint32]uint32{}
 

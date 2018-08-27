@@ -9,7 +9,7 @@ import (
 	"fmt"
 )
 
-func validateConfiguredEncodings(config *config.CobaltConfig) (err error) {
+func validateConfiguredEncodings(config *config.ProjectConfigFile) (err error) {
 	// Set of encoding ids. Used detect duplicates.
 	encodingIds := map[uint32]bool{}
 

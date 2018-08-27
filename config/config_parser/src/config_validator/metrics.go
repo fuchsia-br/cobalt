@@ -19,7 +19,7 @@ import (
 // //analyzer/report_master/report_serializer.cc must be modified.
 var validMetricPartName = regexp.MustCompile("^[a-zA-Z][_a-zA-Z0-9\\- ]+$")
 
-func validateConfiguredMetrics(config *config.CobaltConfig) (err error) {
+func validateConfiguredMetrics(config *config.ProjectConfigFile) (err error) {
 	// Set of encodingIds. Used to check that the Metric only refers to valid encodingIds.
 	encodingIds := map[uint32]bool{}
 

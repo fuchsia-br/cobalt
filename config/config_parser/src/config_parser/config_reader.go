@@ -268,7 +268,7 @@ func readProjectConfig(r configReader, c *ProjectConfig) (err error) {
 
 // cmpConfigEntry takes two protobuf pointers that must have the fields
 // "CustomerId", "ProjectId", and "Id". It is used in generically sorting the
-// config entries in the CobaltConfig proto.
+// config entries in the ProjectConfigFile proto.
 func cmpConfigEntry(i, j interface{}) bool {
 	a := reflect.ValueOf(i).Elem()
 	b := reflect.ValueOf(j).Elem()
@@ -294,15 +294,14 @@ func cmpConfigEntry(i, j interface{}) bool {
 	return false
 }
 
-// MergeConfigs accepts a list of CobaltConfig protos each of which contains the
+// MergeConfigs accepts a list of ProjectConfigFile protos each of which contains the
 // encoding, metric and report configs for a particular project and aggregates
-// all those into a single CobaltConfig proto.
+// all those into a single ProjectConfigFile proto.
 func MergeConfigs(l []ProjectConfig) (s config.CobaltConfig) {
 	for _, c := range l {
 		s.EncodingConfigs = append(s.EncodingConfigs, c.ProjectConfig.EncodingConfigs...)
 		s.MetricConfigs = append(s.MetricConfigs, c.ProjectConfig.MetricConfigs...)
 		s.ReportConfigs = append(s.ReportConfigs, c.ProjectConfig.ReportConfigs...)
-		s.MetricDefinitions = append(s.MetricDefinitions, c.ProjectConfig.MetricDefinitions...)
 	}
 
 	// In order to ensure that we output a stable order in the binary protobuf, we
@@ -316,9 +315,54 @@ func MergeConfigs(l []ProjectConfig) (s config.CobaltConfig) {
 	sort.SliceStable(s.ReportConfigs, func(i, j int) bool {
 		return cmpConfigEntry(s.ReportConfigs[i], s.ReportConfigs[j])
 	})
-	sort.SliceStable(s.MetricDefinitions, func(i, j int) bool {
-		return cmpConfigEntry(s.MetricDefinitions[i], s.MetricDefinitions[j])
-	})
+
+	appendV1Configs(l, &s)
 
 	return s
+}
+
+// appendV1Configs appends the version 1.0 configurations from l in CobaltConfig.
+func appendV1Configs(l []ProjectConfig, s *config.CobaltConfig) {
+	customers := map[uint32]int{}
+
+	for _, c := range l {
+		if c.CobaltVersion != CobaltVersion1 {
+			continue
+		}
+
+		if _, ok := customers[c.CustomerId]; !ok {
+			s.Customers = append(s.Customers, &config.CustomerConfig{
+				CustomerName: c.CustomerName, CustomerId: c.CustomerId})
+			customers[c.CustomerId] = len(s.Customers) - 1
+		}
+		cidx := customers[c.CustomerId]
+
+		s.Customers[cidx].Projects = append(s.Customers[cidx].Projects, v1ProjectConfig(c))
+	}
+
+	sort.SliceStable(s.Customers, func(i, j int) bool {
+		return s.Customers[i].CustomerId < s.Customers[j].CustomerId
+	})
+
+	for ci := range s.Customers {
+		sort.SliceStable(s.Customers[ci].Projects, func(i, j int) bool {
+			return s.Customers[ci].Projects[i].ProjectId < s.Customers[ci].Projects[j].ProjectId
+		})
+	}
+}
+
+// v1Projectconfig converts an internal representation of a ProjectConfig into the ProjectConfig proto.
+func v1ProjectConfig(c ProjectConfig) *config.ProjectConfig {
+	p := config.ProjectConfig{}
+	p.ProjectName = c.ProjectName
+	p.ProjectId = c.ProjectId
+	p.Metrics = c.ProjectConfig.MetricDefinitions
+
+	// In order to ensure that we output a stable order in the binary protobuf, we
+	// sort the metric definitions.
+	sort.SliceStable(p.Metrics, func(i, j int) bool {
+		return cmpConfigEntry(p.Metrics[i], p.Metrics[j])
+	})
+
+	return &p
 }

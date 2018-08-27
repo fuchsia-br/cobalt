@@ -54,7 +54,7 @@ report_configs:
 		t.Error(err)
 	}
 
-	e := config.CobaltConfig{
+	e := config.ProjectConfigFile{
 		EncodingConfigs: []*config.EncodingConfig{
 			&config.EncodingConfig{
 				CustomerId: 1,
@@ -137,7 +137,7 @@ metric_definitions:
 		t.Error(err)
 	}
 
-	e := config.CobaltConfig{
+	e := config.ProjectConfigFile{
 		MetricDefinitions: []*config.MetricDefinition{
 			&config.MetricDefinition{
 				CustomerId:     1,

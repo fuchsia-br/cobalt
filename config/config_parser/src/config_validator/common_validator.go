@@ -20,9 +20,9 @@ var (
 )
 
 // runCommonValidations runs the config_validator_bin, writes the marshaled
-// CobaltConfig to stdin, and reads the error message from stdout. If the error
+// ProjectConfigFile to stdin, and reads the error message from stdout. If the error
 // message is "", then we consider that no error.
-func runCommonValidations(config *config.CobaltConfig) (err error) {
+func runCommonValidations(config *config.ProjectConfigFile) (err error) {
 	data, err := proto.Marshal(config)
 	if err != nil {
 		return err

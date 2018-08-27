@@ -12,16 +12,16 @@ import (
 
 func TestValidateSystemProfileFields(t *testing.T) {
 	var tests = []struct {
-		config      *config.CobaltConfig
+		config      *config.ProjectConfigFile
 		expectedErr string
 	}{
 		{
 			expectedErr: "",
-			config:      &config.CobaltConfig{},
+			config:      &config.ProjectConfigFile{},
 		},
 		{
 			expectedErr: "SystemProfileField: BOARD_NAME, but metric 1 does not supply it",
-			config: &config.CobaltConfig{
+			config: &config.ProjectConfigFile{
 				MetricConfigs: []*config.Metric{makeMetric(1, nil)},
 				ReportConfigs: []*config.ReportConfig{
 					makeReport(1, 1, []config.SystemProfileField{
@@ -32,7 +32,7 @@ func TestValidateSystemProfileFields(t *testing.T) {
 		},
 		{
 			expectedErr: "",
-			config: &config.CobaltConfig{
+			config: &config.ProjectConfigFile{
 				MetricConfigs: []*config.Metric{
 					makeMetric(1, []config.SystemProfileField{
 						config.SystemProfileField_BOARD_NAME,

@@ -11,7 +11,7 @@ import (
 
 // Tests that we catch encodings with id = 0.
 func TestValidateNoZeroEncodingIds(t *testing.T) {
-	config := &config.CobaltConfig{
+	config := &config.ProjectConfigFile{
 		EncodingConfigs: []*config.EncodingConfig{
 			&config.EncodingConfig{
 				CustomerId: 1,
@@ -28,7 +28,7 @@ func TestValidateNoZeroEncodingIds(t *testing.T) {
 
 // Tests that we catch non-unique encoding ids.
 func TestValidateUniqueEncodingIds(t *testing.T) {
-	config := &config.CobaltConfig{
+	config := &config.ProjectConfigFile{
 		EncodingConfigs: []*config.EncodingConfig{
 			&config.EncodingConfig{
 				CustomerId: 1,

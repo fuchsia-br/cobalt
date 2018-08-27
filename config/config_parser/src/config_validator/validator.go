@@ -24,7 +24,7 @@ func ValidateProjectConfig(c *config_parser.ProjectConfig) (err error) {
 }
 
 // Validate a project config for Cobalt 0.1.
-func validateConfigV0(config *config.CobaltConfig) (err error) {
+func validateConfigV0(config *config.ProjectConfigFile) (err error) {
 	if len(config.MetricDefinitions) > 0 {
 		return fmt.Errorf("Version 0 projects cannot contain metric_definition entries.")
 	}
@@ -53,7 +53,7 @@ func validateConfigV0(config *config.CobaltConfig) (err error) {
 }
 
 // Validate a project config for Cobalt 1.0.
-func validateConfigV1(config *config.CobaltConfig) (err error) {
+func validateConfigV1(config *config.ProjectConfigFile) (err error) {
 	if len(config.EncodingConfigs) > 0 || len(config.MetricConfigs) > 0 || len(config.ReportConfigs) > 0 {
 		return fmt.Errorf("Version 1 projects cannot contain encoding_config, metric_config or report_config entries.")
 	}

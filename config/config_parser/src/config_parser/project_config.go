@@ -42,7 +42,7 @@ type ProjectConfig struct {
 	ProjectId     uint32
 	Contact       string
 	CobaltVersion CobaltVersion
-	ProjectConfig config.CobaltConfig
+	ProjectConfig config.ProjectConfigFile
 }
 
 // Parse the configuration for one project from the yaml string provided into

@@ -5,7 +5,9 @@
 package config_parser
 
 import (
+	"config"
 	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -167,5 +169,66 @@ func TestReadConfig(t *testing.T) {
 		if 2 != len(c.ProjectConfig.ReportConfigs) {
 			t.Errorf("Unexpected number of report configs for %v: %v", c.ProjectName, len(c.ProjectConfig.ReportConfigs))
 		}
+	}
+}
+
+func TestAppendV1Config(t *testing.T) {
+	l := []ProjectConfig{
+		ProjectConfig{
+			CustomerName:  "customer5",
+			CustomerId:    5,
+			ProjectName:   "project3",
+			ProjectId:     3,
+			CobaltVersion: CobaltVersion1,
+		},
+		ProjectConfig{
+			CustomerName:  "customer2",
+			CustomerId:    2,
+			ProjectName:   "project1",
+			ProjectId:     1,
+			CobaltVersion: CobaltVersion1,
+		},
+		ProjectConfig{
+			CustomerName:  "customer5",
+			CustomerId:    5,
+			ProjectName:   "project2",
+			ProjectId:     2,
+			CobaltVersion: CobaltVersion1,
+		},
+	}
+
+	s := config.CobaltConfig{}
+	appendV1Configs(l, &s)
+
+	expected := config.CobaltConfig{
+		Customers: []*config.CustomerConfig{
+			&config.CustomerConfig{
+				CustomerName: "customer2",
+				CustomerId:   2,
+				Projects: []*config.ProjectConfig{
+					&config.ProjectConfig{
+						ProjectName: "project1",
+						ProjectId:   1,
+					},
+				},
+			},
+			&config.CustomerConfig{
+				CustomerName: "customer5",
+				CustomerId:   5,
+				Projects: []*config.ProjectConfig{
+					&config.ProjectConfig{
+						ProjectName: "project2",
+						ProjectId:   2,
+					},
+					&config.ProjectConfig{
+						ProjectName: "project3",
+						ProjectId:   3,
+					},
+				},
+			},
+		},
+	}
+	if !reflect.DeepEqual(s, expected) {
+		t.Errorf("%v != %v", s, expected)
 	}
 }

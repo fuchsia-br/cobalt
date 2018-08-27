@@ -22,7 +22,7 @@ func containsSystemProfileField(metric *config.Metric, e config.SystemProfileFie
 
 // validateSystemProfileFields makes sure that all system_profile_fields used in
 // reports are present in their associated metrics.
-func validateSystemProfileFields(config *config.CobaltConfig) error {
+func validateSystemProfileFields(config *config.ProjectConfigFile) error {
 	metrics := map[uint32]uint32{}
 
 	for i, metric := range config.MetricConfigs {
