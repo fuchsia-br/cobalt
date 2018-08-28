@@ -58,6 +58,14 @@ target_link_libraries(client_config
     config_proto_lib cobalt_crypto)
 add_cobalt_dependencies(client_config)
 
+# Build the project_configs library
+add_library(project_configs
+            project_configs.cc
+            ${CONFIG_PROTO_HDRS})
+target_link_libraries(project_configs
+    config_proto_lib cobalt_crypto)
+add_cobalt_dependencies(project_configs)
+
 # Build the config_gen tool
 add_executable(config_gen config_gen.cc ${CONFIG_PROTO_HDRS})
 add_cobalt_dependencies(config_gen)
@@ -66,13 +74,15 @@ add_cobalt_dependencies(config_gen)
 add_executable(config_tests
                analyzer_config_test.cc
                client_config_test.cc
+               project_configs_test.cc
                config_test.cc
                buckets_config_test.cc
                ${CONFIG_PROTO_HDRS})
 target_link_libraries(config_tests
-                      client_config
                       analyzer_config
-                      buckets_config)
+                      buckets_config
+                      client_config
+                      project_configs)
 add_cobalt_test_dependencies(config_tests ${DIR_GTESTS})
 
 set(CONFIG_DIR "${CMAKE_SOURCE_DIR}/third_party/config")
