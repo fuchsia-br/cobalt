@@ -40,6 +40,7 @@ set(CONFIG_VALIDATOR_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/config_validator/valida
                          ${CMAKE_CURRENT_SOURCE_DIR}/src/config_validator/encodings.go
                          ${CMAKE_CURRENT_SOURCE_DIR}/src/config_validator/metrics.go
                          ${CMAKE_CURRENT_SOURCE_DIR}/src/config_validator/metric_definitions.go
+                         ${CMAKE_CURRENT_SOURCE_DIR}/src/config_validator/report_definitions.go
                          ${CMAKE_CURRENT_SOURCE_DIR}/src/config_validator/common_validator.go
                          ${CMAKE_CURRENT_SOURCE_DIR}/src/config_validator/reports.go)
 
@@ -77,6 +78,7 @@ set(CONFIG_VALIDATOR_TEST_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/config_validator/s
                               ${CMAKE_CURRENT_SOURCE_DIR}/src/config_validator/encodings_test.go
                               ${CMAKE_CURRENT_SOURCE_DIR}/src/config_validator/reports_test.go
                               ${CMAKE_CURRENT_SOURCE_DIR}/src/config_validator/metrics_test.go
+                              ${CMAKE_CURRENT_SOURCE_DIR}/src/config_validator/report_definitions_test.go
                               ${CMAKE_CURRENT_SOURCE_DIR}/src/config_validator/metric_definitions_test.go
                               ${CMAKE_CURRENT_SOURCE_DIR}/src/config_validator/common_validator_test.go
                               ${CMAKE_CURRENT_SOURCE_DIR}/src/config_validator/testutil.go)

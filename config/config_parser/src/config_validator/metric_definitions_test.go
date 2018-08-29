@@ -124,7 +124,7 @@ func TestValidateMaxEventTypeIndexOnlySetIfEventOccurred(t *testing.T) {
 	m.MetricType = config.MetricDefinition_EVENT_OCCURRED
 
 	if err := validateMetricDefinition(m); err != nil {
-		t.Errorf("Rejected valid metric definition with max_event_type_index set: ", err)
+		t.Errorf("Rejected valid metric definition with max_event_type_index set: %v", err)
 	}
 
 	for _, mt := range metricTypesExcept(config.MetricDefinition_EVENT_OCCURRED) {

@@ -13,11 +13,11 @@ import (
 	"time"
 )
 
+// This file contains logic to validate lists of MetricDefinition protos.
+
 // Date format is yyyy/mm/dd. This is done by specifying in the desired format
 // Mon Jan 2 15:04:05 MST 2006. See time module documentation.
 const dateFormat = "2006/01/02"
-
-// This file contains logic to validate lists of MetricDefinition protos.
 
 // Valid names are 1-64 characters long. They have the same syntactic requirements
 // as a C variable name.
@@ -51,7 +51,7 @@ func validateMetricDefinition(m config.MetricDefinition) (err error) {
 	}
 
 	if m.Id == 0 {
-		return fmt.Errorf("Metric hashes to a zero metric id. This is invalid. Please change the name.")
+		return fmt.Errorf("Metric hashes to a zero metric id. This is invalid. Please change the metric name.")
 	}
 
 	if m.MetricType == config.MetricDefinition_UNSET {
@@ -82,8 +82,7 @@ func validateMetricDefinition(m config.MetricDefinition) (err error) {
 		return fmt.Errorf("Metric %s: %v", m.MetricName, err)
 	}
 
-	// TODO(azani): Validate reports.
-	return nil
+	return validateReportDefinitions(m)
 }
 
 // Validate a single instance of Metadata.
@@ -106,7 +105,7 @@ func validateMetadata(m config.MetricDefinition_Metadata) (err error) {
 
 	for _, o := range m.Owner {
 		if _, err = mail.ParseAddress(o); err != nil {
-			return fmt.Errorf("'%v' is not a valid email address in owner field")
+			return fmt.Errorf("'%v' is not a valid email address in owner field", o)
 		}
 	}
 
