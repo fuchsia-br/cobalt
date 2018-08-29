@@ -18,10 +18,12 @@ using cobalt::util::StatusCode;
 
 ClearcutUploader::ClearcutUploader(const std::string& url,
                                    std::unique_ptr<HTTPClient> client,
-                                   int64_t upload_timeout)
+                                   int64_t upload_timeout,
+                                   int64_t initial_backoff_millis)
     : url_(url),
       client_(std::move(client)),
       upload_timeout_(upload_timeout),
+      initial_backoff_millis_(initial_backoff_millis),
       pause_uploads_until_(
           std::chrono::steady_clock::now())  // Set this to now() so that we
                                              // can immediately upload.
@@ -35,7 +37,7 @@ Status ClearcutUploader::UploadEvents(LogRequest* log_request,
     deadline = std::chrono::steady_clock::now() +
                std::chrono::milliseconds(upload_timeout_);
   }
-  auto backoff = std::chrono::milliseconds(250);
+  auto backoff = std::chrono::milliseconds(initial_backoff_millis_);
   while (true) {
     Status response = TryUploadEvents(log_request, deadline);
     if (response.ok() || ++i == max_retries) {

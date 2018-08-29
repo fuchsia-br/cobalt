@@ -28,7 +28,8 @@ static const int32_t kMaxRetries = 5;
 class ClearcutUploader {
  public:
   ClearcutUploader(const std::string &url, std::unique_ptr<HTTPClient> client,
-                   int64_t upload_timeout = 0);
+                   int64_t upload_timeout = 0,
+                   int64_t initial_backoff_millis = 250);
 
   // Uploads the |log_request|  with retries.
   Status UploadEvents(LogRequest *log_request,
@@ -42,6 +43,10 @@ class ClearcutUploader {
   const std::string url_;
   const std::unique_ptr<HTTPClient> client_;
   const int64_t upload_timeout_;
+  const int64_t initial_backoff_millis_;
+
+ protected:
+  friend class UploaderTest;
 
   // When we get a next_request_wait_millis from the clearcut server, we set
   // this value to now() + next_request_wait_millis.

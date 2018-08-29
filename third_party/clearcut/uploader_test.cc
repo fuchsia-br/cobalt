@@ -18,22 +18,11 @@ using cobalt::util::StatusCode;
 
 namespace {
 
+static const int64_t kInitialBackoffMillis = 10;
+
 static std::set<uint32_t> seen_event_codes;
 static int next_request_wait_millis;
 static bool fail_next_request;
-
-class TestLogger : public ClearcutUploader {
- public:
-  TestLogger(const std::string &url, std::unique_ptr<HTTPClient> client)
-      : ClearcutUploader(url, std::move(client)) {}
-
-  Status LogClearcutDemoEvent(uint32_t event_code, int32_t max_retries = 1) {
-    LogRequest request;
-    request.set_log_source(kClearcutDemoSource);
-    request.add_log_event()->set_event_code(event_code);
-    return UploadEvents(&request, max_retries);
-  }
-};
 
 class TestHTTPClient : public HTTPClient {
  public:
@@ -68,33 +57,44 @@ class TestHTTPClient : public HTTPClient {
   }
 };
 
-class LoggerTest : public ::testing::Test {
+}  // namespace
+
+class UploaderTest : public ::testing::Test {
   void SetUp() {
     seen_event_codes = {};
     next_request_wait_millis = -1;
     fail_next_request = false;
     auto unique_client = std::make_unique<TestHTTPClient>();
     client = unique_client.get();
-    logger = std::make_unique<TestLogger>("http://test.com",
-                                          std::move(unique_client));
+    uploader = std::make_unique<ClearcutUploader>(
+        "http://test.com", std::move(unique_client), 0, kInitialBackoffMillis);
   }
 
  public:
-  std::unique_ptr<TestLogger> logger;
+  Status UploadClearcutDemoEvent(uint32_t event_code, int32_t max_retries = 1) {
+    LogRequest request;
+    request.set_log_source(kClearcutDemoSource);
+    request.add_log_event()->set_event_code(event_code);
+    return uploader->UploadEvents(&request, max_retries);
+  }
+
+  std::chrono::steady_clock::time_point get_pause_uploads_until() {
+    return uploader->pause_uploads_until_;
+  }
+
+  bool SawEventCode(uint32_t event_code) {
+    return seen_event_codes.find(event_code) != seen_event_codes.end();
+  }
+
+  std::unique_ptr<ClearcutUploader> uploader;
   TestHTTPClient *client;
 };
 
-bool SawEventCode(uint32_t event_code) {
-  return seen_event_codes.find(event_code) != seen_event_codes.end();
-}
-
-}  // namespace
-
-TEST_F(LoggerTest, BasicClearcutDemoUpload) {
-  ASSERT_TRUE(logger->LogClearcutDemoEvent(1).ok());
-  ASSERT_TRUE(logger->LogClearcutDemoEvent(2).ok());
-  ASSERT_TRUE(logger->LogClearcutDemoEvent(3).ok());
-  ASSERT_TRUE(logger->LogClearcutDemoEvent(4).ok());
+TEST_F(UploaderTest, BasicClearcutDemoUpload) {
+  ASSERT_TRUE(UploadClearcutDemoEvent(1).ok());
+  ASSERT_TRUE(UploadClearcutDemoEvent(2).ok());
+  ASSERT_TRUE(UploadClearcutDemoEvent(3).ok());
+  ASSERT_TRUE(UploadClearcutDemoEvent(4).ok());
 
   ASSERT_TRUE(SawEventCode(1));
   ASSERT_TRUE(SawEventCode(2));
@@ -102,37 +102,43 @@ TEST_F(LoggerTest, BasicClearcutDemoUpload) {
   ASSERT_TRUE(SawEventCode(4));
 }
 
-TEST_F(LoggerTest, RateLimitingWorks) {
-  next_request_wait_millis = 100;
-  ASSERT_TRUE(logger->LogClearcutDemoEvent(100).ok());
+TEST_F(UploaderTest, RateLimitingWorks) {
+  next_request_wait_millis = 10;
+  ASSERT_TRUE(UploadClearcutDemoEvent(100).ok());
   ASSERT_TRUE(SawEventCode(100));
 
-  ASSERT_FALSE(logger->LogClearcutDemoEvent(150).ok());
+  int code = 150;
+  // Repeatedly try to upload until we pass the uploader's
+  // "pause_uploads_until_" field.
+  while (std::chrono::steady_clock::now() < get_pause_uploads_until()) {
+    ASSERT_FALSE(UploadClearcutDemoEvent(code).ok());
 
-  // With no pause, the second upload should fail.
-  ASSERT_FALSE(SawEventCode(150));
+    // We haven't waited long enough yet.
+    ASSERT_FALSE(SawEventCode(code));
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
-  ASSERT_FALSE(logger->LogClearcutDemoEvent(151).ok());
+    code++;
 
-  // We haven't waited long enough yet.
-  ASSERT_FALSE(SawEventCode(151));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
-  ASSERT_TRUE(logger->LogClearcutDemoEvent(152).ok());
+  // Assert that we've made at least 1 rate limit verification pass.
+  ASSERT_GT(code, 150);
+
+  // Now that the pause has expired, we should be able to upload.
+  ASSERT_TRUE(UploadClearcutDemoEvent(code).ok());
 
   // Now it should work.
-  ASSERT_TRUE(SawEventCode(152));
+  ASSERT_TRUE(SawEventCode(code));
 }
 
-TEST_F(LoggerTest, ShouldRetryOnFailedUpload) {
+TEST_F(UploaderTest, ShouldRetryOnFailedUpload) {
   fail_next_request = true;
-  ASSERT_TRUE(logger->LogClearcutDemoEvent(1, 2).ok());
+  ASSERT_TRUE(UploadClearcutDemoEvent(1, 2).ok());
   ASSERT_TRUE(SawEventCode(1));
 
   fail_next_request = true;
-  ASSERT_FALSE(logger->LogClearcutDemoEvent(2).ok());
-  ASSERT_TRUE(logger->LogClearcutDemoEvent(3).ok());
+  ASSERT_FALSE(UploadClearcutDemoEvent(2).ok());
+  ASSERT_TRUE(UploadClearcutDemoEvent(3).ok());
   ASSERT_TRUE(SawEventCode(3));
 }
 
