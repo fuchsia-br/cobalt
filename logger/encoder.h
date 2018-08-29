@@ -15,12 +15,16 @@
 #include "encoder/client_secret.h"
 #include "encoder/system_data.h"
 #include "logger/project_context.h"
-#include "logger/proto_utils.h"
 #include "logger/status.h"
 #include "util/crypto_util/random.h"
 
 namespace cobalt {
 namespace logger {
+
+// A HistogramPtr provides a moveable way of passing the buckets of a Histogram.
+typedef std::unique_ptr<google::protobuf::RepeatedPtrField<HistogramBucket>>
+    HistogramPtr;
+
 
 // An Encoder is used for creating Observations, including applying any
 // privacy-preserving encodings that may be employed. An Observation

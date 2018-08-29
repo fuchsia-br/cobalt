@@ -16,7 +16,6 @@
 #include "./observation.pb.h"
 #include "./observation2.pb.h"
 #include "logger/project_context.h"
-#include "logger/proto_utils.h"
 #include "logger/status.h"
 
 namespace cobalt {

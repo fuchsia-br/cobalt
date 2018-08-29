@@ -2,10 +2,6 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-add_library(proto_utils
-            proto_utils.cc)
-add_cobalt_dependencies(proto_utils)
-
 add_library(project_context
             project_context.cc)
 add_cobalt_dependencies(project_context)
@@ -24,8 +20,7 @@ add_library(logger
 target_link_libraries(logger
                       encoder2
                       encrypted_message_util
-                      project_context
-                      proto_utils)
+                      project_context)
 add_cobalt_dependencies(logger)
 
 add_executable(logger_tests

@@ -16,7 +16,6 @@
 #include "config/report_definition.pb.h"
 #include "encoder/observation_store.h"
 #include "logger/project_context.h"
-#include "logger/proto_utils.h"
 #include "util/clock.h"
 #include "util/datetime_util.h"
 #include "util/encrypted_message_util.h"
@@ -386,8 +385,8 @@ Status EventLogger::InitializeEvent(uint32_t metric_id,
   if (event_record->metric->metric_type() != expected_type) {
     LOG(ERROR) << "Metric '" << MetricDebugString(*event_record->metric)
                << "' in project '" << project_context()->DebugString()
-               << "' is not of type " << ProtoUtils::EnumName(expected_type)
-               << ".";
+               << "' is not of type "
+               << MetricDefinition_MetricType_Name(expected_type) << ".";
     return kInvalidArguments;
   }
 
