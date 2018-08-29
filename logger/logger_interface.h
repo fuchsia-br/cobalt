@@ -155,6 +155,21 @@ class LoggerInterface {
   //
   // |str| The human-readable string to log.
   virtual Status LogString(uint32_t metric_id, const std::string& str) = 0;
+
+  // Logs a custom event. The structure of the event is defined in a proto file
+  // in the project's config folder.
+  //
+  // |metric_id| ID of the Metric the logged Event will belong to. It must
+  // be one of the Metrics from the ProjectContext passed to the constructor,
+  // and it must be of type CUSTOM.
+  //
+  // |event_values| The event to log. EventValues represent the contents of the
+  // proto file that will be collected. Each ValuePart represents a single
+  // dimension of the logged event. The conversion to proto is done  serverside,
+  // therefore it is the client's responsibility to make sure the EventValues
+  // contents match the proto defined.
+  virtual Status LogCustomEvent(uint32_t metric_id,
+                                EventValuesPtr event_values) = 0;
 };
 
 }  // namespace logger

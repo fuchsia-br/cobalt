@@ -5,6 +5,7 @@
 #include "logger/logger.h"
 
 #include <google/protobuf/text_format.h>
+#include <google/protobuf/util/message_differencer.h>
 
 #include <memory>
 #include <string>
@@ -35,6 +36,7 @@ using encoder::SendRetryerInterface;
 using encoder::ShippingManager;
 using encoder::SystemDataInterface;
 using google::protobuf::RepeatedPtrField;
+using google::protobuf::util::MessageDifferencer;
 using util::EncryptedMessageMaker;
 using util::MessageDecrypter;
 
@@ -54,6 +56,7 @@ const uint32_t kLoginModuleFrameRateMetricId = 4;
 const uint32_t kLedgerMemoryUsageMetricId = 5;
 const uint32_t kFileSystemWriteTimesMetricId = 6;
 const uint32_t kModuleDownloadsMetricId = 7;
+const uint32_t kModuleInstallsMetricId = 8;
 
 static const char kMetricDefinitions[] = R"(
 metric {
@@ -189,6 +192,19 @@ metric {
     threshold: 200
   }
 }
+
+metric {
+  metric_name: "ModuleInstalls"
+  metric_type: CUSTOM
+  customer_id: 1
+  project_id: 1
+  id: 8
+  reports: {
+    report_name: "ModuleInstalls_DetailedData"
+    id: 125
+    report_type: CUSTOM_RAW_DUMP
+  }
+}
 )";
 
 bool PopulateMetricDefinitions(MetricDefinitions* metric_definitions) {
@@ -207,6 +223,17 @@ HistogramPtr NewHistogram(std::vector<uint32_t> indices,
     bucket->set_count(counts[i]);
   }
   return histogram;
+}
+
+EventValuesPtr NewCustomEvent(std::vector<std::string> dimension_names,
+                              std::vector<CustomDimensionValue> values) {
+  CHECK(dimension_names.size() == values.size());
+  EventValuesPtr custom_event = std::make_unique<
+      google::protobuf::Map<std::string, CustomDimensionValue>>();
+  for (auto i = 0u; i < values.size(); i++) {
+    (*custom_event)[dimension_names[i]] = values[i];
+  }
+  return custom_event;
 }
 
 class FakeObservationStore : public ObservationStoreWriterInterface {
@@ -450,6 +477,28 @@ TEST_F(LoggerTest, LogString) {
 
   ASSERT_TRUE(observations[1].has_forculus());
   EXPECT_FALSE(observations[1].forculus().ciphertext().empty());
+}
+
+// Tests the method LogCustomEvent().
+TEST_F(LoggerTest, LogCustomEvent) {
+  CustomDimensionValue module_value, number_value;
+  module_value.set_string_value("gmail");
+  number_value.set_int_value(3);
+  std::vector<std::string> dimension_names = {"module", "number"};
+  std::vector<CustomDimensionValue> values = {module_value, number_value};
+  auto custom_event = NewCustomEvent(dimension_names, values);
+  ASSERT_EQ(kOK, logger_->LogCustomEvent(kModuleInstallsMetricId,
+                                         std::move(custom_event)));
+  Observation2 observation;
+  uint32_t expected_report_id = 125;
+  ASSERT_TRUE(
+      FetchSingleImmediateObservation(&observation, expected_report_id));
+  ASSERT_TRUE(observation.has_custom());
+  const CustomObservation& custom_observation = observation.custom();
+  for (auto i = 0u; i < values.size(); i++) {
+    auto obs_dimension = custom_observation.values().at(dimension_names[i]);
+    EXPECT_TRUE(MessageDifferencer::Equals(obs_dimension, values[i]));
+  }
 }
 
 }  // namespace logger

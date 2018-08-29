@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-#include "./observation.pb.h"
+#include "./event.pb.h"
 #include "./observation2.pb.h"
 #include "config/metric_definition.pb.h"
 #include "config/report_definition.pb.h"
@@ -25,6 +25,11 @@ namespace logger {
 typedef std::unique_ptr<google::protobuf::RepeatedPtrField<HistogramBucket>>
     HistogramPtr;
 
+// A EventValuesPtr provides a moveable way of passing the dimensions of a
+// custom event.
+typedef std::unique_ptr<
+    google::protobuf::Map<std::string, CustomDimensionValue>>
+    EventValuesPtr;
 
 // An Encoder is used for creating Observations, including applying any
 // privacy-preserving encodings that may be employed. An Observation
@@ -183,6 +188,24 @@ class Encoder {
                                     uint32_t event_type_index,
                                     const std::string component,
                                     HistogramPtr histogram) const;
+
+  // Encodes an Observation of type CustomObservation.
+  //
+  // metric: Provides access to the names and IDs of the customer, project and
+  // metric associated with the Observation being encoded.
+  //
+  // report: The definition of the Report associated with the Observation being
+  // encoded.
+  //
+  // day_index: The day index associated with the Observation being encoded.
+  //
+  // event_values: This will be used to populate the Observation's |values|
+  // field. This method does not validate |event_values| against the Metric's
+  // proto definition. That is the caller's responsibility.
+  Result EncodeCustomObservation(ProjectContext::MetricRef metric,
+                                const ReportDefinition* report,
+                                uint32_t day_index,
+                                EventValuesPtr event_values) const;
 
   // Encodes an Observation of type RapporObservation.
   //

@@ -305,6 +305,18 @@ Encoder::Result Encoder::EncodeHistogramObservation(
   return result;
 }
 
+
+Encoder::Result Encoder::EncodeCustomObservation(
+  ProjectContext::MetricRef metric, const ReportDefinition* report,
+  uint32_t day_index, EventValuesPtr event_values) const {
+  auto result = MakeObservation(metric, report, day_index);
+  auto* observation = result.observation.get();
+  auto* custom_observation = observation->mutable_custom();
+  custom_observation->mutable_values()->swap(*event_values);
+  return result;
+}
+
+
 Encoder::Result Encoder::MakeObservation(ProjectContext::MetricRef metric,
                                          const ReportDefinition* report,
                                          uint32_t day_index) const {

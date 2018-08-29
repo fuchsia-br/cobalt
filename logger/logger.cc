@@ -211,6 +211,19 @@ class StringUsedEventLogger : public EventLogger {
       EventRecord* event_record) override;
 };
 
+// Implementation of EventLogger for metrics of type CUSTOM.
+class CustomEventLogger : public EventLogger {
+ public:
+  explicit CustomEventLogger(Logger* logger) : EventLogger(logger) {}
+  virtual ~CustomEventLogger() = default;
+
+ private:
+  Status ValidateEvent(const EventRecord& event_record) override;
+  Encoder::Result MaybeEncodeImmediateObservation(
+      const ReportDefinition& report, bool may_invalidate,
+      EventRecord* event_record) override;
+};
+
 //////////////////// Logger method implementations ////////////////////////
 
 Logger::Logger(const Encoder* encoder,
@@ -311,6 +324,16 @@ Status Logger::LogString(uint32_t metric_id, const std::string& str) {
   string_used_event->set_str(str);
   auto event_logger = std::make_unique<StringUsedEventLogger>(this);
   return event_logger->Log(metric_id, MetricDefinition::STRING_USED,
+                           &event_record);
+}
+
+
+Status Logger::LogCustomEvent(uint32_t metric_id, EventValuesPtr event_values) {
+  EventRecord event_record;
+  auto* custom_event = event_record.event->mutable_custom_event();
+  custom_event->mutable_values()->swap(*event_values);
+  auto event_logger = std::make_unique<CustomEventLogger>(this);
+  return event_logger->Log(metric_id, MetricDefinition::CUSTOM,
                            &event_record);
 }
 
@@ -692,6 +715,45 @@ Encoder::Result StringUsedEventLogger::MaybeEncodeImmediateObservation(
       return encoder()->EncodeForculusObservation(
           project_context()->RefMetric(&metric), &report, event.day_index(),
           string_used_event.str());
+    }
+
+    default:
+      return BadReportType(metric, report);
+  }
+}
+
+/////////////// CustomEventLogger method implementations ///////////////////////
+Status CustomEventLogger::ValidateEvent(const EventRecord& event_record) {
+  // TODO(ninai) Add proto validation.
+  return kOK;
+}
+
+Encoder::Result CustomEventLogger::MaybeEncodeImmediateObservation(
+    const ReportDefinition& report, bool may_invalidate,
+    EventRecord* event_record) {
+  const MetricDefinition& metric = *(event_record->metric);
+  const Event& event = *(event_record->event);
+  CHECK(event.has_custom_event());
+  auto* custom_event =
+      event_record->event->mutable_custom_event();
+  switch (report.report_type()) {
+    // Each report type has its own logic for generating immediate
+    // observations.
+    case ReportDefinition::CUSTOM_RAW_DUMP: {
+      EventValuesPtr event_values = std::make_unique<
+          google::protobuf::Map<std::string, CustomDimensionValue>>();
+      if (may_invalidate) {
+        // We move the contents out of |custom_event| thereby invalidating
+        // that variable.
+        event_values->swap(*(custom_event->mutable_values()));
+      } else {
+        event_values = std::make_unique<
+            google::protobuf::Map<std::string, CustomDimensionValue>>(
+            custom_event->values());
+      }
+      return encoder()->EncodeCustomObservation(
+          project_context()->RefMetric(&metric), &report, event.day_index(),
+          std::move(event_values));
     }
 
     default:

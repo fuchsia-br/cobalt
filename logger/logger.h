@@ -80,8 +80,8 @@ class Logger : public LoggerInterface {
 
   Status LogString(uint32_t metric_id, const std::string& str) override;
 
-  // Note(rudominer) LogCustomEvent() is missing because it is still being
-  // designed.
+  Status LogCustomEvent(uint32_t metric_id,
+                        EventValuesPtr event_values) override;
 
  private:
   friend class EventLogger;

@@ -151,6 +151,31 @@ message UniqueActivesObservation {
   BasicRapporObservation basic_rappor_obs = 2;
 };
 
+// A value for a single dimension of a Cobalt custom metric. Both CustomEvent
+// (the object logged to the Cobalt client on the device) and CustomObservation
+// (transmitted from the Cobalt client device to the server) contain a
+// CustomDimension values.
+message CustomDimensionValue {
+  oneof data {
+    // A human-readable, UTF8 string. Maps to a proto string.
+    string string_value = 1;
+
+    // An integer. Maps to a proto int64.
+    int64 int_value = 2;
+
+    // An uninterpreted sequence of bytes. Maps to proto bytes.
+    bytes blob_value = 3;
+
+    // The index of an enumerated value, specified in the metric configuration.
+    // Usually used for the index of an enum value defined in the associated
+    // .proto file.
+    uint32 index_value = 4;
+
+    // A double-precision floating point value. Maps to a proto double.
+    double double_value = 5;
+  }
+}
+
 // Observations of this type contain a custom number of parts each with a
 // custom name and a custom type.
 //
@@ -164,7 +189,7 @@ message UniqueActivesObservation {
 // type defined in the CUSTOM. A CustomObservation directly stores those
 // pairs.
 message CustomObservation {
-  // The keys are the names of the metric dimensions to which each ValuePart
-  // is associated.
-  map<string, ValuePart> values = 1;
+  // The keys are the names of the metric dimensions to which each
+  // CustomDimensionValue is associated.
+  map<string, CustomDimensionValue> values = 1;
 }

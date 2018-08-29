@@ -5,6 +5,7 @@
 #include "logger/encoder.h"
 
 #include <google/protobuf/text_format.h>
+#include <google/protobuf/util/message_differencer.h>
 
 #include <memory>
 #include <string>
@@ -23,6 +24,7 @@ namespace cobalt {
 using encoder::ClientSecret;
 using encoder::SystemDataInterface;
 using google::protobuf::RepeatedPtrField;
+using google::protobuf::util::MessageDifferencer;
 
 namespace logger {
 
@@ -105,6 +107,21 @@ metric {
     threshold: 200
   }
 }
+
+metric {
+  metric_name: "ModuleInstalls"
+  metric_type: CUSTOM
+  customer_id: 1
+  project_id: 1
+  id: 8
+  reports: {
+    report_name: "ModuleInstalls_DetailedData"
+    id: 125
+    report_type: CUSTOM_RAW_DUMP
+    system_profile_field: OS
+    system_profile_field: ARCH
+  }
+}
 )";
 
 bool PopulateMetricDefinitions(MetricDefinitions* metric_definitions) {
@@ -123,6 +140,17 @@ HistogramPtr NewHistogram(std::vector<uint32_t> indices,
     bucket->set_count(counts[i]);
   }
   return histogram;
+}
+
+EventValuesPtr NewCustomEvent(std::vector<std::string> dimension_names,
+                              std::vector<CustomDimensionValue> values) {
+  CHECK(dimension_names.size() == values.size());
+  EventValuesPtr custom_event = std::make_unique<
+      google::protobuf::Map<std::string, CustomDimensionValue>>();
+  for (auto i = 0u; i < values.size(); i++) {
+    (*custom_event)[dimension_names[i]] = values[i];
+  }
+  return custom_event;
 }
 
 class FakeSystemData : public SystemDataInterface {
@@ -337,6 +365,37 @@ TEST_F(EncoderTest, EncodeRapporObservation) {
       project_context_->RefMetric(pair.first), pair.second, kDayIndex,
       "Supercalifragilistic");
   EXPECT_EQ(kInvalidConfig, result.status);
+}
+
+
+TEST_F(EncoderTest, EncodeCustomObservation) {
+  const char kMetricName[] = "ModuleInstalls";
+  const char kReportName[] = "ModuleInstalls_DetailedData";
+  const uint32_t kExpectedMetricId = 8;
+  const uint32_t kExpectedReportId = 125;
+  const uint32_t kDayIndex = 111;
+
+  CustomDimensionValue module_value, number_value;
+  module_value.set_string_value("gmail");
+  number_value.set_int_value(3);
+  std::vector<std::string> dimension_names = {"module", "number"};
+  std::vector<CustomDimensionValue> values = {module_value, number_value};
+  auto custom_event = NewCustomEvent(dimension_names, values);
+  auto pair = GetMetricAndReport(kMetricName, kReportName);
+
+  auto result = encoder_->EncodeCustomObservation(
+      project_context_->RefMetric(pair.first), pair.second, kDayIndex,
+                                  std::move(custom_event));
+  CheckResult(result, kExpectedMetricId, kExpectedReportId, kDayIndex);
+  // In the SystemProfile only the OS and ARCH should be set.
+  CheckSystemProfile(result, SystemProfile::FUCHSIA, SystemProfile::ARM_64, "",
+                     "");
+  ASSERT_TRUE(result.observation->has_custom());
+  const CustomObservation& obs = result.observation->custom();
+  for (auto i = 0u; i < values.size(); i++) {
+    auto obs_dimension = obs.values().at(dimension_names[i]);
+    EXPECT_TRUE(MessageDifferencer::Equals(obs_dimension, values[i]));
+  }
 }
 
 }  // namespace logger

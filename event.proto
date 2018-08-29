@@ -107,8 +107,11 @@ message StringUsedEvent {
   string str = 1;
 }
 
-// Allows users of Cobalt to define custom Metrics with custom semantics.
+// Allows users of Cobalt to define custom Metrics with custom semantics. Each
+// Custom event is a collection of CustomEventValues, each of which has a 
+// dimension name and a value associated with the event.
 message CustomEvent {
-// Note(rudominer) The custom event feature is still being designed.
+  // The keys are the names of the metric dimensions to which each ValuePart
+  // is associated.
+  map<string, CustomDimensionValue> values = 1;
 }
-
