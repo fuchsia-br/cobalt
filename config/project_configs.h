@@ -35,6 +35,15 @@ class ProjectConfigs {
   // Constructs a ProjectConfigs that wraps the given |cobalt_config|.
   explicit ProjectConfigs(std::unique_ptr<CobaltConfig> cobalt_config);
 
+  // Returns the CustomerConfig for the customer with the given name, or
+  // nullptr if there is no such customer.
+  const CustomerConfig* GetCustomerConfig(
+      const std::string& customer_name) const;
+
+  // Returns the CustomerConfig for the customer with the given ID, or
+  // nullptr if there is no such customer.
+  const CustomerConfig* GetCustomerConfig(uint32_t customer_id) const;
+
   // Returns the ProjectConfig for the project with the given
   // (customer_name, project_name), or nullptr if there is no such project.
   const ProjectConfig* GetProjectConfig(const std::string& customer_name,
@@ -47,6 +56,10 @@ class ProjectConfigs {
 
  private:
   std::unique_ptr<CobaltConfig> cobalt_config_;
+
+  std::map<std::string, const CustomerConfig*> customers_by_name_;
+
+  std::map<uint32_t, const CustomerConfig*> customers_by_id_;
 
   std::map<std::pair<std::string, std::string>, const ProjectConfig*>
       projects_by_name_;

@@ -84,7 +84,7 @@ func parseCustomerList(content string, l *[]ProjectConfig) (err error) {
 
 		c := []ProjectConfig{}
 		if err := populateProjectList(projectsAsList, &c); err != nil {
-			return fmt.Errorf("Project list for customer %v is invalid:", customerName, err)
+			return fmt.Errorf("Project list for customer %v is invalid: %v", customerName, err)
 		}
 
 		for i := range c {

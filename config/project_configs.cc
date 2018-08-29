@@ -33,6 +33,8 @@ std::unique_ptr<ProjectConfigs> ProjectConfigs::CreateFromCobaltConfigBytes(
 ProjectConfigs::ProjectConfigs(std::unique_ptr<CobaltConfig> cobalt_config)
     : cobalt_config_(std::move(cobalt_config)) {
   for (const auto& customer : cobalt_config_->customers()) {
+    customers_by_id_[customer.customer_id()] = &customer;
+    customers_by_name_[customer.customer_name()] = &customer;
     for (const auto& project : customer.projects()) {
       projects_by_id_[std::make_pair(customer.customer_id(),
                                      project.project_id())] = &project;
@@ -40,6 +42,23 @@ ProjectConfigs::ProjectConfigs(std::unique_ptr<CobaltConfig> cobalt_config)
                                        project.project_name())] = &project;
     }
   }
+}
+
+const CustomerConfig* ProjectConfigs::GetCustomerConfig(
+    const std::string& customer_name) const {
+  auto iter = customers_by_name_.find(customer_name);
+  if (iter == customers_by_name_.end()) {
+    return nullptr;
+  }
+  return iter->second;
+}
+const CustomerConfig* ProjectConfigs::GetCustomerConfig(
+    uint32_t customer_id) const {
+  auto iter = customers_by_id_.find(customer_id);
+  if (iter == customers_by_id_.end()) {
+    return nullptr;
+  }
+  return iter->second;
 }
 
 const ProjectConfig* ProjectConfigs::GetProjectConfig(

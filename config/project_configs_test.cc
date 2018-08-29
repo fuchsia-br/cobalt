@@ -61,6 +61,30 @@ std::unique_ptr<CobaltConfig> NewTestConfig() {
 
 class ProjectConfigsTest : public ::testing::Test {
  protected:
+  // Checks that |*customer_config| is as expected.
+  bool CheckCustomer(uint32_t expected_customer_id,
+                     const CustomerConfig* customer_config) {
+    EXPECT_NE(nullptr, customer_config);
+    if (customer_config == nullptr) {
+      return false;
+    }
+
+    auto customer_id = customer_config->customer_id();
+    EXPECT_EQ(expected_customer_id, customer_id);
+    if (expected_customer_id != customer_id) {
+      return false;
+    }
+    EXPECT_EQ(NameForId(expected_customer_id),
+              customer_config->customer_name());
+    if (NameForId(expected_customer_id) != customer_config->customer_name()) {
+      return false;
+    }
+    size_t expected_num_projects = NumProjectsForCustomer(customer_id);
+    size_t num_projects = customer_config->projects_size();
+    EXPECT_EQ(expected_num_projects, num_projects);
+    return num_projects == expected_num_projects;
+  }
+
   // Checks that |*project_config| is as expected.
   bool CheckProject(uint32_t expected_project_id,
                     const ProjectConfig* project_config) {
@@ -86,16 +110,34 @@ class ProjectConfigsTest : public ::testing::Test {
   bool CheckProjectConfigs(const ProjectConfigs& project_configs) {
     for (uint32_t customer_id = 1; customer_id <= kNumCustomers;
          customer_id++) {
-      std::string customer_name = NameForId(customer_id);
+      std::string expected_customer_name = NameForId(customer_id);
       size_t expected_num_projects = NumProjectsForCustomer(customer_id);
+
+      // Check getting the customer by name.
+      bool success = CheckCustomer(
+          customer_id,
+          project_configs.GetCustomerConfig(expected_customer_name));
+      EXPECT_TRUE(success);
+      if (!success) {
+        return false;
+      }
+
+      // Check getting the customer by ID.
+      success = CheckCustomer(customer_id,
+                              project_configs.GetCustomerConfig(customer_id));
+      EXPECT_TRUE(success);
+      if (!success) {
+        return false;
+      }
+
       for (uint32_t project_id = 1; project_id <= expected_num_projects;
            project_id++) {
         std::string project_name = NameForId(project_id);
 
         // Check getting the project by name.
-        bool success = CheckProject(
-            project_id,
-            project_configs.GetProjectConfig(customer_name, project_name));
+        bool success =
+            CheckProject(project_id, project_configs.GetProjectConfig(
+                                         expected_customer_name, project_name));
         EXPECT_TRUE(success);
         if (!success) {
           return false;
@@ -110,8 +152,8 @@ class ProjectConfigsTest : public ::testing::Test {
         }
 
         // Check using an invalid project name
-        auto* project =
-            project_configs.GetProjectConfig(customer_name, "InvalidName");
+        auto* project = project_configs.GetProjectConfig(expected_customer_name,
+                                                         "InvalidName");
         EXPECT_EQ(nullptr, project);
         if (project != nullptr) {
           return false;
