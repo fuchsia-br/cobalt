@@ -14,7 +14,7 @@ void RapporAnalyzerTest::CheckSolutionCorrectness(
   // (It looks like Eigen doesn't have its own iterators); this should be
   // clear:
   const size_t num_candidates = results.size();
-  Eigen::VectorXf candidate_estimates(num_candidates);
+  Eigen::VectorXd candidate_estimates(num_candidates);
   for (size_t i = 0; i < num_candidates; i++) {
     candidate_estimates(i) =
         results[i].count_estimate / analyzer_->bit_counter().num_observations();
@@ -25,12 +25,12 @@ void RapporAnalyzerTest::CheckSolutionCorrectness(
   const float l2 = analyzer_->minimizer_data_.l2;
 
   // Extract y and compute the gradient = X^T * (X * beta - y) + l2 beta
-  Eigen::VectorXf est_bit_count_ratios;
+  Eigen::VectorXd est_bit_count_ratios;
   ExtractEstimatedBitCountRatios(&est_bit_count_ratios);
 
   EXPECT_EQ(est_bit_count_ratios.size(), candidate_matrix().rows());
   EXPECT_EQ(candidate_estimates.size(), candidate_matrix().cols());
-  Eigen::VectorXf gradient =
+  Eigen::VectorXd gradient =
       candidate_matrix().transpose() *
       (candidate_matrix() * candidate_estimates - est_bit_count_ratios);
   // Scale regression part of the gradient for consistency with lossmin
@@ -66,7 +66,7 @@ void RapporAnalyzerTest::CheckSolutionCorrectness(
   EXPECT_EQ(num_errs, 0);
 
   // Report also the measure of total violation of KKT condition
-  Eigen::VectorXf kkt_violation = (candidate_estimates.array() >= tol_cand)
+  Eigen::VectorXd kkt_violation = (candidate_estimates.array() >= tol_cand)
                                       .select(gradient.array() + l1, 0)
                                       .matrix();
   kkt_violation += (candidate_estimates.array() <= -tol_cand)

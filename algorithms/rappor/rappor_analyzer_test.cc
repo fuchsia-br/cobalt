@@ -107,8 +107,8 @@ void RapporAnalyzerTest::AddObservation(uint32_t cohort,
 }
 
 void RapporAnalyzerTest::ExtractEstimatedBitCountRatios(
-    Eigen::VectorXf* est_bit_count_ratios) {
-  std::vector<float> est_std_errors_not_used;
+    Eigen::VectorXd* est_bit_count_ratios) {
+  std::vector<double> est_std_errors_not_used;
   EXPECT_TRUE(analyzer_
                   ->ExtractEstimatedBitCountRatiosAndStdErrors(
                       est_bit_count_ratios, &est_std_errors_not_used)
@@ -116,7 +116,8 @@ void RapporAnalyzerTest::ExtractEstimatedBitCountRatios(
 }
 
 void RapporAnalyzerTest::ExtractEstimatedBitCountRatiosAndStdErrors(
-    Eigen::VectorXf* est_bit_count_ratios, std::vector<float>* est_std_errors) {
+    Eigen::VectorXd* est_bit_count_ratios,
+    std::vector<double>* est_std_errors) {
   EXPECT_TRUE(analyzer_
                   ->ExtractEstimatedBitCountRatiosAndStdErrors(
                       est_bit_count_ratios, est_std_errors)
@@ -177,26 +178,26 @@ std::vector<int> RapporAnalyzerTest::CountsEstimatesFromResults(
   return count_estimates;
 }
 
-Eigen::VectorXf RapporAnalyzerTest::VectorFromCounts(
+Eigen::VectorXd RapporAnalyzerTest::VectorFromCounts(
     const std::vector<int>& counts) {
   uint32_t num_candidates = counts.size();
-  Eigen::VectorXf counts_vector(num_candidates);
+  Eigen::VectorXd counts_vector(num_candidates);
   for (size_t i = 0; i < num_candidates; i++) {
-    counts_vector(i) = static_cast<float>(counts[i]);
+    counts_vector(i) = static_cast<double>(counts[i]);
   }
   return counts_vector;
 }
 
 void RapporAnalyzerTest::CheckExactSolution(
     const std::vector<int>& exact_candidate_counts) {
-  Eigen::VectorXf est_bit_count_ratios;
+  Eigen::VectorXd est_bit_count_ratios;
   ExtractEstimatedBitCountRatios(&est_bit_count_ratios);
-  Eigen::VectorXf exact_count_vector = VectorFromCounts(exact_candidate_counts);
+  Eigen::VectorXd exact_count_vector = VectorFromCounts(exact_candidate_counts);
   EXPECT_EQ(analyzer_->candidate_matrix_.cols(),
             static_cast<const int64_t>(exact_candidate_counts.size()));
-  Eigen::VectorXf rhs = analyzer_->candidate_matrix_ * exact_count_vector;
+  Eigen::VectorXd rhs = analyzer_->candidate_matrix_ * exact_count_vector;
   rhs /= exact_count_vector.sum();
-  Eigen::VectorXf difference = rhs - est_bit_count_ratios;
+  Eigen::VectorXd difference = rhs - est_bit_count_ratios;
   LOG(ERROR)
       << "How well does the exact solution reproduce the right hand side?"
       << difference.norm() / rhs.norm();
@@ -280,7 +281,7 @@ void RapporAnalyzerTest::AssessUtility(
 }
 
 grpc::Status RapporAnalyzerTest::ComputeLeastSquaresFitQR(
-    const Eigen::VectorXf& est_bit_count_ratios,
+    const Eigen::VectorXd& est_bit_count_ratios,
     std::vector<CandidateResult>* results) {
   // cast from smaller to larger type for comparisons
   const size_t num_candidates =
@@ -288,7 +289,7 @@ grpc::Status RapporAnalyzerTest::ComputeLeastSquaresFitQR(
   EXPECT_EQ(results->size(), num_candidates);
   // define the QR solver and perform the QR decomposition followed by
   // least squares solve
-  Eigen::SparseQR<Eigen::SparseMatrix<float, Eigen::ColMajor>,
+  Eigen::SparseQR<Eigen::SparseMatrix<double, Eigen::ColMajor>,
                   Eigen::COLAMDOrdering<int>>
       qrsolver;
 
@@ -298,7 +299,7 @@ grpc::Status RapporAnalyzerTest::ComputeLeastSquaresFitQR(
   // (the documentation for Eigen::SparseQR requires it)
   // compute() as well as Eigen::COLAMDOrdering require compressed
   // matrix
-  Eigen::SparseMatrix<float, Eigen::ColMajor> candidate_matrix_col_major =
+  Eigen::SparseMatrix<double, Eigen::ColMajor> candidate_matrix_col_major =
       analyzer_->candidate_matrix_;
   candidate_matrix_col_major.makeCompressed();
   qrsolver.compute(candidate_matrix_col_major);
@@ -306,7 +307,7 @@ grpc::Status RapporAnalyzerTest::ComputeLeastSquaresFitQR(
     std::string message = "Eigen::SparseQR decomposition was unsuccessfull";
     return grpc::Status(grpc::INTERNAL, message);
   }
-  Eigen::VectorXf result_vals = qrsolver.solve(est_bit_count_ratios);
+  Eigen::VectorXd result_vals = qrsolver.solve(est_bit_count_ratios);
   if (qrsolver.info() != Eigen::Success) {
     std::string message = "Eigen::SparseQR solve was unsuccessfull";
     return grpc::Status(grpc::INTERNAL, message);
@@ -337,7 +338,7 @@ void RapporAnalyzerTest::RunSimpleLinearRegressionReference(
     return;
   }
   // set up the right hand side of the equation
-  Eigen::VectorXf est_bit_count_ratios;
+  Eigen::VectorXd est_bit_count_ratios;
   ExtractEstimatedBitCountRatios(&est_bit_count_ratios);
 
   std::vector<CandidateResult> results(num_candidates);
@@ -440,7 +441,7 @@ void RapporAnalyzerTest::CompareAnalyzeToSimpleRegression(
                               true_candidate_counts);
 
   // compute and print the results for simple linear regression
-  Eigen::VectorXf est_bit_count_ratios;
+  Eigen::VectorXd est_bit_count_ratios;
   ExtractEstimatedBitCountRatios(&est_bit_count_ratios);
 
   print_label = case_label + " least squares ";

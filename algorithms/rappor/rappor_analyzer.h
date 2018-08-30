@@ -162,10 +162,9 @@ class RapporAnalyzer {
   // with standard deviation equal to |est_stand_errs|[j]. All (err_i)_j, are
   // independent. N is equal to the number of rows of A.
   //
-  // It then computes the standard errors ex_j from all runs for each of x_j. It
-  // sets x_j = 0 if x_j - 2 * ex_j < |zero_threshold|, otherwise sets x_j to
-  // the mean value from the computations that converged. Then x is written to
-  // |significant_candidate_weights|. (If none of the problems converged, then
+  // It then computes the standard errors ex_j from all runs for each of x_j.
+  // Then the mean x from all num_runs is written to
+  // |exact_est_candidate_weights|. (If none of the problems converged, then
   // unchanged |est_candidate_weights| will be written). The standard errors are
   // written to |est_candidate_errors|. (However, if less than 5 problems
   // converged, then standard errors are set to zero.)
@@ -181,17 +180,17 @@ class RapporAnalyzer {
   // TODO(bazyli) We can try to use QR in the same way instead or think if
   // (pseudo?) inversion is an option.
   // TODO(bazyli) maybe define the parameters as constants inside?
-  void GetSignificantNonZeros(const double l1, const double l2,
-                              const int num_runs, const int max_epochs,
-                              const int loss_epochs,
-                              const int convergence_epochs,
-                              const double zero_threshold,
-                              const lossmin::Weights& est_candidate_weights,
-                              const std::vector<float>& est_standard_errs,
-                              const lossmin::InstanceSet& instances,
-                              const lossmin::LabelSet& as_label_set,
-                              lossmin::Weights* significant_candidate_weights,
-                              lossmin::Weights* est_candidate_errors);
+  void GetExactValuesAndStdErrs(const double l1, const double l2,
+                                const int num_runs, const int max_epochs,
+                                const int loss_epochs,
+                                const int convergence_epochs,
+                                const double zero_threshold,
+                                const lossmin::Weights& est_candidate_weights,
+                                const std::vector<double>& est_standard_errs,
+                                const lossmin::InstanceSet& instances,
+                                const lossmin::LabelSet& as_label_set,
+                                lossmin::Weights* exact_est_candidate_weights,
+                                lossmin::Weights* est_candidate_errors);
 
   // Computes the column vector est_bit_count_ratios as well as a vector
   // est_std_errors of the corresponding standard errors. This method should be
@@ -217,8 +216,8 @@ class RapporAnalyzer {
   // See the note at the bottom of rappor_anlayzer.cc for a justification of
   // the formulas.
   grpc::Status ExtractEstimatedBitCountRatiosAndStdErrors(
-      Eigen::VectorXf* est_bit_count_ratios,
-      std::vector<float>* est_std_errors);
+      Eigen::VectorXd* est_bit_count_ratios,
+      std::vector<double>* est_std_errors);
 
   BloomBitCounter bit_counter_;
 
@@ -242,7 +241,7 @@ class RapporAnalyzer {
   //
   // The expression (k - j) above is due to the fact that
   // candidate_map_ indexes bits from the right instead of from the left.
-  Eigen::SparseMatrix<float, Eigen::RowMajor> candidate_matrix_;
+  Eigen::SparseMatrix<double, Eigen::RowMajor> candidate_matrix_;
 
   MinimizerData minimizer_data_;
 

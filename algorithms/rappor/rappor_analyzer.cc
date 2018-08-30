@@ -69,12 +69,10 @@ grpc::Status RapporAnalyzer::Analyze(
   // errors. See comments on the declaration of
   // ExtractEstimatedBitCountRatiosAndStdErrors() for a description of this
   // vector.
-  Eigen::VectorXf est_bit_count_ratios;
-  std::vector<float> est_std_errors;
+  Eigen::VectorXd est_bit_count_ratios;
+  std::vector<double> est_std_errors;
   ExtractEstimatedBitCountRatiosAndStdErrors(&est_bit_count_ratios,
                                              &est_std_errors);
-  // TODO(bazyli) finish description once we fork from or upstream the lossmin
-  // library
 
   // Note(rudominer) The GradientEvaluator constructor takes a
   // const LabelSet& parameter but est_bit_count_ratios is a
@@ -96,11 +94,8 @@ grpc::Status RapporAnalyzer::Analyze(
   //     makes the code less understandable to define a known column vector
   //     as a matrix with a dynamic number of columns in RowMajor order.
 
-  // Computations should be performed in double precision.
-  // TODO(bazyli) change class members to double precision? (e.g.
-  // candidate_matrix_)
-  lossmin::LabelSet as_label_set = est_bit_count_ratios.cast<double>();
-  lossmin::InstanceSet candidate_matrix = candidate_matrix_.cast<double>();
+  lossmin::LabelSet as_label_set = est_bit_count_ratios;
+  lossmin::InstanceSet candidate_matrix = candidate_matrix_;
   lossmin::LinearRegressionLossFunction loss_function;
   lossmin::GradientEvaluator grad_eval(candidate_matrix, as_label_set,
                                        &loss_function);
@@ -149,7 +144,10 @@ grpc::Status RapporAnalyzer::Analyze(
   // 3. You can change kMaxNonzeroCoefficients depending on how many largest
   // coefficients you care about; smaller number means fewer iterations (shorter
   // lasso path).
-  // 4. Modify other parameters with caution.
+  // 4. If you often bump into the error "The lasso path did not reach the last
+  // subproblem.", it may be a sign that kMaxEpochs is too strict (i.e. too low)
+  // and you may want to increase it.
+  // 5. Modify other parameters with caution.
   //
   // kRelativeConvergenceThreshold is the improvement that we expect to achieve
   // at convergence, relative to initial gradient. That is, if ||g|| is the
@@ -227,14 +225,17 @@ grpc::Status RapporAnalyzer::Analyze(
   // second RAPPOR step) because every individual lasso subproblem (run of
   // minimizer) has the same bound and the total epochs count is updated after
   // the subproblem is run.
-  static const int kMaxEpochs = 10000;
+  static const int kMaxEpochs = 20000;
   // kMaxNonzeroCoefficients is the maximum expected number of nonzero
   // coefficients in the solution. The final step of the lasso path will be
   // entered when this number of nonzeros (i.e. coefficients larger than
   // kZeroThreshold) have been identified in the algorithm; otherwise the
   // algorithm will perform all kNumLassoSteps (unless it reaches the maximum
-  // number of epochs); this number is adjusted to half the number of columns
-  // of the candidate matrix (see below).
+  // number of epochs); notice that if you want to detect
+  // candidates that account for p proportion of the observations, you will look
+  // for at most 1/p candidates. For example, if you only care about candidates
+  // that account for at least 1% of observations, you can set
+  // kMaxNonzeroCoefficients = 100.
   static const int kMaxNonzeroCoefficients = 500;
   // We expect the real underlying solution to have 1-norm equal to 1.0, and
   // even more so, the solution of the penalized problem should have norm
@@ -256,7 +257,7 @@ grpc::Status RapporAnalyzer::Analyze(
   // coefficients in the second RAPPOR step (in GetSignificantNonZeros).
   static const int kNumRunsSecondStep = 20;
   // kMaxEpochsSingleRunSecondStep is the maximum number of epochs of a single
-  // solve in the second RAPPOR step
+  // solve in the second RAPPOR step.
   static const int kMaxEpochsSingleRunSecondStep = 500;
 
   // Perform initializations based on the chosen parameters.
@@ -281,8 +282,7 @@ grpc::Status RapporAnalyzer::Analyze(
   // number of rows of the cadidate matrix (but no more than
   // kMaxNonzeroCoefficients). This is a heuristic to ensure that the matrix in
   // the second step is full column rank.
-  // TODO(bazyli) run some simulations on random matrices to see what this
-  // fraction of M should be.
+  // TODO(bazyli) possibly add more heuristics; including "bogus" candidates
   const int max_nonzero_coeffs = std::min(
       num_candidates, std::min(static_cast<int>(0.5 * num_cohorts * num_bits),
                                kMaxNonzeroCoefficients));
@@ -350,7 +350,7 @@ grpc::Status RapporAnalyzer::Analyze(
     }
   }
 
-  // We will construct the matrix from triplets which is simple and efficent
+  // We will construct the matrix from triplets which is simple and efficent.
   const uint32_t second_step_num_candidates = second_step_cols.size();
   const uint32_t num_observations = bit_counter_.num_observations();
   const int nonzero_matrix_entries =
@@ -401,41 +401,36 @@ grpc::Status RapporAnalyzer::Analyze(
   // are just solving the least squares problem.
   //
   // The values from lasso computations are a bit biased (likely lower)
-  // because of penalty, so the solution from this step should be closer to the
-  // underlying distribution. Also, we want to reject the non-zeros which
-  // may have been identified as such incorrectly (accidentally). Ideally,
-  // for each coefficient, we would like to have a p-value for the null
-  // hypothesis that it is zero, or use some other principle to identify the
-  // significantly nonzero coefficients.
+  // because of penalty, so the solution after this step should be closer to the
+  // underlying distribution. Also, we want to compute standard errors.
   //
   // The RAPPOR paper performs least squares computation at this point; it has
-  // closed-form expression for p-values of coefficients, which we could use
-  // (with null hypothesis for each coefficient being that it is zero). However,
-  // this expression involves the matrix (A_s^T A_s)^(-1), where A_s ==
+  // closed-form expression for standard errors of coefficients (more precisely,
+  // the covariane matrix), which we could use. However, this expression
+  // involves the matrix (A_s^T A_s)^(-1), where A_s ==
   // candidate_submatrix_second_step; a priori the inverse might not exist
   // (or A_s^T A_s can be numerically singular or very ill-conditioned).
   // Although unlikely, we do not want to check that. Even if it is not the
   // case, computing the inverse might be computationally (too) heavy.
   // Therefore, we will simulate the behavior of the coefficients to approximate
-  // the standard errors (and thereby p-values).
+  // the standard errors.
   //
-  // The p-values in the linear regression problem min || A * x - b||_2 are
-  // computed with the assumption that y_i = < a_i,x_i > + err_i, where err_i
-  // are i.i.d. gaussian errors (so technically speaking, these p-values are not
-  // correct in our case). Although we do not compute the theoretical p-values,
-  // we nevertheless make the same assumption that the noise of detecting y_i
-  // (in our case, this is the normalized count of bit i), is Gaussian with
-  // standard deviation equal to the standard error of y_i (stored in the
-  // est_std_errors). We assume these errors to be independent. We thus simulate
-  // the standard errors of the coefficients by introducing this noise directly
-  // in y (as_label_set) num_runs time, each time re-running the minimizer with
-  // the same input. Based on the values of standard errors we select
-  // significant and nonsignificant nonzeros (see the description of
-  // GetSignificantNonZeros for details).
+  // The standard deviations in the linear regression problem min || A * x -
+  // b||_2 are computed with the assumption that y_i = < a_i,x_i > + err_i,
+  // where err_i are i.i.d. gaussian errors (so technically speaking, these
+  // p-values are not entirely correct in our case). Although we do not compute
+  // the theoretical standard errors, we nevertheless make the same assumption
+  // that the noise of detecting y_i (in our case, this is the normalized count
+  // of bit i), is Gaussian with standard deviation equal to the standard error
+  // of y_i (stored in the est_std_errors). We assume these errors to be
+  // independent. We thus simulate the standard errors of the coefficients by
+  // introducing this noise directly in y (as_label_set) num_runs time, each
+  // time re-running the minimizer with the same input (see the description of
+  // GetExactValuesAndStdErrs for details).
   //
   // In any event, this process is conditioned on the choice made by the lasso
-  // step (as are p-values from least squares used in RAPPOR). They do not
-  // accout for anything random that happens in the first step above. Other
+  // step (as are standarde errors from least squares used in RAPPOR). They do
+  // not accout for anything random that happens in the first step above. Other
   // possible choices to get the p-values include: 1. bootstrap on the pairs
   // (a_i,y_i) -- but this could give zero columns. 2. p-values for the
   // particular choice of final penalty in lasso -- described in "Statistical
@@ -449,15 +444,14 @@ grpc::Status RapporAnalyzer::Analyze(
   const double l2_second_step = kL2toL1Ratio * l1_second_step;
   // Run the second step of RAPPOR to obtain better estimates of candidate
   // values, zeroing out insignificant ones.
-  lossmin::Weights significant_candidate_weights_second_step(num_candidates);
+  lossmin::Weights exact_candidate_weights_second_step(num_candidates);
   lossmin::Weights est_candidate_errors_second_step(num_candidates);
-  GetSignificantNonZeros(l1_second_step, l2_second_step, kNumRunsSecondStep,
-                         kMaxEpochsSingleRunSecondStep, kLossEpochs,
-                         kConvergenceMeasures, kZeroThreshold,
-                         est_candidate_weights_second_step, est_std_errors,
-                         candidate_submatrix_second_step, as_label_set,
-                         &significant_candidate_weights_second_step,
-                         &est_candidate_errors_second_step);
+  GetExactValuesAndStdErrs(
+      l1_second_step, l2_second_step, kNumRunsSecondStep,
+      kMaxEpochsSingleRunSecondStep, kLossEpochs, kConvergenceMeasures,
+      kZeroThreshold, est_candidate_weights_second_step, est_std_errors,
+      candidate_submatrix_second_step, as_label_set,
+      &exact_candidate_weights_second_step, &est_candidate_errors_second_step);
 
   // Prepare the final solution vector
   results_out->resize(num_candidates);
@@ -469,7 +463,7 @@ grpc::Status RapporAnalyzer::Analyze(
   for (uint32_t i = 0; i < second_step_num_candidates; i++) {
     int first_step_col_num = second_step_cols[i];
     results_out->at(first_step_col_num).count_estimate =
-        significant_candidate_weights_second_step[i] * num_observations;
+        exact_candidate_weights_second_step[i] * num_observations;
     results_out->at(first_step_col_num).std_error =
         est_candidate_errors_second_step[i] * num_observations;
   }
@@ -501,7 +495,8 @@ grpc::Status RapporAnalyzer::Analyze(
 }
 
 grpc::Status RapporAnalyzer::ExtractEstimatedBitCountRatiosAndStdErrors(
-    Eigen::VectorXf* est_bit_count_ratios, std::vector<float>* est_std_errors) {
+    Eigen::VectorXd* est_bit_count_ratios,
+    std::vector<double>* est_std_errors) {
   VLOG(5) << "RapporAnalyzer::ExtractEstimatedBitCountRatiosAndStdErrors()";
   CHECK(est_bit_count_ratios);
 
@@ -580,7 +575,7 @@ grpc::Status RapporAnalyzer::BuildCandidateMap() {
   }
 
   candidate_matrix_.resize(num_cohorts * num_bits, num_candidates);
-  std::vector<Eigen::Triplet<float>> sparse_matrix_triplets;
+  std::vector<Eigen::Triplet<double>> sparse_matrix_triplets;
   sparse_matrix_triplets.reserve(num_candidates * num_cohorts * num_hashes);
 
   int column = 0;
@@ -653,15 +648,15 @@ grpc::Status RapporAnalyzer::BuildCandidateMap() {
   return grpc::Status::OK;
 }
 
-void RapporAnalyzer::GetSignificantNonZeros(
+void RapporAnalyzer::GetExactValuesAndStdErrs(
     const double l1, const double l2, const int num_runs, const int max_epochs,
     const int loss_epochs, const int convergence_epochs,
     const double zero_threshold, const lossmin::Weights& est_candidate_weights,
-    const std::vector<float>& est_standard_errs,
+    const std::vector<double>& est_standard_errs,
     const lossmin::InstanceSet& instances,
     const lossmin::LabelSet& as_label_set,
-    lossmin::Weights* significant_est_weights,
-    lossmin::Weights* std_errors) {
+    lossmin::Weights* exact_est_candidate_weights,
+    lossmin::Weights* est_candidate_errors) {
   // Initialize the minimizer constants (these are analogous to the ones used in
   // Analyze).
   static const double alpha = 0.5;
@@ -706,9 +701,8 @@ void RapporAnalyzer::GetSignificantNonZeros(
     minimizer.set_phi_center(new_candidate_weights);
     minimizer.set_convergence_threshold(convergence_threshold);
     minimizer.set_zero_threshold(zero_threshold);
-    minimizer
-        .set_simple_convergence_threshold(kSimpleConvergenceThreshold);
-            minimizer.set_alpha(alpha);
+    minimizer.set_simple_convergence_threshold(kSimpleConvergenceThreshold);
+    minimizer.set_alpha(alpha);
     minimizer.set_beta(1 - alpha);
     minimizer.Run(max_epochs, loss_epochs, convergence_epochs,
                   &new_candidate_weights, &loss_history_not_used);
@@ -734,15 +728,8 @@ void RapporAnalyzer::GetSignificantNonZeros(
     sample_stds = sample_stds / (num_converged - 1);
     sample_stds = sample_stds.array().sqrt();
   }
-  *std_errors = sample_stds;
-  // Determine a coefficient significant if above zero threshold + 2 standard
-  // errors.
-  lossmin::Weights upper_bound = 2 * sample_stds;
-  upper_bound = upper_bound.array() + zero_threshold;
-  // Set nonsiginificant ones to zero; set others to the mean of computed values
-  *significant_est_weights = (mean_est_weights.array() >= upper_bound.array())
-                                 .select(mean_est_weights, 0)
-                                 .matrix();
+  *est_candidate_errors = sample_stds;
+  *exact_est_candidate_weights = mean_est_weights;
 }
 
 }  // namespace rappor

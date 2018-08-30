@@ -48,17 +48,17 @@ class RapporAnalyzerTest : public ::testing::Test {
   // for the given |candidate_index| and |cohort_index|.
   std::string BuildBitString(uint16_t candidate_index, uint16_t cohort_index);
 
-  const Eigen::SparseMatrix<float, Eigen::RowMajor>& candidate_matrix() {
+  const Eigen::SparseMatrix<double, Eigen::RowMajor>& candidate_matrix() {
     return analyzer_->candidate_matrix_;
   }
 
   void AddObservation(uint32_t cohort, std::string binary_string);
 
-  void ExtractEstimatedBitCountRatios(Eigen::VectorXf* est_bit_count_ratios);
+  void ExtractEstimatedBitCountRatios(Eigen::VectorXd* est_bit_count_ratios);
 
   void ExtractEstimatedBitCountRatiosAndStdErrors(
-      Eigen::VectorXf* est_bit_count_ratios,
-      std::vector<float>* est_std_errors);
+      Eigen::VectorXd* est_bit_count_ratios,
+      std::vector<double>* est_std_errors);
 
   void AddObservationsForCandidates(const std::vector<int>& candidate_indices);
 
@@ -75,7 +75,7 @@ class RapporAnalyzerTest : public ::testing::Test {
   std::vector<int> CountsEstimatesFromResults(
       const std::vector<CandidateResult>& results);
 
-  Eigen::VectorXf VectorFromCounts(
+  Eigen::VectorXd VectorFromCounts(
       const std::vector<int>& exact_candidate_counts);
 
   // Checks how well the |exact_candidate_counts| reproduces the right hand side
@@ -162,7 +162,7 @@ class RapporAnalyzerTest : public ::testing::Test {
   // Computes the least squares fit on the candidate matrix using QR,
   // for the given rhs in |est_bit_count_ratios| and saves it to |results|
   grpc::Status ComputeLeastSquaresFitQR(
-      const Eigen::VectorXf& est_bit_count_ratios,
+      const Eigen::VectorXd& est_bit_count_ratios,
       std::vector<CandidateResult>* results);
 
   // Runs a simple least squares problem for Ax = b on the candidate matrix
