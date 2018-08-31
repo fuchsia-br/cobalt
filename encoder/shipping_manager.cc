@@ -87,7 +87,7 @@ void ShippingManager::NotifyObservationsAdded() {
 
 // The caller must hold a lock on mutex_.
 void ShippingManager::RequestSendSoonLockHeld(MutexProtectedFields* fields) {
-  VLOG(6) << "ShippingManager::RequestSendSoonLockHeld()";
+  VLOG(5) << "ShippingManager::RequestSendSoonLockHeld()";
   fields->expedited_send_requested = true;
   fields->expedited_send_notifier.notify_all();
   // We set waiting_for_schedule_ false here so that if the calling thread
@@ -176,8 +176,8 @@ void ShippingManager::Run() {
     if (locked->fields->observation_store->Empty()) {
       // There are no Observations at all in the observation_store_. Wait
       // forever until notified that one arrived or shut down.
-      VLOG(4) << "ShippingManager worker: waiting for an Observation to "
-                 "arrive.";
+      VLOG(5) << "ShippingManager worker: waiting for an Observation to "
+                 "be added.";
       // If we are about to leave idle, we should make sure that we invoke all
       // of the SendCallbacks so they don't have to wait until the next time
       // observations are added.
@@ -188,6 +188,8 @@ void ShippingManager::Run() {
         return (locked->fields->shut_down ||
                 !locked->fields->observation_store->Empty());
       });
+      VLOG(5) << "ShippingManager worker: Waking up because an Observation was "
+                 "added.";
       locked->fields->idle = false;
     } else {
       auto now = std::chrono::system_clock::now();
@@ -222,6 +224,7 @@ void ShippingManager::Run() {
 }
 
 void ShippingManager::SendAllEnvelopes() {
+  VLOG(5) << "ShippingManager: SendAllEnvelopes().";
   bool success = true;
   size_t failures_without_success = 0;
   // Loop through all envelopes in the ObservationStore.
@@ -346,6 +349,14 @@ ClearcutV1ShippingManager::SendEnvelopeToBackend(
   {
     std::lock_guard<std::mutex> lock(clearcut_mutex_);
     status = clearcut_->UploadEvents(&request);
+  }
+  {
+    auto locked = lock();
+    locked->fields->num_send_attempts++;
+    if (!status.ok()) {
+      locked->fields->num_failed_attempts++;
+    }
+    locked->fields->last_send_status = status.ToGrpcStatus();
   }
   if (status.ok()) {
     VLOG(4) << "ShippingManager::SendEnvelopeToBackend: OK";
