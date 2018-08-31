@@ -663,6 +663,7 @@ macro(add_cobalt_test_dependencies target_name test_dir)
       PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${test_dir})
 endmacro()
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/abseil-cpp)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/lossmin)
 
 # //third_party/clearcut is a special case. It is code that we own but
@@ -700,5 +701,6 @@ add_compile_options(-Wno-sign-compare
                     -Wno-unused-private-field)
 
 # Third-party directories that we include using the simpler add_subdirectory method
+add_subdirectory(third_party/abseil-cpp)
 add_subdirectory(third_party/lossmin/lossmin)
 add_subdirectory(third_party/tensorflow_statusor)
