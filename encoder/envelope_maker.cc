@@ -40,9 +40,9 @@ ObservationStore::StoreStatus EnvelopeMaker::CanAddObservation(
   }
 
   size_t new_num_bytes = num_bytes_ + obs_size;
-  VLOG(4) << "new_num_bytes(" << new_num_bytes << ") > max_num_bytes_("
-          << max_num_bytes_ << ")";
   if (new_num_bytes > max_num_bytes_) {
+    VLOG(6) << "new_num_bytes(" << new_num_bytes << ") > max_num_bytes_("
+            << max_num_bytes_ << ")";
     VLOG(4) << "Envelope full.";
     return ObservationStore::kStoreFull;
   }

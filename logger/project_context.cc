@@ -49,6 +49,7 @@ ProjectContext::ProjectContext(
     : project_(customer_id, project_id, std::move(customer_name),
                std::move(project_name), release_stage),
       metric_definitions_(std::move(metric_definitions)) {
+  CHECK(metric_definitions_);
   for (const auto& metric : metric_definitions_->metric()) {
     if (metric.customer_id() == project_.customer_id() &&
         metric.project_id() == project_.project_id()) {

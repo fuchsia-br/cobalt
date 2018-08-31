@@ -35,6 +35,10 @@ EncryptedMessageMaker::EncryptedMessageMaker(
     cipher_.reset();
     return;
   }
+  if (encryption_scheme_ == EncryptedMessage::NONE) {
+    VLOG(5) << "WARNING: encryption_scheme is NONE. Cobalt data will not be "
+               "encrypted!";
+  }
 }
 
 bool EncryptedMessageMaker::Encrypt(
@@ -48,7 +52,6 @@ bool EncryptedMessageMaker::Encrypt(
   message.SerializeToString(&serialized_message);
 
   if (encryption_scheme_ == EncryptedMessage::NONE) {
-    VLOG(5) << "WARNING: Not using encryption!";
     encrypted_message->set_scheme(EncryptedMessage::NONE);
     encrypted_message->set_ciphertext(serialized_message);
     return true;

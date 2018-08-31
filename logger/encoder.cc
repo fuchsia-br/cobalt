@@ -95,6 +95,8 @@ Encoder::Result Encoder::EncodeBasicRapporObservation(
       return result;
   }
 
+  // TODO(rudominer) Stop copying the client_secret_ on each Encode*()
+  // operation.
   BasicRapporEncoder basic_rappor_encoder(basic_rappor_config, client_secret_);
   ValuePart index_value;
   index_value.set_index_value(value_index);

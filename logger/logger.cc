@@ -349,6 +349,12 @@ Status EventLogger::Log(uint32_t metric_id,
 
   int num_reports = event_record->metric->reports_size();
   int report_index = 0;
+  if (event_record->metric->reports_size() == 0) {
+    VLOG(1) << "Warning: An event was logged for a metric with no reports "
+               "defined. Metric ["
+            << MetricDebugString(*event_record->metric) << "] in project "
+            << project_context()->DebugString() << ".";
+  }
   for (const auto& report : event_record->metric->reports()) {
     status = MaybeUpdateLocalAggregation(report, event_record);
     if (status != kOK) {
