@@ -9,6 +9,7 @@
 #include <memory>
 #include <vector>
 
+#include "third_party/abseil-cpp/absl/strings/escaping.h"
 #include "third_party/clearcut/clearcut.pb.h"
 #include "third_party/clearcut/http_client.h"
 #include "third_party/tensorflow_statusor/statusor.h"

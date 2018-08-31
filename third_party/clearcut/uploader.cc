@@ -79,7 +79,12 @@ Status ClearcutUploader::TryUploadEvents(
 
   HTTPRequest request(url_);
   log_request->mutable_client_info()->set_client_type(kFuchsiaClientType);
-  log_request->SerializeToString(&request.body);
+  if (!log_request->SerializeToString(&request.body)) {
+    return Status(
+        StatusCode::INVALID_ARGUMENT,
+        "ClearcutUploader: Unable to serialize log_request to binary proto.");
+  }
+  VLOG(5) << "ClearcutUploader: Sending POST request to " << url_ << ".";
   auto response_future = client_->Post(std::move(request), deadline);
   auto response_or = response_future.get();
   if (!response_or.ok()) {
@@ -87,6 +92,14 @@ Status ClearcutUploader::TryUploadEvents(
   }
 
   auto response = response_or.ConsumeValueOrDie();
+
+  VLOG(5) << "ClearcutUploader: Received POST response: " << response.http_code
+          << ".";
+  if (response.http_code != 200) {
+    std::string escaped_body = absl::CEscape(request.body);
+    VLOG(1) << "ClearcutUploader: Failed POST request to " << url_
+            << " with request body=" << escaped_body << ".";
+  }
 
   std::ostringstream s;
   s << response.http_code << ": ";

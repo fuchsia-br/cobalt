@@ -89,7 +89,8 @@ Status CurlHandle::CURLCodeToStatus(CURLcode code) {
 
 StatusOr<HTTPResponse> CurlHandle::Post(std::string url, std::string body) {
   RETURN_IF_ERROR(Setopt(CURLOPT_URL, url.c_str()));
-  RETURN_IF_ERROR(Setopt(CURLOPT_POSTFIELDS, body.c_str()));
+  RETURN_IF_ERROR(Setopt(CURLOPT_POSTFIELDSIZE, body.size()));
+  RETURN_IF_ERROR(Setopt(CURLOPT_POSTFIELDS, body.data()));
   auto result = curl_easy_perform(handle_);
 
   switch (result) {

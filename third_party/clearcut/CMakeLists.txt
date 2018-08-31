@@ -89,7 +89,10 @@ add_library(clearcut
             http_client.h
             uploader.h
             uploader.cc)
-target_link_libraries(clearcut clearcut_proto_lib tensorflow_statusor status)
+target_link_libraries(clearcut
+                      absl::strings clearcut_proto_lib
+                      tensorflow_statusor status)
+
 
 add_executable(clearcut_tests
                uploader_test.cc)
