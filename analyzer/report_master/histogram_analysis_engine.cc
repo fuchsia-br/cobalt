@@ -14,6 +14,7 @@
 
 #include "analyzer/report_master/histogram_analysis_engine.h"
 
+#include <iomanip>
 #include <memory>
 #include <string>
 #include <utility>
@@ -55,6 +56,7 @@ const char kGetDecoderFailure[] =
     "histogram-analysis-engine-get-decoder-failure";
 const char kNewDecoderFailure[] =
     "histogram-analysis-engine-new-decoder-failure";
+const char kDemoTestInput[] = "use-demo-candidates=";
 }  // namespace
 
 namespace {
@@ -155,9 +157,40 @@ class RapporAdapter : public DecoderAdapter {
  public:
   RapporAdapter(const ReportId& report_id, const RapporConfig& config,
                 const RapporCandidateList* candidates)
-      : report_id_(report_id),
-        analyzer_(new RapporAnalyzer(config, candidates)),
-        candidates_(candidates) {}
+      : report_id_(report_id) {
+    // To enable end-to-end test, we introduce a case where a list composed of
+    // a single candidate with a special keyword prompts creation of a number of
+    // test candidates. Specifically, if candidates contains single element with
+    // the corresponding string "use-demo-candidates=N", where N is an int (so
+    // for example "use-demo-candidates=2000"), then the candidates is replaced
+    // with a list composed of N elements with strings "Module_00000",
+    // "Module_00001",
+    // ..., "Module_N-1" (they are 0-padded to have constant width of 5 so that
+    // alphabetical order is consistent with numerical order).
+    bool key_word_identified = false;
+    if (candidates->candidates_size() == 1) {
+      std::string first_candidate = candidates->candidates(0);
+      if (first_candidate.compare(0, 20, kDemoTestInput) == 0) {
+        // If the keyword has been identified parse the number of test
+        // candidates and create them.
+        key_word_identified = true;
+        std::string string_num = first_candidate.substr(20);
+        int test_size = std::stoi(string_num);
+        demo_candidates_ = std::make_unique<RapporCandidateList>();
+        for (int i = 0; i < test_size; i++) {
+          std::ostringstream new_candidate;
+          new_candidate << "Module_" << std::setfill('0') << std::setw(5)
+                        << std::to_string(i);
+          demo_candidates_->add_candidates(new_candidate.str());
+        }
+        candidates_ = demo_candidates_.get();
+      }
+    }
+    if (!key_word_identified) {
+      candidates_ = candidates;
+    }
+    analyzer_.reset(new RapporAnalyzer(config, candidates_));
+  }
 
   bool ProcessObservationPart(uint32_t day_index,
                               const ObservationPart& obs) override {
@@ -196,7 +229,8 @@ class RapporAdapter : public DecoderAdapter {
  private:
   ReportId report_id_;
   std::unique_ptr<RapporAnalyzer> analyzer_;
-  const RapporCandidateList* candidates_;  // not owned.
+  std::unique_ptr<RapporCandidateList> demo_candidates_;  // for e2e tests
+  const RapporCandidateList* candidates_;                 // not owned.
 };
 
 ////////////////////////////////////////////////////////////////////////////
@@ -425,18 +459,18 @@ bool HistogramAnalysisEngine::ProcessObservationPart(
   return decoder->ProcessObservationPart(day_index, obs);
 }
 
-// Note that despite the comments in histogram_analysis_engine.h, version 0.1 of
-// Cobalt does not yet support reports that are heterogeneous with respect
-// to encoding. In this version the purpose of the HistogramAnalysisEngine is to
-// ensure that in fact the set of observations is not heterogeneous.
+// Note that despite the comments in histogram_analysis_engine.h, version 0.1
+// of Cobalt does not yet support reports that are heterogeneous with respect
+// to encoding. In this version the purpose of the HistogramAnalysisEngine is
+// to ensure that in fact the set of observations is not heterogeneous.
 grpc::Status HistogramAnalysisEngine::PerformAnalysis(
     std::vector<ReportRow>* results) {
   CHECK(results);
 
   if (grouped_decoders_.size() == 0) {
-    LOG(INFO)
-        << "Empty HISTOGRAM report. No valid observations found for report_id="
-        << ReportStore::ToString(report_id_);
+    LOG(INFO) << "Empty HISTOGRAM report. No valid observations found for "
+                 "report_id="
+              << ReportStore::ToString(report_id_);
     return grpc::Status::OK;
   }
 
