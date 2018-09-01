@@ -245,10 +245,10 @@ class TestAppTest : public ::testing::Test {
  public:
   TestAppTest()
       : fake_shuffler_client_(new FakeShufflerClient()),
-        test_app_(GetTestProject(), fake_shuffler_client_,
-                  std::unique_ptr<SystemData>(), TestApp::kInteractive, "",
-                  EncryptedMessage::NONE, "", EncryptedMessage::NONE,
-                  &output_stream_) {}
+        test_app_(new TestApp(GetTestProject(), fake_shuffler_client_,
+                              std::unique_ptr<SystemData>(),
+                              TestApp::kInteractive, "", EncryptedMessage::NONE,
+                              "", EncryptedMessage::NONE, &output_stream_)) {}
 
  protected:
   // Clears the contents of the TestApp's output stream and returns the
@@ -274,7 +274,7 @@ class TestAppTest : public ::testing::Test {
   std::ostringstream output_stream_;
 
   // The TestApp under test.
-  TestApp test_app_;
+  std::unique_ptr<TestApp> test_app_;
 };
 
 //////////////////////////////////////
@@ -283,13 +283,13 @@ class TestAppTest : public ::testing::Test {
 
 // Tests processing a bad command line.
 TEST_F(TestAppTest, ProcessCommandLineBad) {
-  EXPECT_TRUE(test_app_.ProcessCommandLine("this is not a command"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("this is not a command"));
   EXPECT_TRUE(OutputContains("Unrecognized command: this"));
 }
 
 // Tests processing the "help" command
 TEST_F(TestAppTest, ProcessCommandLineHelp) {
-  EXPECT_TRUE(test_app_.ProcessCommandLine("help"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("help"));
   // We don't want to test the actual output too rigorously because that would
   // be a very fragile test. Just doing a sanity test.
   EXPECT_TRUE(OutputContains("Print this help message."));
@@ -300,51 +300,51 @@ TEST_F(TestAppTest, ProcessCommandLineHelp) {
 
 // Tests processing a bad set command line.
 TEST_F(TestAppTest, ProcessCommandLineSetBad) {
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set"));
   EXPECT_TRUE(OutputContains("Malformed set command."));
   ClearOutput();
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set a b c"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set a b c"));
   EXPECT_TRUE(OutputContains("Malformed set command."));
   ClearOutput();
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set a b"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set a b"));
   EXPECT_TRUE(OutputContains("a is not a settable parameter"));
   ClearOutput();
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set metric b"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set metric b"));
   EXPECT_TRUE(OutputContains("Expected positive integer instead of b."));
   ClearOutput();
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set encoding b"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set encoding b"));
   EXPECT_TRUE(OutputContains("Expected positive integer instead of b."));
   ClearOutput();
 }
 
 // Tests processing the set and ls commands
 TEST_F(TestAppTest, ProcessCommandLineSetAndLs) {
-  EXPECT_TRUE(test_app_.ProcessCommandLine("ls"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("ls"));
   EXPECT_TRUE(OutputContains("Metric ID: 1"));
   EXPECT_TRUE(OutputContains("Encoding Config ID: 1"));
   ClearOutput();
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set metric 2"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set metric 2"));
   EXPECT_TRUE(NoOutput());
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("ls"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("ls"));
   EXPECT_TRUE(OutputContains("Metric ID: 2"));
   EXPECT_TRUE(OutputContains("Encoding Config ID: 1"));
   ClearOutput();
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set encoding 2"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set encoding 2"));
   EXPECT_TRUE(NoOutput());
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("ls"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("ls"));
   EXPECT_TRUE(OutputContains("Metric ID: 2"));
   EXPECT_TRUE(OutputContains("Encoding Config ID: 2"));
   ClearOutput();
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("ls"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("ls"));
   EXPECT_TRUE(OutputContains("Metric ID: 2"));
   EXPECT_TRUE(OutputContains("Encoding Config ID: 2"));
   ClearOutput();
@@ -352,31 +352,31 @@ TEST_F(TestAppTest, ProcessCommandLineSetAndLs) {
 
 // Tests processing a bad show command line.
 TEST_F(TestAppTest, ProcessCommandLineShowBad) {
-  EXPECT_TRUE(test_app_.ProcessCommandLine("show"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("show"));
   EXPECT_TRUE(OutputContains("Expected 'show config'."));
   ClearOutput();
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("show confi"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("show confi"));
   EXPECT_TRUE(OutputContains("Expected 'show config'."));
   ClearOutput();
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("show config foo"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("show config foo"));
   EXPECT_TRUE(OutputContains("Expected 'show config'."));
   ClearOutput();
 }
 
 // Tests processing the set and show config commands
 TEST_F(TestAppTest, ProcessCommandLineSetAndShowConfig) {
-  EXPECT_TRUE(test_app_.ProcessCommandLine("show config"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("show config"));
   EXPECT_TRUE(OutputContains("Fuchsia Popular URLs"));
   EXPECT_TRUE(OutputContains("One string part named \"url\": A URL."));
   EXPECT_TRUE(OutputContains("Forculus threshold=20"));
   ClearOutput();
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set metric 2"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set metric 2"));
   EXPECT_TRUE(NoOutput());
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("show config"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("show config"));
   EXPECT_TRUE(OutputContains("Fuchsia Usage by Hour"));
   EXPECT_TRUE(
       OutputContains("One int part named \"hour\": An integer from 0 to 23 "
@@ -384,10 +384,10 @@ TEST_F(TestAppTest, ProcessCommandLineSetAndShowConfig) {
   EXPECT_TRUE(OutputContains("Forculus threshold=20"));
   ClearOutput();
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set encoding 2"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set encoding 2"));
   EXPECT_TRUE(NoOutput());
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("show config"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("show config"));
   EXPECT_TRUE(OutputContains("Fuchsia Usage by Hour"));
   EXPECT_TRUE(
       OutputContains("One int part named \"hour\": An integer from 0 to 23 "
@@ -396,11 +396,11 @@ TEST_F(TestAppTest, ProcessCommandLineSetAndShowConfig) {
   EXPECT_TRUE(OutputContains("p=0.1, q=0.9"));
   ClearOutput();
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set metric 3"));
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set encoding 3"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set metric 3"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set encoding 3"));
   EXPECT_TRUE(NoOutput());
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("show config"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("show config"));
   EXPECT_TRUE(OutputContains("Fuchsia Fruit Consumption and Rating"));
   EXPECT_TRUE(
       OutputContains("One int part named \"rating\": An integer from 0 to 10"));
@@ -411,11 +411,11 @@ TEST_F(TestAppTest, ProcessCommandLineSetAndShowConfig) {
   EXPECT_TRUE(OutputContains("p=0.01, q=0.99")) << output_stream_.str();
   ClearOutput();
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set metric 4"));
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set encoding 5"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set metric 4"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set encoding 5"));
   EXPECT_TRUE(NoOutput());
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("show config"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("show config"));
   EXPECT_TRUE(OutputContains("Fuchsia Rare Events")) << output_stream_.str();
   EXPECT_TRUE(OutputContains(
       "One indexed part named \"event\": The index of the event type"));
@@ -425,11 +425,11 @@ TEST_F(TestAppTest, ProcessCommandLineSetAndShowConfig) {
   EXPECT_TRUE(OutputContains("num_categories: 100")) << output_stream_.str();
   ClearOutput();
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set metric 5"));
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set encoding 6"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set metric 5"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set encoding 6"));
   EXPECT_TRUE(NoOutput());
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("show config"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("show config"));
   EXPECT_TRUE(OutputContains("There is no metric with id=5."));
   EXPECT_TRUE(OutputContains("There is no encoding config with id=6."));
   ClearOutput();
@@ -437,29 +437,29 @@ TEST_F(TestAppTest, ProcessCommandLineSetAndShowConfig) {
 
 // Tests processing a bad encode command line.
 TEST_F(TestAppTest, ProcessCommandLineEncodeBad) {
-  EXPECT_TRUE(test_app_.ProcessCommandLine("encode"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("encode"));
   EXPECT_TRUE(OutputContains("Malformed encode command."));
   ClearOutput();
-  EXPECT_TRUE(test_app_.ProcessCommandLine("encode foo"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("encode foo"));
   EXPECT_TRUE(OutputContains("Malformed encode command."));
 
   ClearOutput();
-  EXPECT_TRUE(test_app_.ProcessCommandLine("encode foo bar"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("encode foo bar"));
   EXPECT_TRUE(OutputContains("Expected positive integer instead of foo."));
 
   ClearOutput();
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("encode -1 bar"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("encode -1 bar"));
   EXPECT_TRUE(OutputContains("<num> must be a positive integer: -1"));
 
   ClearOutput();
-  EXPECT_TRUE(test_app_.ProcessCommandLine("encode 3.14 bar"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("encode 3.14 bar"));
   EXPECT_TRUE(OutputContains("Expected positive integer instead of 3.14."));
 }
 
 // Tests processing a bad send command line.
 TEST_F(TestAppTest, ProcessCommandLineSendBad) {
-  EXPECT_TRUE(test_app_.ProcessCommandLine("send foo"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("send foo"));
   EXPECT_TRUE(OutputContains("The send command doesn't take any arguments."));
 }
 
@@ -467,9 +467,9 @@ TEST_F(TestAppTest, ProcessCommandLineSendBad) {
 TEST_F(TestAppTest, ProcessCommandLineEncodeAndSend) {
   // The default is metric 1 encoding 1 which is Forculus with
   // URLs.
-  EXPECT_TRUE(test_app_.ProcessCommandLine("encode 19 www.AAAA"));
-  EXPECT_TRUE(test_app_.ProcessCommandLine("encode 20 www.BBBB"));
-  EXPECT_TRUE(test_app_.ProcessCommandLine("send"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("encode 19 www.AAAA"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("encode 20 www.BBBB"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("send"));
   EXPECT_TRUE(NoOutput());
   // The received envelope should contain 1 batch.
   Envelope& envelope = fake_shuffler_client_->envelope;
@@ -490,16 +490,16 @@ TEST_F(TestAppTest, ProcessCommandLineEncodeAndSend) {
 
   // Switch to metric 2 encoding 2 which is Basic RAPPOR with
   // hours-of-the-day.
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set encoding 2"));
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set metric 2"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set encoding 2"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set metric 2"));
 }
 
 // Tests processing a multi-encode and send operation.
 TEST_F(TestAppTest, ProcessCommandLineMultiEncodeAndSend) {
   // The default is metric is 1.
-  EXPECT_TRUE(test_app_.ProcessCommandLine("encode 19 url:www.AAAA:1"));
-  EXPECT_TRUE(test_app_.ProcessCommandLine("encode 20 url:www.BBBB:1"));
-  EXPECT_TRUE(test_app_.ProcessCommandLine("send"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("encode 19 url:www.AAAA:1"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("encode 20 url:www.BBBB:1"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("send"));
   EXPECT_TRUE(NoOutput());
   // The received envelope should contain 1 batch.
   Envelope& envelope = fake_shuffler_client_->envelope;
@@ -519,18 +519,18 @@ TEST_F(TestAppTest, ProcessCommandLineMultiEncodeAndSend) {
   }
 
   // Switch to metric 3 which is fruit rating.
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set metric 3"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set metric 3"));
 
   // Encode 100 instances of rating apple as 10 using encoding configs
   // 3 and 4 respectively.
   EXPECT_TRUE(
-      test_app_.ProcessCommandLine("encode 100 fruit:apple:3 rating:10:4"));
+      test_app_->ProcessCommandLine("encode 100 fruit:apple:3 rating:10:4"));
   // Encode 200 instances of rating banana as 7 using encoding configs
   // 3 and 4 respectively.
   EXPECT_TRUE(
-      test_app_.ProcessCommandLine("encode 200 fruit:banana:3 rating:7:4"));
+      test_app_->ProcessCommandLine("encode 200 fruit:banana:3 rating:7:4"));
   // Send
-  EXPECT_TRUE(test_app_.ProcessCommandLine("send"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("send"));
   EXPECT_TRUE(NoOutput());
   envelope = fake_shuffler_client_->envelope;
   ASSERT_EQ(1, envelope.batch_size());
@@ -555,22 +555,22 @@ TEST_F(TestAppTest, ProcessCommandLineMultiEncodeAndSend) {
 TEST_F(TestAppTest, ProcessCommandLineEncodeAndSendMulti) {
   // The default is metric 1 encoding 1 which is Forculus with
   // URLs.
-  EXPECT_TRUE(test_app_.ProcessCommandLine("encode 19 www.AAAA"));
-  EXPECT_TRUE(test_app_.ProcessCommandLine("encode 20 www.BBBB"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("encode 19 www.AAAA"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("encode 20 www.BBBB"));
   EXPECT_TRUE(NoOutput());
 
   // Notice we do not send!
 
   // Switch to metric 2 encoding 2 which is Basic RAPPOR with
   // hours-of-the-day.
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set encoding 2"));
-  EXPECT_TRUE(test_app_.ProcessCommandLine("set metric 2"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set encoding 2"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("set metric 2"));
 
-  EXPECT_TRUE(test_app_.ProcessCommandLine("encode 100 8"));
-  EXPECT_TRUE(test_app_.ProcessCommandLine("encode 200 9"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("encode 100 8"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("encode 200 9"));
 
   // Now we send.
-  EXPECT_TRUE(test_app_.ProcessCommandLine("send"));
+  EXPECT_TRUE(test_app_->ProcessCommandLine("send"));
   EXPECT_TRUE(NoOutput());
 
   // The received envelope should contain 2 batches.
@@ -613,7 +613,7 @@ TEST_F(TestAppTest, ProcessCommandLineEncodeAndSendMulti) {
 
 // Tests processing the "quit" command
 TEST_F(TestAppTest, ProcessCommandLineQuit) {
-  EXPECT_FALSE(test_app_.ProcessCommandLine("quit"));
+  EXPECT_FALSE(test_app_->ProcessCommandLine("quit"));
   EXPECT_TRUE(NoOutput());
 }
 
@@ -624,16 +624,15 @@ TEST_F(TestAppTest, ProcessCommandLineQuit) {
 // Tests the Run() method in send-once mode.
 TEST_F(TestAppTest, RunSendAndQuit) {
   // Reconstruct TestApp in send-once mode.
-  test_app_ = TestApp(GetTestProject(), fake_shuffler_client_,
-                      std::unique_ptr<SystemData>(), TestApp::kSendOnce, "",
-                      EncryptedMessage::NONE, "", EncryptedMessage::NONE,
-                      &output_stream_);
-  test_app_.set_metric(3);
+  test_app_.reset(new TestApp(GetTestProject(), fake_shuffler_client_,
+                              std::unique_ptr<SystemData>(), TestApp::kSendOnce,
+                              "", EncryptedMessage::NONE, "",
+                              EncryptedMessage::NONE, &output_stream_));
+  test_app_->set_metric(3);
   FLAGS_num_clients = 31;
   FLAGS_values = "fruit:apple:3,rating:10:4";
-  test_app_.Run();
+  test_app_->Run();
   EXPECT_TRUE(NoOutput());
-
   // The envelope should contain a single batch.
   Envelope& envelope = fake_shuffler_client_->envelope;
   ASSERT_EQ(1, envelope.batch_size());
@@ -643,6 +642,7 @@ TEST_F(TestAppTest, RunSendAndQuit) {
   EXPECT_EQ(31, batch.encrypted_observation_size());
   // The metric ID should be 3.
   EXPECT_EQ(3u, batch.meta_data().metric_id());
+
   // All of the Observations should have two parts named fruit and rating.
   for (const auto& encrypted_message : batch.encrypted_observation()) {
     auto observation = ParseUnencryptedObservation(encrypted_message);
@@ -657,50 +657,50 @@ TEST_F(TestAppTest, RunSendAndQuit) {
 // Tests the Run() method in send-once mode with invalid flags.
 TEST_F(TestAppTest, RunSendAndQuitBad) {
   // Reconstruct TestApp in send-once mode.
-  test_app_ = TestApp(GetTestProject(), fake_shuffler_client_,
-                      std::unique_ptr<SystemData>(), TestApp::kSendOnce, "",
-                      EncryptedMessage::NONE, "", EncryptedMessage::NONE,
-                      &output_stream_);
-  test_app_.set_metric(3);
+  test_app_.reset(new TestApp(GetTestProject(), fake_shuffler_client_,
+                              std::unique_ptr<SystemData>(), TestApp::kSendOnce,
+                              "", EncryptedMessage::NONE, "",
+                              EncryptedMessage::NONE, &output_stream_));
+  test_app_->set_metric(3);
 
   // Misspell "fruit"
   FLAGS_values = "fruits:apple:3,rating:10:4";
-  test_app_.Run();
+  test_app_->Run();
   // The envelope should be empty.
   Envelope& envelope = fake_shuffler_client_->envelope;
   ASSERT_EQ(0, envelope.batch_size());
 
   // Misspell "apple"
   FLAGS_values = "fruit:apples:3,rating:10:4";
-  test_app_.Run();
+  test_app_->Run();
   // The envelope should be empty.
   envelope = fake_shuffler_client_->envelope;
   ASSERT_EQ(0, envelope.batch_size());
 
   // Write "x" in place of "3"
   FLAGS_values = "fruit:apple:x,rating:10:4";
-  test_app_.Run();
+  test_app_->Run();
   // The envelope should be empty.
   envelope = fake_shuffler_client_->envelope;
   ASSERT_EQ(0, envelope.batch_size());
 
   // Write "-3" in place of "3"
   FLAGS_values = "fruit:apple:-3,rating:10:4";
-  test_app_.Run();
+  test_app_->Run();
   // The envelope should be empty.
   envelope = fake_shuffler_client_->envelope;
   ASSERT_EQ(0, envelope.batch_size());
 
   // Miss the comma.
   FLAGS_values = "fruit:apple:3 rating:10:4";
-  test_app_.Run();
+  test_app_->Run();
   // The envelope should be empty.
   envelope = fake_shuffler_client_->envelope;
   ASSERT_EQ(0, envelope.batch_size());
 
   // Miss the third part of the second triple
   FLAGS_values = "fruit:apple:3,rating:10:";
-  test_app_.Run();
+  test_app_->Run();
   // The envelope should be empty.
   envelope = fake_shuffler_client_->envelope;
   ASSERT_EQ(0, envelope.batch_size());
