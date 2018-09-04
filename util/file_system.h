@@ -53,6 +53,9 @@ class FileSystem {
   virtual tensorflow_statusor::StatusOr<size_t> FileSize(
       const std::string &file) = 0;
 
+  // FileExists returns true if the |file| exists.
+  virtual bool FileExists(const std::string &file) = 0;
+
   // Rename renames a file.
   //
   // |from|. An absolute path to the file that is to be renamed.

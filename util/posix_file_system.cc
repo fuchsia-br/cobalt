@@ -64,6 +64,11 @@ StatusOr<size_t> PosixFileSystem::FileSize(const std::string &file) {
   return st.st_size;
 }
 
+bool PosixFileSystem::FileExists(const std::string &file) {
+  struct stat buffer;
+  return (stat(file.c_str(), &buffer) == 0);
+}
+
 bool PosixFileSystem::Rename(const std::string &from, const std::string &to) {
   return std::rename(from.c_str(), to.c_str()) == 0;
 }

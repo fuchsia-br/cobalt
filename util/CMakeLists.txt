@@ -23,9 +23,14 @@ add_cobalt_dependencies(pem_util)
 
 add_executable(util_tests
                datetime_util_test.cc
-               encrypted_message_util_test.cc)
+               encrypted_message_util_test.cc
+               consistent_proto_store_test.cc)
 target_link_libraries(util_tests
-                      datetime_util encrypted_message_util)
+                      datetime_util
+                      encrypted_message_util
+                      posix_file_system
+                      consistent_proto_store
+                      consistent_proto_store_test_proto)
 add_cobalt_test_dependencies(util_tests ${DIR_GTESTS})
 
 add_subdirectory(clearcut)
@@ -45,3 +50,16 @@ target_link_libraries(posix_file_system
                       status
                       tensorflow_statusor)
 add_cobalt_dependencies(posix_file_system)
+
+cobalt_make_protobuf_cpp_lib(consistent_proto_store_test_proto
+                             CONSISTENT_PROTO_STORE_PROTO_HDRS
+                             false
+                             consistent_proto_store_test)
+
+add_library(consistent_proto_store
+            consistent_proto_store.h
+            consistent_proto_store.cc
+            ${CONSISTENT_PROTO_STORE_PROTO_HDRS})
+target_link_libraries(consistent_proto_store
+                      status)
+add_cobalt_dependencies(consistent_proto_store)

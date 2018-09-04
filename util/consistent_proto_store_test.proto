@@ -1,0 +1,30 @@
+// Copyright 2018 The Fuchsia Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// This file contains protobuf messages to be used in testing
+// atomic_proto_store. See their usage in atomic_proto_store_test.cc
+
+syntax = "proto3";
+
+package cobalt.util;
+
+message FirstPart {
+  string s = 1;
+}
+
+message TestProto {
+  bool b = 1;
+  string s = 2;
+  int32 i = 3;
+}
+
+// A Proto compatible with TestProto
+message CompatibleProto {
+  bool a_boolean = 1;
+}
+
+// Another incompatible proto
+message IncompatibleProto {
+  string s = 1;
+}

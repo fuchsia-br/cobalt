@@ -203,9 +203,9 @@ class Encoder {
   // field. This method does not validate |event_values| against the Metric's
   // proto definition. That is the caller's responsibility.
   Result EncodeCustomObservation(ProjectContext::MetricRef metric,
-                                const ReportDefinition* report,
-                                uint32_t day_index,
-                                EventValuesPtr event_values) const;
+                                 const ReportDefinition* report,
+                                 uint32_t day_index,
+                                 EventValuesPtr event_values) const;
 
   // Encodes an Observation of type RapporObservation.
   //

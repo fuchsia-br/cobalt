@@ -61,3 +61,12 @@ static_library("posix_file_system") {
   ]
   configs += [ "//third_party/cobalt:cobalt_config" ]
 }
+
+static_library("consistent_proto_store") {
+  sources = [
+    "consistent_proto_store.h",
+    "consistent_proto_store.cc",
+  ]
+  configs += [ "//third_party/cobalt:cobalt_config" ]
+  deps = [ ":status" ]
+}
