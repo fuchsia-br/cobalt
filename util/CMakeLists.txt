@@ -36,6 +36,7 @@ add_cobalt_test_dependencies(util_tests ${DIR_GTESTS})
 add_subdirectory(clearcut)
 add_subdirectory(crypto_util)
 add_subdirectory(gcs)
+add_subdirectory(lossmin)
 
 add_library(status
             status.cc

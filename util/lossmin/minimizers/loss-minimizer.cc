@@ -12,6 +12,13 @@ namespace cobalt_lossmin {
 
 bool LossMinimizer::Run(int max_epochs, int loss_epochs, int convergence_epochs,
                         Weights *weights, std::vector<double> *loss) {
+  // If the initial guess is exact skip the update.
+  if (Loss(*weights) < 1e-12) {
+    set_converged(true);
+    set_reached_solution(true);
+    return converged_;
+  }
+
   // Run for up to 'max_epochs' epochs.
   int epoch;
   for (epoch = 0; epoch < max_epochs; ++epoch) {
@@ -63,7 +70,7 @@ void LossMinimizer::SimpleConvergenceCheck(const std::vector<double> &loss) {
   if (loss.size() > num_convergence_epochs_) {
     double loss_difference = 0.0;
     for (int i = loss.size() - num_convergence_epochs_; i < loss.size(); ++i) {
-      if (loss[i - 1] > 0) {
+      if (loss[i - 1] > 1e-12) {
         loss_difference = std::max(loss_difference, 1 - loss[i] / loss[i - 1]);
       } else {
         set_reached_solution(true);

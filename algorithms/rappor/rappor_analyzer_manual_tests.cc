@@ -7,79 +7,6 @@
 namespace cobalt {
 namespace rappor {
 
-void RapporAnalyzerTest::CheckSolutionCorrectness(
-    const float tol_cand, const float tol_grad,
-    const std::vector<CandidateResult>& results) {
-  // Populate the values from result to an Eigen::VectorXf object;
-  // (It looks like Eigen doesn't have its own iterators); this should be
-  // clear:
-  const size_t num_candidates = results.size();
-  Eigen::VectorXd candidate_estimates(num_candidates);
-  for (size_t i = 0; i < num_candidates; i++) {
-    candidate_estimates(i) =
-        results[i].count_estimate / analyzer_->bit_counter().num_observations();
-  }
-
-  // Get the penalty paramaters
-  const float l1 = analyzer_->minimizer_data_.l1;
-  const float l2 = analyzer_->minimizer_data_.l2;
-
-  // Extract y and compute the gradient = X^T * (X * beta - y) + l2 beta
-  Eigen::VectorXd est_bit_count_ratios;
-  ExtractEstimatedBitCountRatios(&est_bit_count_ratios);
-
-  EXPECT_EQ(est_bit_count_ratios.size(), candidate_matrix().rows());
-  EXPECT_EQ(candidate_estimates.size(), candidate_matrix().cols());
-  Eigen::VectorXd gradient =
-      candidate_matrix().transpose() *
-      (candidate_matrix() * candidate_estimates - est_bit_count_ratios);
-  // Scale regression part of the gradient for consistency with lossmin
-  // library
-  gradient /= candidate_matrix().rows();
-  gradient += l2 * candidate_estimates;
-
-  std::ostringstream kkt_stream;
-  LOG(ERROR) << "Analyzing the minimizer data";
-  LOG(ERROR) << "Converged? " << analyzer_->minimizer_data_.converged;
-  LOG(ERROR) << "How many epochs? "
-             << analyzer_->minimizer_data_.num_epochs_run;
-  LOG(ERROR) << "Final l1 penalty == " << analyzer_->minimizer_data_.l1;
-  LOG(ERROR) << "Checking solution correctness at each coordinate ...";
-  // Check the KKT condition for each coordinate
-  int num_errs = 0;
-  for (size_t i = 0; i < num_candidates; i++) {
-    float beta_i = candidate_estimates(i);
-    float grad_i = gradient(i);
-    if ((std::abs(beta_i) < tol_cand && std::abs(grad_i) > l1 + tol_grad) ||
-        (beta_i > tol_cand && std::abs(grad_i + l1) > tol_grad) ||
-        (beta_i < -tol_cand && std::abs(grad_i - l1) > tol_grad)) {
-      kkt_stream << "Solution is not a minimizer at tolerance == " << tol_grad
-                 << " because beta_k == " << beta_i
-                 << " and grad_k == " << grad_i << " at k == " << i
-                 << " while l1 == " << l1 << std::endl;
-      num_errs++;
-    }
-  }
-  LOG(ERROR) << kkt_stream.str();
-  LOG(ERROR) << "All coordinates examined. Found " << num_errs
-             << " coordinates violating optimality conditions.";
-  EXPECT_EQ(num_errs, 0);
-
-  // Report also the measure of total violation of KKT condition
-  Eigen::VectorXd kkt_violation = (candidate_estimates.array() >= tol_cand)
-                                      .select(gradient.array() + l1, 0)
-                                      .matrix();
-  kkt_violation += (candidate_estimates.array() <= -tol_cand)
-                       .select(gradient.array() - l1, 0)
-                       .matrix();
-  kkt_violation += ((abs(candidate_estimates.array()) < tol_cand)
-                        .select(abs(gradient.array()) - l1, 0)
-                        .max(0))
-                       .matrix();
-  LOG(ERROR) << "The total measure of KKT condition violation == "
-             << kkt_violation.norm() / num_candidates;
-}
-
 // Comparison of Analyze and simple least squares.
 // It invokes Analyze() in a few very simple cases, checks that the the
 // algorithm converges and that the result vector has the correct size. For each
@@ -124,14 +51,14 @@ TEST_F(RapporAnalyzerTest, CompareAnalyzeToRegression) {
       kNumCohorts, kNumHashes, candidate_indices, true_candidate_counts);
 }
 
-// This is similar to ExperimentWithAnalyze but the true candidate counts are
+// Runs LongExperimentWithAnalyze; the true candidate counts are
 // distributed according to the power law; we specify the number of
 // observations and the exponent parameter of the power law. The ids are then
 // shuffled so that it is not true that large ids are more frequent.
 // Note: encoding observations is time consuming so large tests may take long.
 TEST_F(RapporAnalyzerTest, PowerLawExperiment) {
   static const uint32_t kNumCandidates = 20000;
-  static const uint32_t kNumCohorts = 64;
+  static const uint32_t kNumCohorts = 128;
   static const uint32_t kNumHashes = 2;
   static const uint32_t kNumBloomBits = 128;
   static const uint32_t kNumObservations = 1e+6;
@@ -184,11 +111,11 @@ TEST_F(RapporAnalyzerTest, PowerLawExperiment) {
 // This is the same as PowerLawExperiment but the distribution of observations
 // is exponential.
 TEST_F(RapporAnalyzerTest, ExponentialExperiment) {
-  static const uint32_t kNumCandidates = 100;
+  static const uint32_t kNumCandidates = 300;
   static const uint32_t kNumCohorts = 2;
   static const uint32_t kNumHashes = 2;
   static const uint32_t kNumBloomBits = 128;
-  static const uint32_t kNumObservations = 1e+5;
+  static const uint32_t kNumObservations = 1e+6;
   static const bool print_estimates = true;
   static const double lambda = 1.0;  // the support of pdf for lambda == 1.0 ...
   static const double approximate_max_generated_num =
@@ -239,7 +166,7 @@ TEST_F(RapporAnalyzerTest, NormalDistExperiment) {
   static const uint32_t kNumCandidates = 100;
   static const uint32_t kNumCohorts = 2;
   static const uint32_t kNumHashes = 2;
-  static const uint32_t kNumBloomBits = 128;
+  static const uint32_t kNumBloomBits = 32;
   static const uint32_t kNumObservations = 1e+5;
   static const bool print_estimates = true;
   const double mean = static_cast<const double>(kNumCandidates / 2);

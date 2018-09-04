@@ -110,55 +110,6 @@ class RapporAnalyzerTest : public ::testing::Test {
   void AssessUtility(const std::vector<CandidateResult>& results,
                      const std::vector<int>& true_candidate_counts);
 
-  // Checks correctness of the solution stored in |results| in an explicit way.
-  // This is not an automated test but rather a tool to manually assess the
-  // minimizer quality.
-  //
-  // Assumes that *analyzer_ contains minimizer data from previous run.
-  // The problem is (as formulated in lossmin library):
-  //                        min L(beta) ==
-  // 1/(2*N) * ||X * beta - y||_2^2 + 1/2 * l2 *||beta||_2^2 + l1 *||beta||_1,
-  // with variable beta. We assume l1,l2 >= 0.
-  // In our case, X == candidate_matrix(),
-  // beta == |results| / analyzer_->bit_counter().num_observations(),
-  // y == est_bit_count_ratios (observed ratios computed by calling
-  // analyzer_->ExtractEstimatedBitCountRatios(&est_bit_count_ratios)),
-  // l1 == analyzer_->minimizer_data.l1,
-  // l2 == analyzer_->minimizer_data.l2,
-  // N == canididate_matrix.rows().
-  //
-  // Let grad denote the gradient of
-  // F(beta) = 1/(2*N) * ||X * beta - y||_2^2 + 1/2 * l2 ||beta||_2^2.
-  // Note that grad == 1/N * X^T(X * beta  - y) + beta.
-  //
-  // The KKT condition (in exact arithmetic) can be
-  // written explicitly in the following way:
-  // If beta_i > 0, then grad_i == -l1
-  // If beta_i < 0, then grad_i == l1
-  // If beta_i == 0, then  -l1 <= grad_i <= l1.
-  //
-  // A point beta is a minimizer iff the KKT condition holds for beta
-  // (this minimizer need not be unique though).
-  //
-  // We check the KKT condition up to a given accuracy:
-  // |tol_cand| is the absolute tolerance at which we measure values of beta
-  // |tol_grad| is the absolute tolerance at which we measure values of grad
-  //
-  // Thus, beta_i > 0 is replaced by beta_i > tol_cand, beta_i < 0 is replaced
-  // by beta_i < -tol_cand, grad_i == +/- l1 is replaced by
-  // grad_i <=/>= +/- l1 +/- tol_grad
-  // and similarly for the inequality check.
-  // tol_cand and tol_grad should be consistent with implementation of
-  // lossmin::LossMinimizer::ConvergenceCheck but other values can be useful
-  // for testing.
-  // TODO(bazyli) make sure these checks remain consistent with lossmin and
-  // floatig point arithmetics.
-  //
-  // The test also prints quantitative violation of KKT condition as a mean
-  // violation per coordinate.
-  void CheckSolutionCorrectness(const float tol_cand, const float tol_grad,
-                                const std::vector<CandidateResult>& results);
-
   // Computes the least squares fit on the candidate matrix using QR,
   // for the given rhs in |est_bit_count_ratios| and saves it to |results|
   grpc::Status ComputeLeastSquaresFitQR(

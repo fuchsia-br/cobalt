@@ -22,12 +22,13 @@
 
 #include "./observation.pb.h"
 #include "algorithms/rappor/bloom_bit_counter.h"
+#include "algorithms/rappor/lasso_runner.h"
+#include "algorithms/rappor/rappor_analyzer_utils.h"
 #include "algorithms/rappor/rappor_config_validator.h"
 #include "config/encodings.pb.h"
 #include "config/report_configs.pb.h"
 #include "grpc++/grpc++.h"
 #include "third_party/eigen/Eigen/SparseCore"
-#include "third_party/lossmin/lossmin/eigen-types.h"
 
 namespace cobalt {
 namespace rappor {
@@ -138,60 +139,6 @@ class RapporAnalyzer {
     std::vector<CohortMap> candidate_cohort_maps;
   };
 
-  // MinimizerData stores the data from the lossmin minimizer after run
-  struct MinimizerData {
-    int num_epochs_run;
-
-    bool converged;
-
-    bool reached_solution;
-
-    double final_loss;
-
-    double l1;
-
-    double l2;
-
-    double convergence_threshold;
-  };
-
-  // Runs the second step of RAPPOR. Solves the problems
-  // min 1/(2N) || A * x - y_i ||_2^2 + |l1| * || x ||_1 + 1/2 * |l2| * || x
-  // ||_2^2 with variable x, where A == |instances|, y_i == |as_label_set| +
-  // err_i, for i = 1,2,..., |num_runs|. Here, (err_i)_j is a Gaussian error
-  // with standard deviation equal to |est_stand_errs|[j]. All (err_i)_j, are
-  // independent. N is equal to the number of rows of A.
-  //
-  // It then computes the standard errors ex_j from all runs for each of x_j.
-  // Then the mean x from all num_runs is written to
-  // |exact_est_candidate_weights|. (If none of the problems converged, then
-  // unchanged |est_candidate_weights| will be written). The standard errors are
-  // written to |est_candidate_errors|. (However, if less than 5 problems
-  // converged, then standard errors are set to zero.)
-  //
-  // The problem is repeatedly solved using the parallel boosting with momentum
-  // algorithm with |est_candidate_weights| as the initial guess. The parameters
-  // |max_epochs|, |loss_epochs|, |zero_threshold| are used as parameters in the
-  // minimizer. Their use is analogous to the one in the first step of Analyze.
-  // Note(bazyli) Conceptually, l1 and l2 are negligibly small.
-  // TODO(bazyli) Currently, the function does not introduce any correction for
-  // multiple hypothesis testing such as bonferroni correction so this test is
-  // weak.
-  // TODO(bazyli) We can try to use QR in the same way instead or think if
-  // (pseudo?) inversion is an option.
-  // TODO(bazyli) maybe define the parameters as constants inside?
-  void GetExactValuesAndStdErrs(const double l1, const double l2,
-                                const int num_runs, const int max_epochs,
-                                const int loss_epochs,
-                                const int convergence_epochs,
-                                const double zero_threshold,
-                                const lossmin::Weights& est_candidate_weights,
-                                const std::vector<double>& est_standard_errs,
-                                const lossmin::InstanceSet& instances,
-                                const lossmin::LabelSet& as_label_set,
-                                lossmin::Weights* exact_est_candidate_weights,
-                                lossmin::Weights* est_candidate_errors);
-
   // Computes the column vector est_bit_count_ratios as well as a vector
   // est_std_errors of the corresponding standard errors. This method should be
   // invoked after all Observations have been added via AddObservation().
@@ -242,12 +189,6 @@ class RapporAnalyzer {
   // The expression (k - j) above is due to the fact that
   // candidate_map_ indexes bits from the right instead of from the left.
   Eigen::SparseMatrix<double, Eigen::RowMajor> candidate_matrix_;
-
-  MinimizerData minimizer_data_;
-
-  // Random device (used for generating Gaussian noise in
-  // GetSignificantNonZeros)
-  std::random_device random_dev_;
 };
 
 }  // namespace rappor

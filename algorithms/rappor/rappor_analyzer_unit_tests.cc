@@ -396,7 +396,7 @@ TEST_F(RapporAnalyzerTest, HighAccuracySolutionTest) {
 // Runs Analyzer on a moderately under-determined system (number of rows <
 // number of columns) with more than one cohort. Small noise is introduced.
 // There are a number of (equal) heavy hitters, which should be identified.
-// TODO(bazyli): this test is heuristic; make sure it is good for a unit test.
+// TODO(bazyli): this test is heuristic.
 TEST_F(RapporAnalyzerTest, KHeavyHittersTest) {
   static const uint32_t kNumCandidates = 100;
   static const uint32_t kNumCohorts = 4;
