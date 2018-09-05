@@ -2,6 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// An application that acts as a Cobalt client for the purposes of testing,
+// debugging and demonstration.
+//
+// It embeds the Encoder library, encodes values, forms Envelopes, and sends the
+// Envelopes to the Shuffler. It can also skip the Shuffler and send
+// ObservationBatches directly to he Analyzer.
+//
+// The application can be used in three modes controlled by the -mode flag:
+// - interactive: The program runs an interactive command-loop.
+// - send-once: The program sends a single Envelope described by flags.
+// - automatic: The program runs forever sending many Envelopes with randomly
+//              generated values.
+
 #ifndef COBALT_TOOLS_TEST_APP2_TEST_APP_H_
 #define COBALT_TOOLS_TEST_APP2_TEST_APP_H_
 
@@ -13,10 +26,10 @@
 
 #include "analyzer/analyzer_service/analyzer.grpc.pb.h"
 #include "encoder/envelope_maker.h"
-#include "encoder/observation_store_dispatcher.h"
+#include "encoder/memory_observation_store.h"
 #include "encoder/project_context.h"
 #include "encoder/send_retryer.h"
-#include "encoder/shipping_dispatcher.h"
+#include "encoder/shipping_manager.h"
 #include "encoder/shuffler_client.h"
 #include "encoder/system_data.h"
 
@@ -173,8 +186,8 @@ class TestApp {
   std::unique_ptr<encoder::SystemData> system_data_;
   std::unique_ptr<util::EncryptedMessageMaker> encrypt_to_shuffler_;
   std::unique_ptr<util::EncryptedMessageMaker> encrypt_to_analyzer_;
-  std::unique_ptr<encoder::ObservationStoreDispatcher> store_dispatcher_;
-  std::unique_ptr<encoder::ShippingDispatcher> shipping_dispatcher_;
+  std::unique_ptr<encoder::MemoryObservationStore> observation_store_;
+  std::unique_ptr<encoder::LegacyShippingManager> shipping_manager_;
   std::ostream* ostream_;
 };
 

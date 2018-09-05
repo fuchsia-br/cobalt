@@ -42,14 +42,12 @@ using encoder::EnvelopeMaker;
 using encoder::LegacyShippingManager;
 using encoder::MemoryObservationStore;
 using encoder::ObservationStore;
-using encoder::ObservationStoreDispatcher;
 using encoder::ProjectContext;
-using encoder::send_retryer::SendRetryer;
-using encoder::ShippingDispatcher;
 using encoder::ShippingManager;
 using encoder::ShufflerClient;
 using encoder::ShufflerClientInterface;
 using encoder::SystemData;
+using encoder::send_retryer::SendRetryer;
 using google::protobuf::Empty;
 using grpc::Channel;
 using grpc::ClientContext;
@@ -336,25 +334,22 @@ void TestApp::SendToShuffler() {
     // asynchronously.
     return;
   }
-  shipping_dispatcher_->RequestSendSoon();
-  shipping_dispatcher_->WaitUntilIdle(kDeadlinePerSendAttempt);
-  for (auto backend : shipping_dispatcher_->RegisteredBackends()) {
-    auto status = shipping_dispatcher_->last_send_status(backend);
-    if (status.ok()) {
-      if (mode_ == TestApp::kInteractive) {
-        std::cout << "Sent to Shuffler." << std::endl;
-      } else {
-        VLOG(2) << "Sent to Shuffler";
-      }
+  shipping_manager_->RequestSendSoon();
+  shipping_manager_->WaitUntilIdle(kDeadlinePerSendAttempt);
+  auto status = shipping_manager_->last_send_status();
+  if (status.ok()) {
+    if (mode_ == TestApp::kInteractive) {
+      std::cout << "Sent to Shuffler." << std::endl;
     } else {
-      if (mode_ == TestApp::kInteractive) {
-        std::cout << "Send to shuffler failed with status="
-                  << status.error_code() << " " << status.error_message()
-                  << std::endl;
-      } else {
-        LOG(ERROR) << "Send to shuffler failed with status="
-                   << status.error_code() << " " << status.error_message();
-      }
+      VLOG(2) << "Sent to Shuffler";
+    }
+  } else {
+    if (mode_ == TestApp::kInteractive) {
+      std::cout << "Send to shuffler failed with status=" << status.error_code()
+                << " " << status.error_message() << std::endl;
+    } else {
+      LOG(ERROR) << "Send to shuffler failed with status="
+                 << status.error_code() << " " << status.error_message();
     }
   }
 }
@@ -447,20 +442,11 @@ TestApp::TestApp(
           new EncryptedMessageMaker(shuffler_public_key_pem, shuffler_scheme)),
       encrypt_to_analyzer_(
           new EncryptedMessageMaker(analyzer_public_key_pem, analyzer_scheme)),
-      store_dispatcher_(new ObservationStoreDispatcher()),
-      shipping_dispatcher_(new ShippingDispatcher()),
+      observation_store_(new MemoryObservationStore(
+          kMaxBytesPerObservation, kMaxBytesPerEnvelope, kMaxBytesTotal)),
       ostream_(ostream) {
-  store_dispatcher_->Register(
-      ObservationMetadata::LEGACY_BACKEND,
-      std::make_unique<MemoryObservationStore>(
-          kMaxBytesPerObservation, kMaxBytesPerEnvelope, kMaxBytesTotal));
-  store_dispatcher_->Register(
-      ObservationMetadata::V1_BACKEND,
-      std::make_unique<MemoryObservationStore>(
-          kMaxBytesPerObservation, kMaxBytesPerEnvelope, kMaxBytesTotal));
-
   // By using (kMaxSeconds, 0) here we are effectively putting the
-  // ShippingDispatcher in manual mode. It will never send
+  // ShippingManager in manual mode. It will never send
   // automatically and it will send immediately in response to
   // RequestSendSoon().
   auto schedule_params = ShippingManager::ScheduleParams(
@@ -471,27 +457,12 @@ TestApp::TestApp(
     schedule_params = ShippingManager::ScheduleParams(std::chrono::seconds(10),
                                                       std::chrono::seconds(1));
   }
-  auto send_retryer_params = LegacyShippingManager::SendRetryerParams(
-      kInitialRpcDeadline, kDeadlinePerSendAttempt);
-  shipping_dispatcher_->Register(
-      ObservationMetadata::LEGACY_BACKEND,
-      std::make_unique<LegacyShippingManager>(
-          schedule_params,
-          store_dispatcher_->GetStore(ObservationMetadata::LEGACY_BACKEND)
-              .ConsumeValueOrDie(),
-          encrypt_to_shuffler_.get(), send_retryer_params,
-          send_retryer_.get()));
-  shipping_dispatcher_->Register(
-      ObservationMetadata::V1_BACKEND,
-      std::make_unique<ClearcutV1ShippingManager>(
-          schedule_params,
-          store_dispatcher_->GetStore(ObservationMetadata::V1_BACKEND)
-              .ConsumeValueOrDie(),
-          encrypt_to_shuffler_.get(),
-          std::make_unique<clearcut::ClearcutUploader>(
-              FLAGS_clearcut_endpoint,
-              std::make_unique<util::clearcut::CurlHTTPClient>())));
-  shipping_dispatcher_->Start();
+  shipping_manager_.reset(new LegacyShippingManager(
+      schedule_params, observation_store_.get(), encrypt_to_shuffler_.get(),
+      LegacyShippingManager::SendRetryerParams(kInitialRpcDeadline,
+                                               kDeadlinePerSendAttempt),
+      send_retryer_.get()));
+  shipping_manager_->Start();
 }
 
 void TestApp::Run() {
@@ -633,16 +604,10 @@ bool TestApp::EncodeAsNewClient(const std::vector<uint32_t> encoding_config_ids,
                  << metric_;
       return false;
     }
-    auto status_or = store_dispatcher_->AddEncryptedObservation(
+    status = observation_store_->AddEncryptedObservation(
         std::move(message), std::unique_ptr<ObservationMetadata>(
                                 new ObservationMetadata(*result.metadata)));
-    shipping_dispatcher_->NotifyObservationsAdded();
-    if (!status_or.ok()) {
-      LOG(ERROR) << "Unable to AddEncryptedObservation: "
-                 << status_or.status().error_message();
-      return false;
-    }
-    status = status_or.ConsumeValueOrDie();
+    shipping_manager_->NotifyObservationsAdded();
   }
 
   if (status != ObservationStore::kOk) {
@@ -656,7 +621,7 @@ bool TestApp::EncodeAsNewClient(const std::vector<uint32_t> encoding_config_ids,
 
 // Generates FLAGS_num_clients independent Observations by encoding the
 // string value specified by the argument and adds the Observations
-// to the ShippingDispatcher.
+// to the ShippingManager.
 void TestApp::EncodeString(const std::string value) {
   for (size_t i = 0; i < FLAGS_num_clients; i++) {
     if (!EncodeStringAsNewClient(value)) {
@@ -667,7 +632,7 @@ void TestApp::EncodeString(const std::string value) {
 
 // Generates a new ClientSecret, constructs a new Encoder using that secret,
 // uses this Encoder to encode the string value specified by the
-// argument, and adds the resulting Observation to the ShippingDispatcher.
+// argument, and adds the resulting Observation to the ShippingManager.
 bool TestApp::EncodeStringAsNewClient(const std::string value) {
   std::unique_ptr<Encoder> encoder(new Encoder(
       project_context_, ClientSecret::GenerateNewSecret(), system_data_.get()));
@@ -687,18 +652,11 @@ bool TestApp::EncodeStringAsNewClient(const std::string value) {
     return false;
   }
 
-  // Add the observation to the ShippingDispatcher.
-  auto status_or = store_dispatcher_->AddEncryptedObservation(
+  // Add the observation to the ShippingManager.
+  auto status = observation_store_->AddEncryptedObservation(
       std::move(message), std::unique_ptr<ObservationMetadata>(
                               new ObservationMetadata(*result.metadata)));
-  shipping_dispatcher_->NotifyObservationsAdded();
-  if (!status_or.ok()) {
-    LOG(ERROR) << "Unable to AddEncryptedObservation: "
-               << status_or.status().error_message();
-    return false;
-  }
-
-  auto status = status_or.ConsumeValueOrDie();
+  shipping_manager_->NotifyObservationsAdded();
   if (status != ObservationStore::kOk) {
     LOG(ERROR) << "AddObservation() failed with status "
                << MemoryObservationStore::StatusDebugString(status)
@@ -710,7 +668,7 @@ bool TestApp::EncodeStringAsNewClient(const std::string value) {
 
 // Generates FLAGS_num_clients independent Observations by encoding the
 // int value specified by the argument and adds the Observations
-// to the ShippingDispatcher.
+// to the ShippingManager.
 void TestApp::EncodeInt(int64_t value) {
   for (size_t i = 0; i < FLAGS_num_clients; i++) {
     if (!EncodeIntAsNewClient(value)) {
@@ -721,7 +679,7 @@ void TestApp::EncodeInt(int64_t value) {
 
 // Generates a new ClientSecret, constructs a new Encoder using that secret,
 // uses this Encoder to encode the int value specified by the
-// argument, and adds the resulting Observation to the ShippingDispatcher.
+// argument, and adds the resulting Observation to the ShippingManager.
 bool TestApp::EncodeIntAsNewClient(int64_t value) {
   std::unique_ptr<Encoder> encoder(new Encoder(
       project_context_, ClientSecret::GenerateNewSecret(), system_data_.get()));
@@ -741,18 +699,11 @@ bool TestApp::EncodeIntAsNewClient(int64_t value) {
     return false;
   }
 
-  // Add the observation to the ShippingDispatcher.
-  auto status_or = store_dispatcher_->AddEncryptedObservation(
+  // Add the observation to the ShippingManager.
+  auto status = observation_store_->AddEncryptedObservation(
       std::move(message), std::unique_ptr<ObservationMetadata>(
                               new ObservationMetadata(*result.metadata)));
-  shipping_dispatcher_->NotifyObservationsAdded();
-  if (!status_or.ok()) {
-    LOG(ERROR) << "Unable to AddEncryptedObservation: "
-               << status_or.status().error_message();
-    return false;
-  }
-
-  auto status = status_or.ConsumeValueOrDie();
+  shipping_manager_->NotifyObservationsAdded();
   if (status != ObservationStore::kOk) {
     LOG(ERROR) << "AddObservation() failed with status "
                << MemoryObservationStore::StatusDebugString(status)
@@ -789,18 +740,11 @@ bool TestApp::EncodeIndexAsNewClient(uint32_t index) {
     return false;
   }
 
-  // Add the observation to the ShippingDispatcher.
-  auto status_or = store_dispatcher_->AddEncryptedObservation(
+  // Add the observation to the ShippingManager.
+  auto status = observation_store_->AddEncryptedObservation(
       std::move(message), std::unique_ptr<ObservationMetadata>(
                               new ObservationMetadata(*result.metadata)));
-  shipping_dispatcher_->NotifyObservationsAdded();
-  if (!status_or.ok()) {
-    LOG(ERROR) << "Unable to AddEncryptedObservation: "
-               << status_or.status().error_message();
-    return false;
-  }
-
-  auto status = status_or.ConsumeValueOrDie();
+  shipping_manager_->NotifyObservationsAdded();
   if (status != ObservationStore::kOk) {
     LOG(ERROR) << "AddObservation() failed with status "
                << MemoryObservationStore::StatusDebugString(status)
