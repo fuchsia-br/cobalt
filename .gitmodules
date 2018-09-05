@@ -92,3 +92,6 @@
 [submodule "third_party/abseil-cpp"]
 	path = third_party/abseil-cpp
 	url = https://fuchsia.googlesource.com/third_party/abseil-cpp/
+[submodule "third_party/tink"]
+	path = third_party/tink
+	url =  https://fuchsia.googlesource.com/third_party/tink
