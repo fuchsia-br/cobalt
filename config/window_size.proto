@@ -5,6 +5,8 @@ syntax = "proto3";
 
 package cobalt;
 
+option go_package = "config";
+
 // A time window over which to aggregate Events on-device.
 enum WindowSize {
   UNSET = 0;

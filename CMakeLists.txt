@@ -578,7 +578,7 @@ macro(cobalt_protobuf_generate_go TARGET_NAME SRCS_OUT USE_GRPC)
             -I ${CMAKE_SOURCE_DIR}
             -I ${PROTOBUF_INCLUDE_DIR}
             -I ${CMAKE_SOURCE_DIR}/third_party/go/src
-            --go_out=plugins=${_plugin_prefix}Mobservation.proto=cobalt,Mencrypted_message.proto=cobalt,Mwindow_size.proto=cobalt:${_gen_root_dir}
+            --go_out=plugins=${_plugin_prefix}Mobservation.proto=cobalt,Mencrypted_message.proto=cobalt:${_gen_root_dir}
     DEPENDS ${_protofiles}
     DEPENDS build_external_projects
   )
@@ -646,16 +646,14 @@ cobalt_make_protobuf_cpp_lib(cobalt_proto_lib
                              encrypted_message
                              event
                              observation
-                             observation2
-                             window_size)
+                             observation2)
 
 # Generate the go bindings for the Cobalt proto files in the root directory.
 cobalt_protobuf_generate_go(generate_cobalt_pb_go_files
                             COBALT_PB_GO_FILES
                             false
                             encrypted_message
-                            observation
-                            window_size)
+                            observation)
 
 # Analagous targets to the two above also appear in the config directory for
 # the config protos. But the variables that are generated there are not

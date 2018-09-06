@@ -25,5 +25,6 @@ static_library("clearcut") {
   public_deps = [
     ":clearcut_proto",
     "//third_party/cobalt/third_party/tensorflow_statusor:statusor",
+    "//third_party/abseil-cpp",
   ]
 }

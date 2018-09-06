@@ -25,14 +25,14 @@ cobalt_make_protobuf_cpp_lib(config_proto_lib
                              false
                              encodings metrics metric_definition
                              report_configs report_definition
-                             cobalt_config)
+                             cobalt_config window_size)
 
 # Generate Go bindings for the config .proto files.
 cobalt_protobuf_generate_go(generate_config_pb_go_files
                             CONFIG_PB_GO_FILES
                             false
                             cobalt_config encodings metrics metric_definition
-                            report_configs report_definition)
+                            report_configs report_definition window_size)
 
 add_library(buckets_config
             buckets_config.cc

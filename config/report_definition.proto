@@ -5,9 +5,9 @@ syntax = "proto3";
 
 package cobalt;
 
-import "window_size.proto";
 import "config/metrics.proto";
 import "config/report_configs.proto";
+import "config/window_size.proto";
 
 option go_package = "config";
 
@@ -35,7 +35,7 @@ option go_package = "config";
 // A ReportDefinition defines a Cobalt Report to be generated.
 // An instance of ReportDefinition is always associated with an instance of
 // MetricDefinition called the owning MetricDefinition.
-message ReportDefinition{
+message ReportDefinition {
   // Next id: 14
 
   // Unique name for this Report within its owning MetricDefinition.
@@ -349,8 +349,9 @@ message ReportDefinition{
     //   - system_profile # One or more fields from the SystemProfile message
     //                      type (cobalt/observation.proto) describing the
     //                      system on which the events occurred.
-    //   - window_size # A WindowSize enum (cobalt/window_size.proto) specifying
-    //                   the time window over which to report activity.
+    //   - window_size # A WindowSize enum (cobalt/config/window_size.proto)
+    //                   specifying the time window over which to report
+    //                   activity.
     //   - samples # The number of Observations received for the window of
     //               this window_size ending on this date, for this
     //               system_profile. This is equal to the number of Fuchsia

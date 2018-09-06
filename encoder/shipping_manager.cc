@@ -25,6 +25,12 @@ std::string ToString(const std::chrono::system_clock::time_point& t) {
   std::time_t time_struct = std::chrono::system_clock::to_time_t(t);
   return std::ctime(&time_struct);
 }
+
+grpc::Status CobaltStatusToGrpcStatus(util::Status status) {
+  return grpc::Status(static_cast<grpc::StatusCode>(status.error_code()),
+                      status.error_message(), status.error_details());
+}
+
 }  // namespace
 
 // Definition of the static constant declared in shipping_manager.h.
@@ -356,7 +362,7 @@ ClearcutV1ShippingManager::SendEnvelopeToBackend(
     if (!status.ok()) {
       locked->fields->num_failed_attempts++;
     }
-    locked->fields->last_send_status = status.ToGrpcStatus();
+    locked->fields->last_send_status = CobaltStatusToGrpcStatus(status);
   }
   if (status.ok()) {
     VLOG(4) << "ShippingManager::SendEnvelopeToBackend: OK";

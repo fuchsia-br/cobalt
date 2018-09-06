@@ -7,7 +7,6 @@
 
 #include <string>
 
-#include "grpc++/grpc++.h"
 #include "util/status_codes.h"
 
 namespace cobalt {
@@ -40,11 +39,6 @@ class Status {
   // complaints from any tools that are checking that errors are not dropped on
   // the floor.
   void IgnoreError() {}
-
-  grpc::Status ToGrpcStatus() {
-    return grpc::Status(static_cast<grpc::StatusCode>(error_code()),
-                        error_message(), error_details());
-  }
 
  private:
   StatusCode code_;
