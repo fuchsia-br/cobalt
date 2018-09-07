@@ -14,45 +14,32 @@
 #include <utility>
 #include <vector>
 
-#include "./observation.pb.h"
-#include "analyzer/analyzer_service/analyzer.grpc.pb.h"
 #include "config/cobalt_config.pb.h"
-#include "config/encoding_config.h"
-#include "encoder/encoder.h"
-#include "encoder/envelope_maker.h"
+#include "config/metric_definition.pb.h"
+#include "config/project_configs.h"
 #include "encoder/memory_observation_store.h"
-#include "encoder/project_context.h"
-#include "encoder/send_retryer.h"
-#include "encoder/shuffler_client.h"
+#include "encoder/shipping_manager.h"
+#include "encoder/system_data.h"
 #include "gflags/gflags.h"
 #include "glog/logging.h"
-#include "grpc++/grpc++.h"
+#include "logger/encoder.h"
+#include "logger/project_context.h"
 #include "util/clearcut/curl_http_client.h"
 #include "util/pem_util.h"
 
 namespace cobalt {
 
-using analyzer::Analyzer;
-using config::EncodingRegistry;
-using config::MetricRegistry;
+using config::ProjectConfigs;
 using encoder::ClearcutV1ShippingManager;
 using encoder::ClientSecret;
-using encoder::Encoder;
-using encoder::EnvelopeMaker;
-using encoder::LegacyShippingManager;
 using encoder::MemoryObservationStore;
-using encoder::ObservationStore;
-using encoder::ProjectContext;
 using encoder::ShippingManager;
-using encoder::ShufflerClient;
-using encoder::ShufflerClientInterface;
 using encoder::SystemData;
-using encoder::send_retryer::SendRetryer;
-using google::protobuf::Empty;
-using grpc::Channel;
-using grpc::ClientContext;
-using grpc::Status;
-using shuffler::Shuffler;
+using encoder::SystemDataInterface;
+using logger::Encoder;
+using logger::Logger;
+using logger::LoggerInterface;
+using logger::ProjectContext;
 using util::EncryptedMessageMaker;
 using util::PemUtil;
 
@@ -62,25 +49,14 @@ using util::PemUtil;
 // - send-once: The program sends a single Envelope described by flags.
 // - automatic: The program runs forever sending many Envelopes with randomly
 //              generated values.
-//
-// This flag is read in CreateFromFlagsOrDie() and used to invoke
-// set_mode().
 DEFINE_string(mode, "interactive",
               "This program may be used in 3 modes: 'interactive', "
               "'send-once', 'automatic'");
 
-// The remainder of the flags fall into three categories.
+DEFINE_string(customer_name, "fuchsia", "Customer name");
+DEFINE_string(project_name, "test_app2", "Project name");
+DEFINE_string(metric_name, "error_occurred", "Initial Metric name");
 
-// Category 1: Flags read by CreateFromFlagsOrDie() that set immutable
-// values used in all three modes.
-DEFINE_uint32(customer, 1, "Customer ID");
-DEFINE_uint32(project, 1, "Project ID");
-DEFINE_string(analyzer_uri, "",
-              "The URI of the Analyzer. Necessary only if sending observations "
-              "to the Analyzer.");
-DEFINE_string(shuffler_uri, "",
-              "The URI of the Shuffler. Necessary only if sending observations "
-              "to the Shuffler.");
 DEFINE_string(analyzer_pk_pem_file, "",
               "Path to a file containing a PEM encoding of the public key of "
               "the Analyzer used for Cobalt's internal encryption scheme. If "
@@ -89,44 +65,11 @@ DEFINE_string(shuffler_pk_pem_file, "",
               "Path to a file containing a PEM encoding of the public key of "
               "the Shuffler used for Cobalt's internal encryption scheme. If "
               "not specified then no encryption will be used.");
-DEFINE_bool(
-    use_tls, false,
-    "Should tls be used for the connection to the shuffler or the analyzer?");
-DEFINE_string(root_certs_pem_file, "",
-              "Full path to a file containing a PEM encoding of the TLS root "
-              "certificates to be used by the gRPC client.");
-DEFINE_uint32(deadline_seconds, 10, "RPC deadline.");
+
 DEFINE_string(config_bin_proto_path, "",
               "Path to the serialized CobaltConfig proto from which the "
               "configuration is to be read. (Optional)");
 
-// Category 2: Flags consumed by CreateFromFlagsOrDie() that set values that
-// may be overidden by a set command in interactive mode.
-DEFINE_uint32(metric, 1, "Metric ID to use.");
-
-// Category 3: Flags used only in send-once or automatic modes. These are not
-// consumed by CreateFromFlagsOrDie().
-DEFINE_uint32(num_clients, 1,
-              "Number of clients to simulate in the non-interactive modes.");
-DEFINE_string(
-    values, "",
-    "A comma-separated list of colon-delimited triples of the form"
-    " <part>:<val>:<encoding> where <part> is the name of a metric part and"
-    " <val> is a string or int value and <encoding> is an EncodingConfig id."
-    " Used only in send-once mode to specify the multi-part value to"
-    " encode and the encodings to use.");
-
-DEFINE_uint32(repeat, 1,
-              "Number of times to repeat the add-send cycle in the "
-              "non-interactive mode.");
-
-DEFINE_uint32(num_adds_per_observation, 1,
-              "Number of times each Observation should be added to the "
-              "envelope. Setting this to more than 1 allows us to test "
-              "idempotency.");
-
-DEFINE_string(override_board_name, "",
-              "A board name to override the default one");
 DEFINE_string(clearcut_endpoint, "https://jmt17.google.com/log",
               "The URL to send clearcut requests to.");
 
@@ -135,45 +78,27 @@ namespace {
 const size_t kMaxBytesPerObservation = 100 * 1024;
 const size_t kMaxBytesPerEnvelope = 1024 * 1024;
 const size_t kMaxBytesTotal = 10 * 1024 * 1024;
-const std::chrono::seconds kInitialRpcDeadline(FLAGS_deadline_seconds);
 const std::chrono::seconds kDeadlinePerSendAttempt(60);
 
 // Prints help for the interactive mode.
 void PrintHelp(std::ostream* ostream) {
-  *ostream << std::endl;
   *ostream << "Cobalt command-line testing client" << std::endl;
   *ostream << "----------------------------------" << std::endl;
   *ostream << "help                     \tPrint this help message."
            << std::endl;
-  *ostream << "encode <num> <val>       \tEncode <num> independent copies "
-              "of the string or integer value <val>, or index <n> if "
-              "<val>='index=<n>'"
+  *ostream << "log <num> event <index>  \tLog <num> independent copies "
+              "of the event with event_type_index = <index>"
            << std::endl;
-  *ostream << std::endl;
-  *ostream << "encode <num> <part>:<val>:<encoding> "
-              "<part>:<val>:<encoding>..."
-           << std::endl;
-  *ostream << "                         \tEncode <num> independent copies of "
-              "a multi-part value. Each <part> is a part name."
-           << std::endl;
-  *ostream << "                         \tEach <val> is an int or string "
-              "value or an index <n> if <val>='index=<n>'."
-           << std::endl;
-  *ostream << "                         \tEach <encoding> is an EncodingConfig "
-              "id."
-           << std::endl;
-  *ostream << std::endl;
   *ostream << "ls                       \tList current values of "
               "parameters."
            << std::endl;
   *ostream << "send                     \tSend all previously encoded "
               "observations and clear the observation cache."
            << std::endl;
-  *ostream << "set encoding <id>        \tSet encoding config id." << std::endl;
-  *ostream << "set metric <id>          \tSet metric id." << std::endl;
-  *ostream << "show config              \tDisplay the current Metric and "
-              "Encoding configurations."
-           << std::endl;
+  *ostream << "set metric <name>        \tSet metric." << std::endl;
+  *ostream
+      << "show config              \tDisplay the current Metric definition."
+      << std::endl;
   *ostream << "quit                     \tQuit." << std::endl;
   *ostream << std::endl;
 }
@@ -190,7 +115,7 @@ std::string FindCobaltConfigProto(char* argv[]) {
   char* dir = dirname(path);
   // Set the relative path to the registry.
   snprintf(path2, sizeof(path2),
-           "%s/../../config/third_party/config/cobalt_config.binproto", dir);
+           "%s/../../third_party/config/cobalt_config.binproto", dir);
 
   // Get the absolute path to the registry.
   if (!realpath(path2, path)) {
@@ -230,7 +155,7 @@ bool ReadPublicKeyPem(const std::string& pem_file, std::string* pem_out) {
 // Reads the specified serialized CobaltConfig proto. Returns a ProjectContext
 // containing the read config and the values of the -customer and
 // -project flags.
-std::shared_ptr<ProjectContext> LoadProjectContext(
+std::unique_ptr<ProjectContext> LoadProjectContext(
     const std::string& config_bin_proto_path) {
   VLOG(2) << "Loading Cobalt configuration from " << config_bin_proto_path;
 
@@ -240,39 +165,30 @@ std::shared_ptr<ProjectContext> LoadProjectContext(
       << "Could not open cobalt config proto file: " << config_bin_proto_path;
 
   // Parse the cobalt config file.
-  cobalt::CobaltConfig cobalt_config;
-  CHECK(cobalt_config.ParseFromIstream(&config_file_stream))
+  auto cobalt_config = std::make_unique<cobalt::CobaltConfig>();
+  CHECK(cobalt_config->ParseFromIstream(&config_file_stream))
       << "Could not parse the cobalt config proto file: "
       << config_bin_proto_path;
+  auto project_configs =
+      std::make_unique<ProjectConfigs>(std::move(cobalt_config));
 
-  // Load the encoding registry.
-  cobalt::RegisteredEncodings registered_encodings;
-  registered_encodings.mutable_element()->Swap(
-      cobalt_config.mutable_encoding_configs());
-  auto encodings = EncodingRegistry::TakeFrom(&registered_encodings, nullptr);
-  if (encodings.second != config::kOK) {
-    LOG(FATAL) << "Can't load encodings configuration";
-  }
-  std::shared_ptr<EncodingRegistry> encoding_registry(
-      encodings.first.release());
+  // Retrieve the customer specified by the flags.
+  const auto* customer_config =
+      project_configs->GetCustomerConfig(FLAGS_customer_name);
+  CHECK(customer_config) << "No such customer: " << FLAGS_customer_name << ".";
 
-  // Load the metrics registry.
-  cobalt::RegisteredMetrics registered_metrics;
-  registered_metrics.mutable_element()->Swap(
-      cobalt_config.mutable_metric_configs());
-  auto metrics = MetricRegistry::TakeFrom(&registered_metrics, nullptr);
-  if (metrics.second != config::kOK) {
-    LOG(FATAL) << "Can't load metrics configuration";
-  }
-  std::shared_ptr<MetricRegistry> metric_registry(metrics.first.release());
+  // Retrieve the project specified by the flags.
+  const auto* project_config = project_configs->GetProjectConfig(
+      FLAGS_customer_name, FLAGS_project_name);
+  CHECK(project_config) << "No such project: " << FLAGS_customer_name << "."
+                        << FLAGS_project_name << ".";
 
-  CHECK(FLAGS_project < 100) << "-project=" << FLAGS_project
-                             << " not allowed. Project ID must be less than "
-                                "100 because this tool is not "
-                                "intended to mutate real customer projects.";
-
-  return std::shared_ptr<ProjectContext>(new ProjectContext(
-      FLAGS_customer, FLAGS_project, metric_registry, encoding_registry));
+  // Copy the MetricDefinitions
+  auto metric_definitions = std::make_unique<MetricDefinitions>();
+  metric_definitions->mutable_metric()->CopyFrom(project_config->metrics());
+  return std::make_unique<ProjectContext>(
+      customer_config->customer_id(), project_config->project_id(),
+      FLAGS_customer_name, FLAGS_project_name, std::move(metric_definitions));
 }
 
 // Given a |line| of text, breaks it into tokens separated by white space.
@@ -290,69 +206,64 @@ std::vector<std::string> Tokenize(const std::string& line) {
   return tokens;
 }
 
-// Given a |line| of text, breaks it into cells separated by commas.
-std::vector<std::string> ParseCSV(const std::string& line) {
-  std::stringstream line_stream(line);
-  std::vector<std::string> cells;
+class RealLoggerFactory : public LoggerFactory {
+ public:
+  virtual ~RealLoggerFactory() = default;
 
-  std::string cell;
-  while (std::getline(line_stream, cell, ',')) {
-    if (!cell.empty()) {
-      cells.push_back(cell);
-    }
+  RealLoggerFactory(
+      std::unique_ptr<EncryptedMessageMaker> observation_encrypter,
+      std::unique_ptr<EncryptedMessageMaker> envelope_encrypter,
+      std::unique_ptr<ProjectContext> project_context,
+      std::unique_ptr<MemoryObservationStore> observation_store,
+      std::unique_ptr<ClearcutV1ShippingManager> shipping_manager,
+      std::unique_ptr<SystemDataInterface> system_data);
+
+  std::unique_ptr<LoggerInterface> NewLogger() override;
+  bool SendAccumulatedObservtions() override;
+  const ProjectContext* project_context() override {
+    return project_context_.get();
   }
-  return cells;
+
+ private:
+  std::unique_ptr<EncryptedMessageMaker> observation_encrypter_;
+  std::unique_ptr<EncryptedMessageMaker> envelope_encrypter_;
+  std::unique_ptr<ProjectContext> project_context_;
+  std::unique_ptr<MemoryObservationStore> observation_store_;
+  std::unique_ptr<ClearcutV1ShippingManager> shipping_manager_;
+  std::unique_ptr<SystemDataInterface> system_data_;
+  std::unique_ptr<Encoder> encoder_;
+};
+
+RealLoggerFactory::RealLoggerFactory(
+    std::unique_ptr<EncryptedMessageMaker> observation_encrypter,
+    std::unique_ptr<EncryptedMessageMaker> envelope_encrypter,
+    std::unique_ptr<ProjectContext> project_context,
+    std::unique_ptr<MemoryObservationStore> observation_store,
+    std::unique_ptr<ClearcutV1ShippingManager> shipping_manager,
+    std::unique_ptr<SystemDataInterface> system_data)
+    : observation_encrypter_(std::move(observation_encrypter)),
+      envelope_encrypter_(std::move(envelope_encrypter)),
+      project_context_(std::move(project_context)),
+      observation_store_(std::move(observation_store)),
+      shipping_manager_(std::move(shipping_manager)),
+      system_data_(std::move(system_data)) {}
+
+std::unique_ptr<LoggerInterface> RealLoggerFactory::NewLogger() {
+  encoder_.reset(
+      new Encoder(ClientSecret::GenerateNewSecret(), system_data_.get()));
+  return std::unique_ptr<LoggerInterface>(new Logger(
+      encoder_.get(), observation_store_.get(), shipping_manager_.get(),
+      observation_encrypter_.get(), project_context_.get()));
 }
 
-template <class T>
-std::string ToString(std::vector<T> v) {
-  std::ostringstream stream;
-  for (const T& i : v) {
-    stream << i << " ";
-  }
-  return stream.str();
-}
-
-}  // namespace
-
-void TestApp::SendToShuffler() {
-  if (!shuffler_client_) {
-    if (mode_ == TestApp::kInteractive) {
-      std::cout << "The flag -shuffler_uri must be specified." << std::endl;
-    } else {
-      LOG(ERROR) << "-shuffler_uri was not specified.";
-    }
-    return;
-  }
-
-  if (mode_ != TestApp::kInteractive) {
-    VLOG(2) << "Sending to shuffler with deadline = " << FLAGS_deadline_seconds
-            << " seconds...";
-  }
-  if (mode_ == TestApp::kAutomatic) {
-    // In automatic mode, let the ShippingManager send to the Shuffler
-    // asynchronously.
-    return;
-  }
+bool RealLoggerFactory::SendAccumulatedObservtions() {
   shipping_manager_->RequestSendSoon();
   shipping_manager_->WaitUntilIdle(kDeadlinePerSendAttempt);
   auto status = shipping_manager_->last_send_status();
-  if (status.ok()) {
-    if (mode_ == TestApp::kInteractive) {
-      std::cout << "Sent to Shuffler." << std::endl;
-    } else {
-      VLOG(2) << "Sent to Shuffler";
-    }
-  } else {
-    if (mode_ == TestApp::kInteractive) {
-      std::cout << "Send to shuffler failed with status=" << status.error_code()
-                << " " << status.error_message() << std::endl;
-    } else {
-      LOG(ERROR) << "Send to shuffler failed with status="
-                 << status.error_code() << " " << status.error_message();
-    }
-  }
+  return status.ok();
 }
+
+}  // namespace
 
 std::unique_ptr<TestApp> TestApp::CreateFromFlagsOrDie(int argc, char* argv[]) {
   std::string config_bin_proto_path = FLAGS_config_bin_proto_path;
@@ -361,31 +272,10 @@ std::unique_ptr<TestApp> TestApp::CreateFromFlagsOrDie(int argc, char* argv[]) {
     config_bin_proto_path = FindCobaltConfigProto(argv);
   }
 
-  std::shared_ptr<encoder::ProjectContext> project_context =
+  std::unique_ptr<ProjectContext> project_context =
       LoadProjectContext(config_bin_proto_path);
 
-  CHECK(!FLAGS_shuffler_uri.empty()) << "You must specify -shuffler_uri";
-
   auto mode = ParseMode();
-  std::shared_ptr<encoder::ShufflerClient> shuffler_client;
-  if (!FLAGS_shuffler_uri.empty()) {
-    VLOG(2) << "Connecting to Shuffler at " << FLAGS_shuffler_uri;
-    const char* pem_root_certs = nullptr;
-    std::string pem_root_certs_str;
-    if (FLAGS_use_tls) {
-      VLOG(2) << "Using TLS.";
-      if (!FLAGS_root_certs_pem_file.empty()) {
-        VLOG(2) << "Reading root certs from " << FLAGS_root_certs_pem_file;
-        CHECK(PemUtil::ReadTextFile(FLAGS_root_certs_pem_file,
-                                    &pem_root_certs_str));
-        pem_root_certs = pem_root_certs_str.c_str();
-      }
-    } else {
-      VLOG(2) << "NOT using TLS.";
-    }
-    shuffler_client.reset(
-        new ShufflerClient(FLAGS_shuffler_uri, FLAGS_use_tls, pem_root_certs));
-  }
 
   auto analyzer_encryption_scheme = EncryptedMessage::NONE;
   std::string analyzer_public_key_pem = "";
@@ -405,64 +295,67 @@ std::unique_ptr<TestApp> TestApp::CreateFromFlagsOrDie(int argc, char* argv[]) {
                               &shuffler_public_key_pem)) {
     shuffler_encryption_scheme = EncryptedMessage::HYBRID_ECDH_V1;
   }
+  std::unique_ptr<SystemDataInterface> system_data(new SystemData("test_app"));
 
-  std::unique_ptr<SystemData> system_data(new SystemData("test_app"));
-  if (!FLAGS_override_board_name.empty()) {
-    SystemProfile profile;
-    profile.set_os(SystemProfile::FUCHSIA);
-    profile.set_arch(SystemProfile::X86_64);
-    profile.set_board_name(FLAGS_override_board_name);
-    system_data->OverrideSystemProfile(profile);
-  }
+  auto observation_encrypter = std::make_unique<EncryptedMessageMaker>(
+      analyzer_public_key_pem, analyzer_encryption_scheme);
+  auto envelope_encrypter = std::make_unique<EncryptedMessageMaker>(
+      shuffler_public_key_pem, shuffler_encryption_scheme);
+  auto observation_store = std::make_unique<MemoryObservationStore>(
+      kMaxBytesPerObservation, kMaxBytesPerEnvelope, kMaxBytesTotal);
 
-  auto test_app = std::unique_ptr<TestApp>(new TestApp(
-      project_context, shuffler_client, std::move(system_data), mode,
-      analyzer_public_key_pem, analyzer_encryption_scheme,
-      shuffler_public_key_pem, shuffler_encryption_scheme, &std::cout));
-  test_app->set_metric(FLAGS_metric);
-  return test_app;
-}
-
-TestApp::TestApp(
-    std::shared_ptr<ProjectContext> project_context,
-    std::shared_ptr<encoder::ShufflerClientInterface> shuffler_client,
-    std::unique_ptr<encoder::SystemData> system_data, Mode mode,
-    const std::string& analyzer_public_key_pem,
-    EncryptedMessage::EncryptionScheme analyzer_scheme,
-    const std::string& shuffler_public_key_pem,
-    EncryptedMessage::EncryptionScheme shuffler_scheme, std::ostream* ostream)
-    : customer_id_(project_context->customer_id()),
-      project_id_(project_context->project_id()),
-      mode_(mode),
-      project_context_(project_context),
-      shuffler_client_(shuffler_client),
-      send_retryer_(new SendRetryer(shuffler_client_.get())),
-      system_data_(std::move(system_data)),
-      encrypt_to_shuffler_(
-          new EncryptedMessageMaker(shuffler_public_key_pem, shuffler_scheme)),
-      encrypt_to_analyzer_(
-          new EncryptedMessageMaker(analyzer_public_key_pem, analyzer_scheme)),
-      observation_store_(new MemoryObservationStore(
-          kMaxBytesPerObservation, kMaxBytesPerEnvelope, kMaxBytesTotal)),
-      ostream_(ostream) {
   // By using (kMaxSeconds, 0) here we are effectively putting the
-  // ShippingManager in manual mode. It will never send
+  // ShippingDispatcher in manual mode. It will never send
   // automatically and it will send immediately in response to
   // RequestSendSoon().
   auto schedule_params = ShippingManager::ScheduleParams(
       ShippingManager::kMaxSeconds, std::chrono::seconds(0));
-  if (mode_ == TestApp::kAutomatic) {
+  if (mode == TestApp::kAutomatic) {
     // In automatic mode, let the ShippingManager send to the Shuffler
     // every 10 seconds.
     schedule_params = ShippingManager::ScheduleParams(std::chrono::seconds(10),
                                                       std::chrono::seconds(1));
   }
-  shipping_manager_.reset(new LegacyShippingManager(
-      schedule_params, observation_store_.get(), encrypt_to_shuffler_.get(),
-      LegacyShippingManager::SendRetryerParams(kInitialRpcDeadline,
-                                               kDeadlinePerSendAttempt),
-      send_retryer_.get()));
-  shipping_manager_->Start();
+  auto shipping_manager = std::make_unique<ClearcutV1ShippingManager>(
+      schedule_params, observation_store.get(), envelope_encrypter.get(),
+      std::make_unique<clearcut::ClearcutUploader>(
+          FLAGS_clearcut_endpoint,
+          std::make_unique<util::clearcut::CurlHTTPClient>()));
+  shipping_manager->Start();
+
+  std::unique_ptr<LoggerFactory> logger_factory(new RealLoggerFactory(
+      std::move(observation_encrypter), std::move(envelope_encrypter),
+      std::move(project_context), std::move(observation_store),
+      std::move(shipping_manager), std::move(system_data)));
+
+  std::unique_ptr<TestApp> test_app(new TestApp(
+      std::move(logger_factory), FLAGS_metric_name, mode, &std::cout));
+  return test_app;
+}
+
+TestApp::TestApp(std::unique_ptr<LoggerFactory> logger_factory,
+                 const std::string initial_metric_name, Mode mode,
+                 std::ostream* ostream)
+    : mode_(mode),
+      logger_factory_(std::move(logger_factory)),
+      ostream_(ostream) {
+  CHECK(logger_factory_);
+  CHECK(logger_factory_->project_context());
+  CHECK(ostream_);
+  CHECK(SetMetric(initial_metric_name));
+}
+
+bool TestApp::SetMetric(const std::string& metric_name) {
+  auto metric = logger_factory_->project_context()->GetMetric(metric_name);
+  if (!metric) {
+    (*ostream_) << "There is no metric named '" << metric_name
+                << "' in  project "
+                << logger_factory_->project_context()->DebugString() << "."
+                << std::endl;
+    return false;
+  }
+  current_metric_ = metric;
+  return true;
 }
 
 void TestApp::Run() {
@@ -470,59 +363,10 @@ void TestApp::Run() {
     case kInteractive:
       CommandLoop();
       break;
-    case kSendOnce:
-      SendAndQuit();
-      break;
-    case kAutomatic:
-      RunAutomatic();
-      break;
+    default:
+      CHECK(false) << "Only interactive mode is coded so far.";
   }
 }
-
-void TestApp::RunAutomatic() {
-  while (true) {
-    ProcessCommandLine("encode 100 www.google.com");
-    ProcessCommandLine("send");
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-  }
-}
-
-void TestApp::SendAndQuit() {
-  VLOG(1) << "--values=" << FLAGS_values;
-  auto value_triples = ParseCSV(FLAGS_values);
-  if (value_triples.empty()) {
-    LOG(ERROR) << "--values was not set.";
-    return;
-  }
-
-  std::vector<std::string> part_names;
-  std::vector<std::string> values;
-  std::vector<uint32_t> encoding_config_ids;
-  for (const auto& triple : value_triples) {
-    part_names.emplace_back();
-    values.emplace_back();
-    encoding_config_ids.emplace_back();
-    if (!ParsePartValueEncodingTriple(triple, &part_names.back(),
-                                      &values.back(),
-                                      &encoding_config_ids.back())) {
-      LOG(ERROR)
-          << "Malformed <part>:<value>:<encoding> triple in --values flag: "
-          << triple;
-      return;
-    }
-  }
-
-  for (uint32_t i = 0; i < FLAGS_repeat; i++) {
-    VLOG(2) << "encoding_config_ids=" << ToString(encoding_config_ids)
-            << " part_names=" << ToString(part_names)
-            << " values=" << ToString(values);
-    Encode(encoding_config_ids, part_names, values);
-
-    SendAccumulatedObservations();
-  }
-}
-
-void TestApp::SendAccumulatedObservations() { SendToShuffler(); }
 
 void TestApp::CommandLoop() {
   std::string command_line;
@@ -533,225 +377,6 @@ void TestApp::CommandLoop() {
       break;
     }
   }
-}
-
-// Generates FLAGS_num_clients independent Observations by encoding the
-// multi-part value specified by the arguments and adds the Observations
-// to the EnvelopeMaker.
-void TestApp::Encode(const std::vector<uint32_t> encoding_config_ids,
-                     const std::vector<std::string>& metric_parts,
-                     const std::vector<std::string>& values) {
-  for (size_t i = 0; i < FLAGS_num_clients; i++) {
-    if (!EncodeAsNewClient(encoding_config_ids, metric_parts, values)) {
-      break;
-    }
-  }
-}
-
-// Generates a new ClientSecret, constructs a new Encoder using that secret,
-// uses this Encoder to encode the multi-part value specified by the
-// arguments, and adds the resulting Observation to the EnvelopeMaker.
-bool TestApp::EncodeAsNewClient(const std::vector<uint32_t> encoding_config_ids,
-                                const std::vector<std::string>& metric_parts,
-                                const std::vector<std::string>& values) {
-  size_t num_parts = metric_parts.size();
-  CHECK_EQ(num_parts, values.size());
-  CHECK_EQ(num_parts, encoding_config_ids.size());
-
-  // Build the |Value|.
-  Encoder::Value value;
-  for (size_t i = 0; i < num_parts; i++) {
-    int64_t int_val;
-    uint32_t index;
-    if (ParseInt(values[i], false, &int_val)) {
-      value.AddIntPart(encoding_config_ids[i], metric_parts[i], int_val);
-    } else if (ParseIndex(values[i], &index)) {
-      value.AddIndexPart(encoding_config_ids[i], metric_parts[i], index);
-    } else {
-      value.AddStringPart(encoding_config_ids[i], metric_parts[i], values[i]);
-    }
-  }
-
-  // Construct a new Encoder.
-  std::unique_ptr<Encoder> encoder(new Encoder(
-      project_context_, ClientSecret::GenerateNewSecret(), system_data_.get()));
-
-  // Use the Encoder to encode the Value.
-  auto result = encoder->Encode(metric_, value);
-
-  if (result.status != Encoder::kOK) {
-    LOG(ERROR) << "Encode() failed with status " << result.status
-               << ". metric_id=" << metric_ << ". Multi-part value:";
-    for (size_t i = 0; i < num_parts; i++) {
-      LOG(ERROR) << metric_parts[i] << ":" << values[i]
-                 << " encoding=" << encoding_config_ids[i];
-    }
-    return false;
-  }
-
-  // Add the observation to the EnvelopeMaker. For the sake of testing
-  // idempotency of the AddObservation() operation, we add the same Observation
-  // multiple times.
-  ObservationStore::StoreStatus status;
-  for (size_t i = 0; i < FLAGS_num_adds_per_observation; i++) {
-    uint64_t random_id;
-    std::memcpy(&random_id, result.observation->random_id().data(),
-                sizeof(random_id));
-    VLOG(5) << "Adding observation with random_id=" << random_id;
-    auto message = std::make_unique<EncryptedMessage>();
-    if (!encrypt_to_analyzer_->Encrypt(*result.observation, message.get())) {
-      LOG(ERROR) << "AddObservation() unable to encrypt message. metric_id="
-                 << metric_;
-      return false;
-    }
-    status = observation_store_->AddEncryptedObservation(
-        std::move(message), std::unique_ptr<ObservationMetadata>(
-                                new ObservationMetadata(*result.metadata)));
-    shipping_manager_->NotifyObservationsAdded();
-  }
-
-  if (status != ObservationStore::kOk) {
-    LOG(ERROR) << "AddObservation() failed with status "
-               << MemoryObservationStore::StatusDebugString(status)
-               << ". metric_id=" << metric_;
-    return false;
-  }
-  return true;
-}
-
-// Generates FLAGS_num_clients independent Observations by encoding the
-// string value specified by the argument and adds the Observations
-// to the ShippingManager.
-void TestApp::EncodeString(const std::string value) {
-  for (size_t i = 0; i < FLAGS_num_clients; i++) {
-    if (!EncodeStringAsNewClient(value)) {
-      break;
-    }
-  }
-}
-
-// Generates a new ClientSecret, constructs a new Encoder using that secret,
-// uses this Encoder to encode the string value specified by the
-// argument, and adds the resulting Observation to the ShippingManager.
-bool TestApp::EncodeStringAsNewClient(const std::string value) {
-  std::unique_ptr<Encoder> encoder(new Encoder(
-      project_context_, ClientSecret::GenerateNewSecret(), system_data_.get()));
-  auto result = encoder->EncodeString(metric_, encoding_config_id_, value);
-  if (result.status != Encoder::kOK) {
-    LOG(ERROR) << "EncodeString() failed with status " << result.status
-               << ". metric_id=" << metric_
-               << ". encoding_config_id=" << encoding_config_id_
-               << ". value=" << value;
-    return false;
-  }
-
-  auto message = std::make_unique<EncryptedMessage>();
-  if (!encrypt_to_analyzer_->Encrypt(*result.observation, message.get())) {
-    LOG(ERROR) << "AddObservation() unable to encrypt message. metric_id="
-               << metric_;
-    return false;
-  }
-
-  // Add the observation to the ShippingManager.
-  auto status = observation_store_->AddEncryptedObservation(
-      std::move(message), std::unique_ptr<ObservationMetadata>(
-                              new ObservationMetadata(*result.metadata)));
-  shipping_manager_->NotifyObservationsAdded();
-  if (status != ObservationStore::kOk) {
-    LOG(ERROR) << "AddObservation() failed with status "
-               << MemoryObservationStore::StatusDebugString(status)
-               << ". metric_id=" << metric_;
-    return false;
-  }
-  return true;
-}
-
-// Generates FLAGS_num_clients independent Observations by encoding the
-// int value specified by the argument and adds the Observations
-// to the ShippingManager.
-void TestApp::EncodeInt(int64_t value) {
-  for (size_t i = 0; i < FLAGS_num_clients; i++) {
-    if (!EncodeIntAsNewClient(value)) {
-      break;
-    }
-  }
-}
-
-// Generates a new ClientSecret, constructs a new Encoder using that secret,
-// uses this Encoder to encode the int value specified by the
-// argument, and adds the resulting Observation to the ShippingManager.
-bool TestApp::EncodeIntAsNewClient(int64_t value) {
-  std::unique_ptr<Encoder> encoder(new Encoder(
-      project_context_, ClientSecret::GenerateNewSecret(), system_data_.get()));
-  auto result = encoder->EncodeInt(metric_, encoding_config_id_, value);
-  if (result.status != Encoder::kOK) {
-    LOG(ERROR) << "EncodeInt() failed with status " << result.status
-               << ". metric_id=" << metric_
-               << ". encoding_config_id=" << encoding_config_id_
-               << ". value=" << value;
-    return false;
-  }
-
-  auto message = std::make_unique<EncryptedMessage>();
-  if (!encrypt_to_analyzer_->Encrypt(*result.observation, message.get())) {
-    LOG(ERROR) << "AddObservation() unable to encrypt message. metric_id="
-               << metric_;
-    return false;
-  }
-
-  // Add the observation to the ShippingManager.
-  auto status = observation_store_->AddEncryptedObservation(
-      std::move(message), std::unique_ptr<ObservationMetadata>(
-                              new ObservationMetadata(*result.metadata)));
-  shipping_manager_->NotifyObservationsAdded();
-  if (status != ObservationStore::kOk) {
-    LOG(ERROR) << "AddObservation() failed with status "
-               << MemoryObservationStore::StatusDebugString(status)
-               << ". metric_id=" << metric_;
-    return false;
-  }
-  return true;
-}
-
-void TestApp::EncodeIndex(uint32_t index) {
-  for (size_t i = 0; i < FLAGS_num_clients; i++) {
-    if (!EncodeIndexAsNewClient(index)) {
-      break;
-    }
-  }
-}
-
-bool TestApp::EncodeIndexAsNewClient(uint32_t index) {
-  std::unique_ptr<Encoder> encoder(new Encoder(
-      project_context_, ClientSecret::GenerateNewSecret(), system_data_.get()));
-  auto result = encoder->EncodeIndex(metric_, encoding_config_id_, index);
-  if (result.status != Encoder::kOK) {
-    LOG(ERROR) << "EncodeIndex() failed with status " << result.status
-               << ". metric_id=" << metric_
-               << ". encoding_config_id=" << encoding_config_id_
-               << ". index=" << index;
-    return false;
-  }
-
-  auto message = std::make_unique<EncryptedMessage>();
-  if (!encrypt_to_analyzer_->Encrypt(*result.observation, message.get())) {
-    LOG(ERROR) << "AddObservation() unable to encrypt message. metric_id="
-               << metric_;
-    return false;
-  }
-
-  // Add the observation to the ShippingManager.
-  auto status = observation_store_->AddEncryptedObservation(
-      std::move(message), std::unique_ptr<ObservationMetadata>(
-                              new ObservationMetadata(*result.metadata)));
-  shipping_manager_->NotifyObservationsAdded();
-  if (status != ObservationStore::kOk) {
-    LOG(ERROR) << "AddObservation() failed with status "
-               << MemoryObservationStore::StatusDebugString(status)
-               << ". metric_id=" << metric_;
-    return false;
-  }
-  return true;
 }
 
 bool TestApp::ProcessCommandLine(const std::string command_line) {
@@ -768,8 +393,8 @@ bool TestApp::ProcessCommand(const std::vector<std::string>& command) {
     return true;
   }
 
-  if (command[0] == "encode") {
-    Encode(command);
+  if (command[0] == "log") {
+    Log(command);
     return true;
   }
 
@@ -802,85 +427,97 @@ bool TestApp::ProcessCommand(const std::vector<std::string>& command) {
   return true;
 }
 
-void TestApp::Encode(const std::vector<std::string>& command) {
-  if (command.size() < 3) {
-    *ostream_ << "Malformed encode command. Expected 2 additional arguments."
+// We know that command[0] = "log"
+void TestApp::Log(const std::vector<std::string>& command) {
+  if (command.size() < 2) {
+    *ostream_ << "Malformed log command. Expected <num> argument after 'log'."
               << std::endl;
-    return;
-  }
-
-  if (command.size() > 3 || IsTriple(command[2])) {
-    EncodeMulti(command);
     return;
   }
 
   int64_t num_clients;
-  if (!ParseInt(command[1], true, &num_clients)) {
+  if (!ParseNonNegativeInt(command[1], true, &num_clients)) {
     return;
   }
   if (num_clients <= 0) {
-    *ostream_ << "<num> must be a positive integer: " << num_clients
+    *ostream_ << "Malformed log command. <num> must be positive: "
+              << num_clients << std::endl;
+    return;
+  }
+
+  if (command.size() < 3) {
+    *ostream_ << "Malformed log command. Expected log method to be specified "
+                 "after <num>."
               << std::endl;
     return;
   }
-  FLAGS_num_clients = num_clients;
 
-  int64_t int_val;
-  uint32_t index;
-  if (ParseInt(command[2], false, &int_val)) {
-    EncodeInt(int_val);
-  } else if (ParseIndex(command[2], &index)) {
-    EncodeIndex(index);
-  } else {
-    EncodeString(command[2]);
+  if (command[2] == "event") {
+    LogEvent(num_clients, command);
+    return;
   }
+
+  *ostream_ << "Unrecognized log method specified: " << command[2] << std::endl;
+  return;
 }
 
-void TestApp::EncodeMulti(const std::vector<std::string>& command) {
-  CHECK_GE(command.size(), 3u);
-
-  int64_t num_clients;
-  if (!ParseInt(command[1], true, &num_clients)) {
+// We know that command[0] = "log", command[1] = <num_clients>
+void TestApp::LogEvent(uint64_t num_clients,
+                       const std::vector<std::string>& command) {
+  if (command.size() != 4) {
+    *ostream_ << "Malformed log event command. Expected exactly one more "
+                 "argument for <event_type_index>."
+              << std::endl;
     return;
   }
-  if (num_clients <= 0) {
-    *ostream_ << "<num> must be a positive integer: " << num_clients
-              << std::endl;
-  }
-  FLAGS_num_clients = num_clients;
 
-  std::vector<std::string> part_names;
-  std::vector<std::string> values;
-  std::vector<uint32_t> encoding_config_ids;
-  for (size_t i = 2; i < command.size(); i++) {
-    part_names.emplace_back();
-    values.emplace_back();
-    encoding_config_ids.emplace_back();
-    if (!ParsePartValueEncodingTriple(command[i], &part_names.back(),
-                                      &values.back(),
-                                      &encoding_config_ids.back())) {
-      *ostream_
-          << "Malformed <part>:<value>:<encoding> triple in encode command: "
-          << command[i] << std::endl;
-      return;
+  int64_t event_type_index;
+  if (!ParseNonNegativeInt(command[3], true, &event_type_index)) {
+    return;
+  }
+
+  LogEvent(num_clients, event_type_index);
+}
+
+void TestApp::LogEvent(size_t num_clients, uint32_t event_type_index) {
+  if (!current_metric_) {
+    *ostream_ << "Cannot LogEvent. There is no current metric set."
+              << std::endl;
+    return;
+  }
+  VLOG(6) << "TestApp::LogEvents(" << num_clients << ", " << event_type_index
+          << ").";
+  for (size_t i = 0; i < num_clients; i++) {
+    auto logger = logger_factory_->NewLogger();
+    auto status = logger->LogEvent(current_metric_->id(), event_type_index);
+    if (status != logger::kOK) {
+      LOG(ERROR) << "LogEvent() failed with status " << status
+                 << ". metric=" << current_metric_->metric_name()
+                 << ". event_type_index=" << event_type_index;
+      break;
     }
   }
-
-  Encode(encoding_config_ids, part_names, values);
 }
 
 void TestApp::ListParameters() {
+  std::string metric_name = "No metric set";
+  if (current_metric_) {
+    metric_name = current_metric_->metric_name();
+  }
   *ostream_ << std::endl;
   *ostream_ << "Settable values" << std::endl;
   *ostream_ << "---------------" << std::endl;
-  *ostream_ << "Metric ID: " << metric_ << std::endl;
-  *ostream_ << "Encoding Config ID: " << encoding_config_id_ << std::endl;
+  *ostream_ << "Metric: '" << metric_name << "'" << std::endl;
   *ostream_ << std::endl;
   *ostream_ << "Values set by flag at startup." << std::endl;
   *ostream_ << "-----------------------------" << std::endl;
-  *ostream_ << "Customer ID: " << customer_id_ << std::endl;
-  *ostream_ << "Project ID: " << project_id_ << std::endl;
-  *ostream_ << "Shuffler URI: " << FLAGS_shuffler_uri << std::endl;
+  *ostream_ << "Customer: "
+            << logger_factory_->project_context()->project().customer_name()
+            << std::endl;
+  *ostream_ << "Project: "
+            << logger_factory_->project_context()->project().project_name()
+            << std::endl;
+  *ostream_ << "Clearcut endpoint: " << FLAGS_clearcut_endpoint << std::endl;
   *ostream_ << std::endl;
 }
 
@@ -892,25 +529,11 @@ void TestApp::SetParameter(const std::vector<std::string>& command) {
   }
 
   if (command[1] == "metric") {
-    int64_t id;
-    if (!ParseInt(command[2], true, &id)) {
-      return;
+    if (SetMetric(command[2])) {
+      *ostream_ << "Metric set." << std::endl;
+    } else {
+      *ostream_ << "Current metric unchanged." << std::endl;
     }
-    if (id <= 0) {
-      *ostream_ << "<id> must be a positive integer";
-      return;
-    }
-    metric_ = id;
-  } else if (command[1] == "encoding") {
-    int64_t id;
-    if (!ParseInt(command[2], true, &id)) {
-      return;
-    }
-    if (id <= 0) {
-      *ostream_ << "<id> must be a positive integer";
-      return;
-    }
-    encoding_config_id_ = id;
   } else {
     *ostream_ << command[1] << " is not a settable parameter." << std::endl;
   }
@@ -921,7 +544,20 @@ void TestApp::Send(const std::vector<std::string>& command) {
     *ostream_ << "The send command doesn't take any arguments." << std::endl;
     return;
   }
-  SendAccumulatedObservations();
+
+  if (logger_factory_->SendAccumulatedObservtions()) {
+    if (mode_ == TestApp::kInteractive) {
+      std::cout << "Send to server succeeded." << std::endl;
+    } else {
+      VLOG(2) << "Send to server succeeded";
+    }
+  } else {
+    if (mode_ == TestApp::kInteractive) {
+      std::cout << "Send to server failed." << std::endl;
+    } else {
+      LOG(ERROR) << "Send to server failed.";
+    }
+  }
 }
 
 void TestApp::Show(const std::vector<std::string>& command) {
@@ -931,218 +567,36 @@ void TestApp::Show(const std::vector<std::string>& command) {
     return;
   }
 
-  auto* metric = project_context_->Metric(metric_);
-  if (!metric) {
-    *ostream_ << "There is no metric with id=" << metric_ << "." << std::endl;
+  if (!current_metric_) {
+    *ostream_ << "There is no current metric set." << std::endl;
   } else {
-    *ostream_ << "Metric " << metric->id() << std::endl;
-    *ostream_ << "-----------" << std::endl;
-    ShowMetric(*metric);
-    *ostream_ << std::endl;
-  }
-
-  auto* encoding = project_context_->EncodingConfig(encoding_config_id_);
-  if (!encoding) {
-    *ostream_ << "There is no encoding config with id=" << encoding_config_id_
-              << "." << std::endl;
-  } else {
-    *ostream_ << "Encoding Config " << encoding->id() << std::endl;
-    *ostream_ << "--------------------" << std::endl;
-    ShowEncodingConfig(*encoding);
+    *ostream_ << "Metric '" << current_metric_->metric_name() << "'"
+              << std::endl;
+    *ostream_ << "-----------------" << std::endl;
+    *ostream_ << current_metric_->DebugString();
     *ostream_ << std::endl;
   }
 }
 
-void TestApp::ShowMetric(const Metric& metric) {
-  *ostream_ << metric.name() << std::endl;
-  *ostream_ << metric.description() << std::endl;
-  for (const auto& pair : metric.parts()) {
-    const std::string& name = pair.first;
-    const MetricPart& part = pair.second;
-    std::string data_type;
-    switch (part.data_type()) {
-      case MetricPart::STRING:
-        data_type = "string";
-        break;
-
-      case MetricPart::INT:
-        data_type = "int";
-        break;
-
-      case MetricPart::INDEX:
-        data_type = "indexed";
-        break;
-
-      case MetricPart::BLOB:
-        data_type = "blob";
-        break;
-
-      default:
-        data_type = "<missing case>";
-        break;
-    }
-    *ostream_ << "One " << data_type << " part named \"" << name
-              << "\": " << part.description() << std::endl;
-  }
-}
-
-void TestApp::ShowEncodingConfig(const EncodingConfig& encoding) {
-  switch (encoding.config_case()) {
-    case EncodingConfig::kForculus:
-      ShowForculusConfig(encoding.forculus());
-      return;
-
-    case EncodingConfig::kRappor:
-      ShowRapporConfig(encoding.rappor());
-      return;
-
-    case EncodingConfig::kBasicRappor:
-      ShowBasicRapporConfig(encoding.basic_rappor());
-      return;
-
-    case EncodingConfig::kNoOpEncoding:
-      *ostream_ << "NoOp encoding";
-      return;
-
-    case EncodingConfig::CONFIG_NOT_SET:
-      *ostream_ << "Invalid Encoding!";
-      return;
-  }
-}
-
-void TestApp::ShowForculusConfig(const ForculusConfig& config) {
-  *ostream_ << "Forculus threshold=" << config.threshold() << std::endl;
-}
-
-void TestApp::ShowRapporConfig(const RapporConfig& config) {
-  *ostream_ << "String Rappor" << std::endl;
-}
-
-void TestApp::ShowBasicRapporConfig(const BasicRapporConfig& config) {
-  *ostream_ << "Basic Rappor " << std::endl;
-  *ostream_ << "p=" << config.prob_0_becomes_1()
-            << ", q=" << config.prob_1_stays_1() << std::endl;
-  *ostream_ << "Categories:" << std::endl;
-  switch (config.categories_case()) {
-    case BasicRapporConfig::kStringCategories: {
-      for (const std::string& s : config.string_categories().category()) {
-        *ostream_ << s << std::endl;
-      }
-      return;
-    }
-    case BasicRapporConfig::kIntRangeCategories: {
-      *ostream_ << config.int_range_categories().first() << " - "
-                << config.int_range_categories().last();
-      return;
-    }
-    case BasicRapporConfig::kIndexedCategories: {
-      *ostream_ << "num_categories: "
-                << config.indexed_categories().num_categories();
-      return;
-    }
-    case BasicRapporConfig::CATEGORIES_NOT_SET:
-      *ostream_ << "Invalid Encoding!";
-      return;
-  }
-}
-
-bool TestApp::ParseInt(const std::string& str, bool complain, int64_t* x) {
+bool TestApp::ParseNonNegativeInt(const std::string& str, bool complain,
+                                  int64_t* x) {
   CHECK(x);
   std::istringstream iss(str);
-  *x = 0;
+  *x = -1;
   iss >> *x;
   char c;
-  if (*x == 0 || iss.fail() || iss.get(c)) {
+  if (*x == -1 || iss.fail() || iss.get(c)) {
     if (complain) {
       if (mode_ == kInteractive) {
-        *ostream_ << "Expected positive integer instead of " << str << "."
+        *ostream_ << "Expected non-negative integer instead of " << str << "."
                   << std::endl;
       } else {
-        LOG(ERROR) << "Expected positive integer instead of " << str;
+        LOG(ERROR) << "Expected non-negativea integer instead of " << str;
       }
     }
     return false;
   }
   return true;
-}
-
-bool TestApp::ParseIndex(const std::string& str, uint32_t* index) {
-  CHECK(index);
-  if (str.size() < 7) {
-    return false;
-  }
-  if (str.substr(0, 6) != "index=") {
-    return false;
-  }
-  auto index_string = str.substr(6);
-  std::istringstream iss(index_string);
-  int64_t possible_index;
-  iss >> possible_index;
-  char c;
-  if (iss.fail() || iss.get(c) || possible_index < 0 ||
-      possible_index > UINT32_MAX) {
-    if (mode_ == kInteractive) {
-      *ostream_ << "Expected small non-negative integer instead of "
-                << index_string << "." << std::endl;
-    } else {
-      LOG(ERROR) << "Expected small non-negative integer instead of  "
-                 << index_string;
-    }
-    return false;
-  }
-  *index = possible_index;
-  return true;
-}
-
-// Parses a string of the form <part>:<value>:<encoding> and writes <part> into
-// |part_name| and <value> into |value| and <encoding> into encoding_config_id.
-// Returns true if and only if this succeeds.
-bool TestApp::ParsePartValueEncodingTriple(const std::string& triple,
-                                           std::string* part_name,
-                                           std::string* value,
-                                           uint32_t* encoding_config_id) {
-  CHECK(part_name);
-  CHECK(value);
-  if (triple.size() < 5) {
-    return false;
-  }
-  auto last_pos = triple.size() - 1;
-
-  auto index1 = triple.find(':');
-  if (index1 == std::string::npos || index1 == 0 || index1 > last_pos - 3) {
-    return false;
-  }
-  auto index2 = triple.find(':', index1 + 2);
-  if (index2 == std::string::npos || index2 > last_pos - 1) {
-    return false;
-  }
-  *part_name = std::string(triple, 0, index1);
-  *value = std::string(triple, index1 + 1, index2 - index1 - 1);
-  std::string int_string = std::string(triple, index2 + 1);
-  int64_t id;
-  if (!ParseInt(int_string, true, &id)) {
-    return false;
-  }
-  if (id < 0) {
-    if (mode_ == kInteractive) {
-      *ostream_ << "<encoding> must be positive: " << id << std::endl;
-    } else {
-      LOG(ERROR) << "<encoding> must be positive: " << id;
-    }
-    return false;
-  }
-  *encoding_config_id = id;
-  return true;
-}
-
-// Determines whether or not |str| is a triple of the kind that may be
-// parsed by ParsePartValueEncodingTriple.
-bool TestApp::IsTriple(const std::string str) {
-  std::string part_name;
-  std::string value;
-  uint32_t encoding_config_id;
-  return ParsePartValueEncodingTriple(str, &part_name, &value,
-                                      &encoding_config_id);
 }
 
 }  // namespace cobalt

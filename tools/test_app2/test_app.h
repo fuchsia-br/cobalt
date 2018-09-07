@@ -2,19 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// An application that acts as a Cobalt client for the purposes of testing,
-// debugging and demonstration.
-//
-// It embeds the Encoder library, encodes values, forms Envelopes, and sends the
-// Envelopes to the Shuffler. It can also skip the Shuffler and send
-// ObservationBatches directly to he Analyzer.
-//
-// The application can be used in three modes controlled by the -mode flag:
-// - interactive: The program runs an interactive command-loop.
-// - send-once: The program sends a single Envelope described by flags.
-// - automatic: The program runs forever sending many Envelopes with randomly
-//              generated values.
-
 #ifndef COBALT_TOOLS_TEST_APP2_TEST_APP_H_
 #define COBALT_TOOLS_TEST_APP2_TEST_APP_H_
 
@@ -24,16 +11,21 @@
 #include <string>
 #include <vector>
 
-#include "analyzer/analyzer_service/analyzer.grpc.pb.h"
-#include "encoder/envelope_maker.h"
-#include "encoder/memory_observation_store.h"
-#include "encoder/project_context.h"
-#include "encoder/send_retryer.h"
-#include "encoder/shipping_manager.h"
-#include "encoder/shuffler_client.h"
-#include "encoder/system_data.h"
+#include "logger/logger.h"
+#include "logger/project_context.h"
 
 namespace cobalt {
+
+class LoggerFactory {
+ public:
+  virtual ~LoggerFactory() = default;
+
+  virtual std::unique_ptr<logger::LoggerInterface> NewLogger() = 0;
+
+  virtual const logger::ProjectContext* project_context() = 0;
+
+  virtual bool SendAccumulatedObservtions() = 0;
+};
 
 // The Cobalt testing client application.
 class TestApp {
@@ -58,16 +50,16 @@ class TestApp {
   };
 
   // Constructor. The |ostream| is used for emitting output in interactive mode.
-  TestApp(std::shared_ptr<encoder::ProjectContext> project_context,
-          std::shared_ptr<encoder::ShufflerClientInterface> shuffler_client,
-          std::unique_ptr<encoder::SystemData> system_data, Mode mode,
-          const std::string& analyzer_public_key_pem,
-          EncryptedMessage::EncryptionScheme analyzer_encryption_scheme,
-          const std::string& shuffler_public_key_pem,
-          EncryptedMessage::EncryptionScheme shuffler_encryption_scheme,
+  TestApp(std::unique_ptr<LoggerFactory> logger_factory,
+          const std::string initial_metric_name, Mode mode,
           std::ostream* ostream);
 
-  void set_metric(uint32_t metric_id) { metric_ = metric_id; }
+  TestApp(const TestApp& other) = delete;
+  TestApp(const TestApp&& other) = delete;
+  void operator=(const TestApp& other) = delete;
+  void operator=(const TestApp&& other) = delete;
+
+  bool SetMetric(const std::string& metric_name);
 
   // Run() is invoked by main(). It invokes either CommandLoop(),
   // SendAndQuit(), or RunAutomatic() depending on the mode.
@@ -89,57 +81,11 @@ class TestApp {
   // Implements automatic mode.
   void RunAutomatic();
 
-  // Generates FLAGS_num_clients independent Observations by encoding the
-  // multi-part value specified by the arguments and adds the Observations
-  // to the EnvelopeMaker.
-  void Encode(const std::vector<uint32_t> encoding_config_ids,
-              const std::vector<std::string>& metric_parts,
-              const std::vector<std::string>& values);
-
-  // Generates a new ClientSecret, constructs a new Encoder using that secret,
-  // uses this Encoder to encode the multi-part value specified by the
-  // arguments, and adds the resulting Observation to the EnvelopeMaker.
-  bool EncodeAsNewClient(const std::vector<uint32_t> encoding_config_ids,
-                         const std::vector<std::string>& metric_parts,
-                         const std::vector<std::string>& values);
-
-  // Generates FLAGS_num_clients independent Observations by encoding the
-  // string value specified by the argument and adds the Observations
-  // to the EnvelopeMaker.
-  void EncodeString(const std::string value);
-
-  // Generates a new ClientSecret, constructs a new Encoder using that secret,
-  // uses this Encoder to encode the string value specified by the
-  // argument, and adds the resulting Observation to the EnvelopeMaker.
-  bool EncodeStringAsNewClient(const std::string value);
-
-  // Generates FLAGS_num_clients independent Observations by encoding the
-  // int value specified by the argument and adds the Observations
-  // to the EnvelopeMaker.
-  void EncodeInt(int64_t value);
-
-  // Generates a new ClientSecret, constructs a new Encoder using that secret,
-  // uses this Encoder to encode the int value specified by the
-  // argument, and adds the resulting Observation to the EnvelopeMaker.
-  bool EncodeIntAsNewClient(int64_t value);
-
-  // Generates FLAGS_num_clients independent Observations by encoding the
-  // given |index| and adds the Observations to the EnvelopeMaker.
-  void EncodeIndex(uint32_t index);
-
-  // Generates a new ClientSecret, constructs a new Encoder using that secret,
-  // uses this Encoder to encode the given |index|, and adds the resulting
-  // Observation to the EnvelopeMaker.
-  bool EncodeIndexAsNewClient(uint32_t index);
-
-  void SendAccumulatedObservations();
-  void SendToShuffler();
-
   bool ProcessCommand(const std::vector<std::string>& command);
 
-  void Encode(const std::vector<std::string>& command);
-
-  void EncodeMulti(const std::vector<std::string>& command);
+  void Log(const std::vector<std::string>& command);
+  void LogEvent(uint64_t num_clients, const std::vector<std::string>& command);
+  void LogEvent(size_t num_clients, uint32_t event_type_index);
 
   void ListParameters();
 
@@ -149,48 +95,14 @@ class TestApp {
 
   void Show(const std::vector<std::string>& command);
 
-  void ShowMetric(const Metric& metric);
+  bool ParseNonNegativeInt(const std::string& str, bool complain, int64_t* x);
 
-  void ShowEncodingConfig(const EncodingConfig& encoding);
-
-  void ShowForculusConfig(const ForculusConfig& config);
-
-  void ShowRapporConfig(const RapporConfig& config);
-
-  void ShowBasicRapporConfig(const BasicRapporConfig& config);
-
-  bool ParseInt(const std::string& str, bool complain, int64_t* x);
-
-  bool ParseIndex(const std::string& str, uint32_t* index);
-
-  // Parses a string of the form <part>:<value>:<encoding> and writes <part>
-  // into |part_name| and <value> into |value| and <encoding> into
-  // encoding_config_id. Returns true if and only if this succeeds.
-  bool ParsePartValueEncodingTriple(const std::string& triple,
-                                    std::string* part_name, std::string* value,
-                                    uint32_t* encoding_config_id);
-
-  // Determines whether or not |str| is a triple of the kind that may be
-  // parsed by ParsePartValueEncodingTriple.
-  bool IsTriple(const std::string str);
-
-  uint32_t customer_id_ = 1;
-  uint32_t project_id_ = 1;
-  uint32_t encoding_config_id_ = 1;
-  uint32_t metric_ = 1;
+  const MetricDefinition* current_metric_;
   // The TestApp is in interactive mode unless set_mode() is invoked.
   Mode mode_ = kInteractive;
-  std::shared_ptr<encoder::ProjectContext> project_context_;
-  std::shared_ptr<encoder::ShufflerClientInterface> shuffler_client_;
-  std::unique_ptr<encoder::send_retryer::SendRetryer> send_retryer_;
-  std::unique_ptr<encoder::SystemData> system_data_;
-  std::unique_ptr<util::EncryptedMessageMaker> encrypt_to_shuffler_;
-  std::unique_ptr<util::EncryptedMessageMaker> encrypt_to_analyzer_;
-  std::unique_ptr<encoder::MemoryObservationStore> observation_store_;
-  std::unique_ptr<encoder::LegacyShippingManager> shipping_manager_;
+  std::unique_ptr<LoggerFactory> logger_factory_;
   std::ostream* ostream_;
 };
 
 }  // namespace cobalt
-
 #endif  // COBALT_TOOLS_TEST_APP2_TEST_APP_H_
