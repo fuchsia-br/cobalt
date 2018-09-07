@@ -323,23 +323,26 @@ const (
 	customerId = 1
 	projectId  = 1
 
-	urlMetricId    = 1
-	hourMetricId   = 2
-	eventMetricId  = 4
-	moduleMetricId = 5
-	deviceMetricId = 6
+	urlMetricId     = 1
+	hourMetricId    = 2
+	eventMetricId   = 4
+	moduleMetricId  = 5
+	deviceMetricId  = 6
+	moduleMetricId2 = 7
 
 	forculusEncodingConfigId           = 1
 	basicRapporStringsEncodingConfigId = 2
 	basicRapporIndexEncodingConfigId   = 5
 	noOpEncodingConfigId               = 6
+	stringRapporEncodingConfigId       = 7
 
-	urlReportConfigId        = 1
-	hourReportConfigId       = 2
-	eventReportConfigId      = 4
-	moduleReportConfigId     = 5
-	deviceReportConfigId     = 6
-	groupedUrlReportConfigId = 7
+	urlReportConfigId         = 1
+	hourReportConfigId        = 2
+	eventReportConfigId       = 4
+	moduleReportConfigId      = 5
+	deviceReportConfigId      = 6
+	groupedUrlReportConfigId  = 7
+	largeModuleReportConfigId = 8
 
 	hourMetricPartName   = "hour"
 	urlMetricPartName    = "url"
@@ -680,11 +683,11 @@ func sendUrlObservations(encodingConfigId uint32, url string, numClients uint, r
 }
 
 // sendModuleObservations sends Observations of the given |moudle| to the Shuffler,
-// using the specified encoding. |numClients| different, independent
+// using the specified metric and encoding. |numClients| different, independent
 // observations will be sent. The process of adding and sending will be repeated
 // |repeatCount| times.
-func sendModuleObservations(encodingConfigId uint32, module string, numClients uint, repeatCount uint, t *testing.T) {
-	sendStringObservations(moduleMetricId, moduleMetricPartName, encodingConfigId, module, numClients, repeatCount, t)
+func sendModuleObservations(metricId uint32, encodingConfigId uint32, module string, numClients uint, repeatCount uint, t *testing.T) {
+	sendStringObservations(metricId, moduleMetricPartName, encodingConfigId, module, numClients, repeatCount, t)
 }
 
 // sendForculusUrlObservations sends Observations containing a Forculus encryption of the
@@ -709,12 +712,20 @@ func sendBasicRapporEventObservations(index int, numClients uint, repeatCount ui
 	sendIndexedObservations(eventMetricId, eventMetricPartName, basicRapporIndexEncodingConfigId, index, numClients, repeatCount, t)
 }
 
+// sendStringRapporModuleObservations sends encoded Observations of the
+// given |module| to the Shuffler. |numClients| different, independent
+// observations will be sent. The process of adding and sending will be repeated
+// |repeatCount| times.
+func sendStringRapporModuleObservations(module string, numClients uint, repeatCount uint, t *testing.T) {
+	sendModuleObservations(moduleMetricId2, stringRapporEncodingConfigId, module, numClients, repeatCount, t)
+}
+
 // sendUnencodedModuleObservations sends unencoded Observations of the
 // given |module| to the Shuffler. |numClients| different, independent
 // observations will be sent. The process of adding and sending will be repeated
 // |repeatCount| times.
 func sendUnencodedModuleObservations(module string, numClients uint, repeatCount uint, t *testing.T) {
-	sendModuleObservations(noOpEncodingConfigId, module, numClients, repeatCount, t)
+	sendModuleObservations(moduleMetricId, noOpEncodingConfigId, module, numClients, repeatCount, t)
 }
 
 // sendUnencodedDeviceObservations sends unencoded Observations containing the given |index| to the Shuffler.
@@ -1065,5 +1076,83 @@ func TestUnencodedDeviceIndexes(t *testing.T) {
 			continue
 		}
 
+	}
+}
+
+// We run the full Cobalt pipeline using Metric 7, Encoding Config 7 and
+// Report Config 8. This uses String RAPPOR with N modules (where N = 2000 is
+// specified in the config file -- it is a special case where a certain
+// keyword prompts the creation of modules of the form "Module_XXXXX"
+// where XXXXX is a zero-padded number).
+func TestStringRapporEncodingOfModules(t *testing.T) {
+	fmt.Println("TestStringRapporEncodingOfModules")
+	// Send observations for selected modules.
+	sendStringRapporModuleObservations("Module_00201", 300, 1, t)
+	sendStringRapporModuleObservations("Module_00511", 200, 1, t)
+	sendStringRapporModuleObservations("Module_00736", 100, 1, t)
+
+	// There should be 600 Observations sent to the Analyzer for metric 7.
+	// We wait for them.
+	if err := waitForObservations(moduleMetricId2, 600); err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	report := getReport(largeModuleReportConfigId, true, t)
+	if report.Metadata.State != report_master.ReportState_COMPLETED_SUCCESSFULLY {
+		t.Fatalf("report.Metadata.State=%v", report.Metadata.State)
+	}
+	includeStdErr := true
+	supressEmptyRows := true
+	rows := report_client.ReportToStrings(report, includeStdErr, supressEmptyRows)
+	if rows == nil {
+		t.Fatalf("rows is nil")
+	}
+	if len(rows) != 2000 {
+		t.Fatalf("len(rows)=%d", len(rows))
+	}
+
+	for index := 0; index < 2000; index++ {
+		if len(rows[index]) != 3 {
+			t.Fatalf("len(rows[index])=%d", len(rows[index]))
+		}
+
+		var expectedRowKey string
+		expectedRowKey = fmt.Sprintf("Module_%05d", index)
+
+		if rows[index][0] != expectedRowKey {
+			t.Errorf("Expected %s, got %s", expectedRowKey, rows[index][0])
+			continue
+		}
+
+		val, err := strconv.ParseFloat(rows[index][1], 32)
+		if err != nil {
+			t.Errorf("Error parsing %s as float: %v", rows[index][1], err)
+			continue
+		}
+		// Check if the sent observations are identified at least at a level of 50%
+		// of their real counts, and that no other count corresponds to more than 5%
+		// of the total. Note: This is a heuristic test.
+		switch index {
+		case 201:
+			if int(val) < 150 {
+				t.Errorf("Expected %d, got %d, which less than %d", 300, int(val), 150)
+				break
+			}
+		case 511:
+			if int(val) < 100 {
+				t.Errorf("Expected %d, got %d, which is less than %d", 200, int(val), 100)
+				break
+			}
+		case 736:
+			if int(val) < 50 {
+				t.Errorf("Expected %d, got %d, which is less than %d", 100, int(val), 50)
+				break
+			}
+		default:
+			if int(val) > 30 {
+				t.Errorf("Expected %d, got %d, which is more than %d", 0, int(val), 30)
+				break
+			}
+		}
 	}
 }
