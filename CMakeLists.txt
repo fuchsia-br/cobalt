@@ -325,31 +325,6 @@ include_directories(${CMAKE_SOURCE_DIR}/third_party/google-api-cpp-client/src)
 include_directories(${CMAKE_SOURCE_DIR}/third_party/google-api-cpp-client/service_apis/storage)
 link_directories(${GOOGLE_API_CPP_CLIENT_LIB_DIR})
 
-
-#Build tink as an external project.
-set(TINK_INSTALL_DIR ${CMAKE_BINARY_DIR}/third_party/tink)
-set(TINK_INCLUDE_DIR ${TINK_INSTALL_DIR}/include/tink)
-ExternalProject_Add(tink_external_project
-                    SOURCE_DIR  ${CMAKE_SOURCE_DIR}/third_party/tink
-                    PREFIX      ${TINK_INSTALL_DIR}
-                    INSTALL_DIR ${TINK_INSTALL_DIR}
-                    CMAKE_ARGS  -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-                                -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-                                -DCMAKE_CXX_FLAGS=${EXTERNAL_PROJECT_CMAKE_CXX_FLAGS}
-                                -DCMAKE_INSTALL_PREFIX:PATH=${TINK_INSTALL_DIR}
-                                -DPROTOC=${PROTOC}
-                                -DPROTOBUF_INCLUDE_DIR=${PROTOBUF_INCLUDE_DIR}
-                                -DPROTOBUF_LIB_DIR=${PROTOBUF_LIB_DIR}
-                    DEPENDS     gflags_external_project
-                    DEPENDS     glog_external_project
-                    DEPENDS     gtest_external_project
-                    DEPENDS     protobuf_external_project
-                    DEPENDS     boringssl_external_project
-                    INSTALL_COMMAND ""
-                    )
-include_directories(TINK_INCLUDE_DIR)
-
-
 # A target to combine all of the external projects.
 add_custom_target(build_external_projects
                   DEPENDS gtest_external_project
@@ -359,8 +334,7 @@ add_custom_target(build_external_projects
                   DEPENDS protobuf_external_project
                   DEPENDS grpc_external_project
                   DEPENDS googleapis_external_project
-                  DEPENDS google_api_cpp_client_external_project
-                  DEPENDS tink_external_project)
+                  DEPENDS google_api_cpp_client_external_project)
 
 # Applying this macro to a target does two things:
 # (i)  It causes build_external_projects to happen first before the target
@@ -689,6 +663,7 @@ endmacro()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/abseil-cpp)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/lossmin)
+include_directories(${CMAKE_BINARY_DIR}/third_party/tink/include)
 
 # //third_party/clearcut is a special case. It is code that we own but
 # but we keep it under //third_party.
@@ -728,3 +703,4 @@ add_compile_options(-Wno-sign-compare
 add_subdirectory(third_party/abseil-cpp)
 add_subdirectory(third_party/lossmin/lossmin)
 add_subdirectory(third_party/tensorflow_statusor)
+add_subdirectory(third_party/tink)
