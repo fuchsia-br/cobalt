@@ -358,10 +358,12 @@ TEST_F(ShippingManagerTest, ScheduledSend) {
   EXPECT_EQ(grpc::OK, shipping_manager_->last_send_status().error_code());
 }
 
-// Tests that if we manage to exceed max_bytes_total but not
-// max_bytes_per_envelope then the ShippingManager will return kStoreFull.
-// Also tests the ShippingManager's algorithm for combining small Envelopes
-// into larger Envelopes before sending.
+// Tests the ShippingManager in the case that the ObservationStore returns
+// kStoreFull.
+//
+// kMaxBytesTotal = 1000 and we are using Observations of size 40 bytes.
+// 40 * 25 = 1000. The MemoryObservationStore will allow the 26th Observation
+// to be added and then reject the 27th Observation.
 TEST_F(ShippingManagerTest, ExceedMaxBytesTotal) {
   // Init with a very long time for the regular schedule interval but
   // zero for the minimum interval so the test doesn't have to wait.
@@ -373,59 +375,44 @@ TEST_F(ShippingManagerTest, ExceedMaxBytesTotal) {
     send_retryer_->status_to_return = grpc::Status::CANCELLED;
   }
 
-  // kMaxBytesTotal = 1000 and we are using Observations of size 40 bytes.
-  // 40 * 25 = 1000 so the first Observation that causes us to exceed
-  // max_bytes_total_ is the 26th and we allow this one to be added before
-  // setting temporarily_full_ true.
-  //
-  // Add 26 Observations. We want to do this in such a way that we don't
-  // exceed max_bytes_per_envelope_.  Each time we will invoke
-  // RequestSendSoon() and then WaitUntilWorkerWaiting() so that we know that
-  // between invocations of AddObservtion() the worker thread will complete
-  // one execution of SendAllEnvelopes().
-  for (int i = 0; i < 26; i++) {
+  // We can add 15 observations without the ObservationStore reporting that
+  // it is almost full.
+  for (int i = 0; i < 15; i++) {
     EXPECT_EQ(ObservationStore::kOk, AddObservation(40));
-    if (i < 15) {
-      // After having added 15 observations we have exceeded the
-      // ObservationStore's almost_full_threshold_ and this means that each
-      // invocation of AddEncryptedObservation() followed by a
-      // NotifyObservationsAdded() automatically invokes RequestSendSoon() and
-      // so we don't want to invoke it again here.
-      shipping_manager_->RequestSendSoon();
-    }
     shipping_manager_->WaitUntilWorkerWaiting(kMaxSeconds);
-    EXPECT_TRUE(shipping_manager_->num_send_attempts() > (size_t)i);
-    EXPECT_EQ(shipping_manager_->num_send_attempts(),
-              shipping_manager_->num_failed_attempts());
-    EXPECT_EQ(grpc::CANCELLED,
-              shipping_manager_->last_send_status().error_code());
   }
 
-  // We expect there to have been 78 calls to SendRetryer::SendToShuffler() in
-  // which the Envelopes sent contained a total of 360 Observations. Here we
-  // explain how this was calculated. See the comments at the top of the file on
-  // kMinEnvelopeSendSize. There it is explained that the ObservationStore will
-  // attempt to bundle together up to 5 observations into a sinle envelope
-  // before sending. None of the sends succeed so the ObservationStore keeps
-  // accumulating more Envelopes containing 5 Observations that failed to send.
-  // Below is the complete pattern of send attempts. Each set in braces
-  // represents one execution of SendAllEnvelopes(). The numbers in each set
-  // represent the invocations of SendEnvelopeToBackend() with an Envelope that
-  // contains that many observations.
-  //
-  // {1, 1, 1}, {2, 2, 2}, {3, 3, 3}, {4, 4, 4}, {5, 5, 5}, {5, 5, 5}, ...
-  //
-  // Thus the total number of send attempts is the total number of numbers:
-  // 3 * 26 = 78
-  //
-  // And the total number of Observations is the sum of all the numbers:
-  // (1 + 2 + 3 + 4 + 5) * 3 + (5*3*(26-5)) = 360
-  CheckCallCount(78, 360);
-  EXPECT_EQ(78u, shipping_manager_->num_send_attempts());
-  EXPECT_EQ(78u, shipping_manager_->num_failed_attempts());
+  // The ObservationStore was never almost full so the ShippingManager
+  // should not have attempted to do a send.
+  EXPECT_EQ(0u, shipping_manager_->num_send_attempts());
+  EXPECT_EQ(0u, shipping_manager_->num_failed_attempts());
 
-  // Now attempt to add a 27th Observation and expected to get kStoreFull
-  // because we have exceeded max_bytes_total.
+  // The sixteenth Observation causes the ObservationStore to become almost
+  // full and that causes the ShippingManager to attempt a send.
+  EXPECT_EQ(ObservationStore::kOk, AddObservation(40));
+  shipping_manager_->WaitUntilWorkerWaiting(kMaxSeconds);
+  auto num_send_attempts = shipping_manager_->num_send_attempts();
+  EXPECT_GT(num_send_attempts, 0u);
+  EXPECT_EQ(num_send_attempts, shipping_manager_->num_failed_attempts());
+  EXPECT_EQ(grpc::CANCELLED,
+            shipping_manager_->last_send_status().error_code());
+
+  // We can add 10 more Observations bringing the total to 26,
+  // without the ObservationStore being full.
+  for (int i = 0; i < 10; i++) {
+    EXPECT_EQ(ObservationStore::kOk, AddObservation(40));
+  }
+  shipping_manager_->WaitUntilWorkerWaiting(kMaxSeconds);
+
+  // Because the ObservationStore is almost full the ShippingManager has
+  // been attempting additional sends.
+  EXPECT_GT(shipping_manager_->num_send_attempts(), num_send_attempts);
+  num_send_attempts = shipping_manager_->num_send_attempts();
+  EXPECT_EQ(num_send_attempts, shipping_manager_->num_failed_attempts());
+  EXPECT_EQ(grpc::CANCELLED,
+            shipping_manager_->last_send_status().error_code());
+
+  // The 27th Observation will be rejected with kStoreFull.
   EXPECT_EQ(ObservationStore::kStoreFull, AddObservation(40));
 
   // Now configure the FakeSendRetryer to start succeeding,
@@ -437,7 +424,7 @@ TEST_F(ShippingManagerTest, ExceedMaxBytesTotal) {
     send_retryer_->observation_count = 0;
   }
 
-  // Send all of the accumulated Observations.
+  // Send all 26 of the accumulated Observations.
   shipping_manager_->RequestSendSoon();
   shipping_manager_->WaitUntilIdle(kMaxSeconds);
 
@@ -445,8 +432,10 @@ TEST_F(ShippingManagerTest, ExceedMaxBytesTotal) {
   // envelopes
   CheckCallCount(6, 26);
   EXPECT_EQ(grpc::OK, shipping_manager_->last_send_status().error_code());
-  EXPECT_EQ(84u, shipping_manager_->num_send_attempts());
-  EXPECT_EQ(78u, shipping_manager_->num_failed_attempts());
+  EXPECT_GT(shipping_manager_->num_send_attempts(), num_send_attempts);
+  num_send_attempts = shipping_manager_->num_send_attempts();
+  EXPECT_GT(num_send_attempts, shipping_manager_->num_failed_attempts());
+  EXPECT_EQ(grpc::OK, shipping_manager_->last_send_status().error_code());
 
   // Now we can add a 27th Observation and send it.
   EXPECT_EQ(ObservationStore::kOk, AddObservation(40));
@@ -454,8 +443,6 @@ TEST_F(ShippingManagerTest, ExceedMaxBytesTotal) {
   shipping_manager_->WaitUntilIdle(kMaxSeconds);
   CheckCallCount(7, 27);
   EXPECT_EQ(grpc::OK, shipping_manager_->last_send_status().error_code());
-  EXPECT_EQ(85u, shipping_manager_->num_send_attempts());
-  EXPECT_EQ(78u, shipping_manager_->num_failed_attempts());
 }
 
 // Tests that when the total amount of accumulated Observation data exceeds
