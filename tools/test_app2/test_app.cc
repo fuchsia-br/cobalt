@@ -37,6 +37,7 @@ using encoder::ShippingManager;
 using encoder::SystemData;
 using encoder::SystemDataInterface;
 using logger::Encoder;
+using logger::EventValuesPtr;
 using logger::Logger;
 using logger::LoggerInterface;
 using logger::ProjectContext;
@@ -88,6 +89,14 @@ void PrintHelp(std::ostream* ostream) {
            << std::endl;
   *ostream << "log <num> event <index>  \tLog <num> independent copies "
               "of the event with event_type_index = <index>"
+           << std::endl;
+  *ostream << "log <num> custom <part>:<val> <part>:<val>..." << std::endl;
+  *ostream << "                         \tLog <num> independent copies of a "
+           << "custom event." << std::endl;
+  *ostream << "                         \t- Each <part> is an event dimension "
+           << "name." << std::endl;
+  *ostream << "                         \t- Each <val> is an int or string "
+              "value or an index <n> if <val>='index=<n>'."
            << std::endl;
   *ostream << "ls                       \tList current values of "
               "parameters."
@@ -457,6 +466,11 @@ void TestApp::Log(const std::vector<std::string>& command) {
     return;
   }
 
+  if (command[2] == "custom") {
+    LogCustomEvent(num_clients, command);
+    return;
+  }
+
   *ostream_ << "Unrecognized log method specified: " << command[2] << std::endl;
   return;
 }
@@ -497,6 +511,59 @@ void TestApp::LogEvent(size_t num_clients, uint32_t event_type_index) {
       break;
     }
   }
+  *ostream_ << "Done." << std::endl;
+}
+
+// We know that command[0] = "log", command[1] = <num_clients>,
+// command[2] = "custom"
+void TestApp::LogCustomEvent(uint64_t num_clients,
+                             const std::vector<std::string>& command) {
+  if (command.size() <= 3) {
+    *ostream_ << "Malformed log custom event command. Expected a list of "
+                 "<part>:<value>."
+              << std::endl;
+    return;
+  }
+
+  std::vector<std::string> part_names;
+  std::vector<std::string> values;
+  for (size_t i = 3; i < command.size(); i++) {
+    part_names.emplace_back();
+    values.emplace_back();
+    if (!ParsePartValuePair(command[i], &part_names.back(), &values.back())) {
+      *ostream_ << "Malformed <part>:<value> in log command: " << command[i]
+                << std::endl;
+      return;
+    }
+  }
+
+  LogCustomEvent(num_clients, part_names, values);
+}
+
+void TestApp::LogCustomEvent(uint64_t num_clients,
+                             const std::vector<std::string>& metric_parts,
+                             const std::vector<std::string>& values) {
+  CHECK_EQ(metric_parts.size(), values.size());
+
+  if (!current_metric_) {
+    *ostream_ << "Cannot LogEvent. There is no current metric set."
+              << std::endl;
+    return;
+  }
+
+  VLOG(6) << "TestApp::LogCustomEvent(" << num_clients << ", custom_event).";
+  for (size_t i = 0; i < num_clients; i++) {
+    auto logger = logger_factory_->NewLogger();
+    EventValuesPtr event_values = NewCustomEvent(metric_parts, values);
+    auto status =
+        logger->LogCustomEvent(current_metric_->id(), std::move(event_values));
+    if (status != logger::kOK) {
+      LOG(ERROR) << "LogCustomEvent() failed with status " << status
+                 << ". metric=" << current_metric_->metric_name();
+      break;
+    }
+  }
+  *ostream_ << "Done." << std::endl;
 }
 
 void TestApp::ListParameters() {
@@ -597,6 +664,103 @@ bool TestApp::ParseNonNegativeInt(const std::string& str, bool complain,
     return false;
   }
   return true;
+}
+
+bool TestApp::ParseInt(const std::string& str, bool complain, int64_t* x) {
+  CHECK(x);
+  std::istringstream iss(str);
+  *x = 0;
+  iss >> *x;
+  char c;
+  if (*x == 0 || iss.fail() || iss.get(c)) {
+    if (complain) {
+      if (mode_ == kInteractive) {
+        *ostream_ << "Expected positive integer instead of " << str << "."
+                  << std::endl;
+      } else {
+        LOG(ERROR) << "Expected positive integer instead of " << str;
+      }
+    }
+    return false;
+  }
+  return true;
+}
+
+bool TestApp::ParseIndex(const std::string& str, uint32_t* index) {
+  CHECK(index);
+  if (str.size() < 7) {
+    return false;
+  }
+  if (str.substr(0, 6) != "index=") {
+    return false;
+  }
+  auto index_string = str.substr(6);
+  std::istringstream iss(index_string);
+  int64_t possible_index;
+  iss >> possible_index;
+  char c;
+  if (iss.fail() || iss.get(c) || possible_index < 0 ||
+      possible_index > UINT32_MAX) {
+    if (mode_ == kInteractive) {
+      *ostream_ << "Expected small non-negative integer instead of "
+                << index_string << "." << std::endl;
+    } else {
+      LOG(ERROR) << "Expected small non-negative integer instead of  "
+                 << index_string;
+    }
+    return false;
+  }
+  *index = possible_index;
+  return true;
+}
+
+// Parses a string of the form <part>:<value> and writes <part> into |part_name|
+// and <value> into |value|.
+// Returns true if and only if this succeeds.
+bool TestApp::ParsePartValuePair(const std::string& pair,
+                                 std::string* part_name, std::string* value) {
+  CHECK(part_name);
+  CHECK(value);
+  if (pair.size() < 3) {
+    return false;
+  }
+
+  auto index1 = pair.find(':');
+  if (index1 == std::string::npos || index1 == 0 || index1 > pair.size() - 2) {
+    return false;
+  }
+
+  *part_name = std::string(pair, 0, index1);
+  *value = std::string(pair, index1 + 1);
+
+  return true;
+}
+
+CustomDimensionValue TestApp::ParseCustomDimensionValue(
+    std::string value_string) {
+  CustomDimensionValue value;
+  int64_t int_val;
+  uint32_t index;
+
+  if (ParseInt(value_string, false, &int_val)) {
+    value.set_int_value(int_val);
+  } else if (ParseIndex(value_string, &index)) {
+    value.set_index_value(index);
+  } else {
+    value.set_string_value(value_string);
+  }
+  return value;
+}
+
+EventValuesPtr TestApp::NewCustomEvent(std::vector<std::string> dimension_names,
+                                       std::vector<std::string> values) {
+  CHECK(dimension_names.size() == values.size());
+  EventValuesPtr custom_event = std::make_unique<
+      google::protobuf::Map<std::string, CustomDimensionValue>>();
+  for (auto i = 0u; i < values.size(); i++) {
+    (*custom_event)[dimension_names[i]] = ParseCustomDimensionValue(values[i]);
+  }
+  return custom_event;
 }
 
 }  // namespace cobalt

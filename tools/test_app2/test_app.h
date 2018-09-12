@@ -86,6 +86,11 @@ class TestApp {
   void Log(const std::vector<std::string>& command);
   void LogEvent(uint64_t num_clients, const std::vector<std::string>& command);
   void LogEvent(size_t num_clients, uint32_t event_type_index);
+  void LogCustomEvent(uint64_t num_clients,
+                      const std::vector<std::string>& command);
+  void LogCustomEvent(uint64_t num_clients,
+                      const std::vector<std::string>& metric_parts,
+                      const std::vector<std::string>& values);
 
   void ListParameters();
 
@@ -95,7 +100,23 @@ class TestApp {
 
   void Show(const std::vector<std::string>& command);
 
+  bool ParseInt(const std::string& str, bool complain, int64_t* x);
+
+  bool ParseIndex(const std::string& str, uint32_t* index);
+
   bool ParseNonNegativeInt(const std::string& str, bool complain, int64_t* x);
+
+  // Parses a string of the form <part>:<value> and writes <part> into
+  // |part_name| and <value> into |value|.
+  // Returns true if and only if this succeeds.
+  bool ParsePartValuePair(const std::string& pair, std::string* part_name,
+                          std::string* value);
+
+  CustomDimensionValue ParseCustomDimensionValue(std::string value_string);
+
+  logger::EventValuesPtr NewCustomEvent(
+      std::vector<std::string> dimension_names,
+      std::vector<std::string> values);
 
   const MetricDefinition* current_metric_;
   // The TestApp is in interactive mode unless set_mode() is invoked.
