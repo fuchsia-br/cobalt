@@ -102,24 +102,6 @@ func main() {
 		}
 	}
 
-	var outputFormatter config_parser.OutputFormatter
-	switch *outFormat {
-	case "bin":
-		outputFormatter = config_parser.BinaryOutput
-	case "b64":
-		outputFormatter = config_parser.Base64Output
-	case "cpp":
-		namespaceList := []string{}
-		if *namespace != "" {
-			namespaceList = strings.Split(*namespace, ",")
-		}
-		outputFormatter = config_parser.CppOutputFactory(*varName, namespaceList, configLocation)
-	case "dart":
-		outputFormatter = config_parser.DartOutputFactory(*varName, configLocation)
-	default:
-		glog.Exitf("'%v' is an invalid out_format parameter. 'bin', 'b64', 'cpp' and 'dart' are the only valid values for out_format.", *outFormat)
-	}
-
 	// First, we parse the configuration from the specified location.
 	configs := []config_parser.ProjectConfig{}
 	var pc config_parser.ProjectConfig
@@ -150,6 +132,27 @@ func main() {
 				glog.Exit(err)
 			}
 		}
+	}
+
+	var outputFormatter config_parser.OutputFormatter
+	switch *outFormat {
+	case "bin":
+		outputFormatter = config_parser.BinaryOutput
+	case "b64":
+		outputFormatter = config_parser.Base64Output
+	case "cpp":
+		namespaceList := []string{}
+		if *namespace != "" {
+			namespaceList = strings.Split(*namespace, ",")
+		}
+		outputFormatter = config_parser.CppOutputFactory(*varName, namespaceList, configLocation)
+	case "dart":
+		if len(configs) > 1 {
+			glog.Exitf("Dart output can only be used with a single project config.")
+		}
+		outputFormatter = config_parser.DartOutputFactory(*varName, configLocation)
+	default:
+		glog.Exitf("'%v' is an invalid out_format parameter. 'bin', 'b64', 'cpp' and 'dart' are the only valid values for out_format.", *outFormat)
 	}
 
 	c := config_parser.MergeConfigs(configs)

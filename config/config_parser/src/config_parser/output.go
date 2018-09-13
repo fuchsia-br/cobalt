@@ -11,8 +11,9 @@ import (
 	"config"
 	"encoding/base64"
 	"fmt"
-	"github.com/golang/protobuf/proto"
 	"strings"
+
+	"github.com/golang/protobuf/proto"
 )
 
 type OutputFormatter func(c *config.CobaltConfig) (outputBytes []byte, err error)
@@ -137,6 +138,18 @@ func CppOutputFactory(varName string, namespace []string, configLocation string)
 	}
 }
 
+func writeMetricIdConstantsDart(out *bytes.Buffer, entries map[string]uint32) {
+	if len(entries) == 0 {
+		return
+	}
+	out.WriteString("// Metric ID Constants\n")
+	for name, id := range entries {
+		name = strings.Join(strings.Split(name, " "), "")
+		out.WriteString(fmt.Sprintf("const k%sMetricId = %d;\n", name, id))
+	}
+	out.WriteString("\n")
+}
+
 // Returns an output formatter that will output the contents of a Dart file
 // that contains a variable declaration for a string literal that contains
 // the base64-encoding of the serialized proto.
@@ -159,6 +172,23 @@ func DartOutputFactory(varName string, configLocation string) OutputFormatter {
 		out.WriteString("// configuration YAML in the following location:\n")
 		out.WriteString(fmt.Sprintf("// %s\n", configLocation))
 		out.WriteString("// Edit the YAML at that location to make changes.\n\n")
+
+		if len(c.Customers) > 0 {
+			metrics := make(map[string]uint32)
+			if len(c.Customers) > 1 || len(c.Customers[0].Projects) > 1 {
+				return outputBytes, fmt.Errorf("Dart output can only be used with a single project config.")
+			}
+			for _, metric := range c.Customers[0].Projects[0].Metrics {
+				if metric.MetricName != "" {
+					if _, ok := metrics[metric.MetricName]; ok {
+						return outputBytes, fmt.Errorf("Duplicate metric name found %v", metric.MetricName)
+					}
+					metrics[metric.MetricName] = metric.Id
+				}
+			}
+			// Write out the 'Metric' constants (e.g. kTestMetricId)
+			writeMetricIdConstantsDart(out, metrics)
+		}
 
 		out.WriteString("// The base64 encoding of the bytes of a serialized CobaltConfig proto message.\n")
 		out.WriteString("const String ")
