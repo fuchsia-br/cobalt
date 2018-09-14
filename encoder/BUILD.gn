@@ -19,8 +19,6 @@ static_library("encoder") {
     "memory_observation_store.cc",
     "file_observation_store.h",
     "file_observation_store.cc",
-    "posix_file_system.h",
-    "posix_file_system.cc",
     "send_retryer.cc",
     "send_retryer.h",
     "shipping_manager.cc",
