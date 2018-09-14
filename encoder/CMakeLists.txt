@@ -80,10 +80,10 @@ add_executable(encoder_tests
                shuffler_client_test.cc
                system_data_test.cc
                ${FILE_OBSERVATION_STORE_TEST_CONFIG_H}
-               file_observation_store_test.cc
-               posix_file_system.cc)
+               file_observation_store_test.cc)
 target_link_libraries(encoder_tests
                       client_secret
-                      encoder)
+                      encoder
+                      posix_file_system)
 add_cobalt_test_dependencies(encoder_tests ${DIR_GTESTS})
 add_dependencies(encoder_tests build_config_parser)

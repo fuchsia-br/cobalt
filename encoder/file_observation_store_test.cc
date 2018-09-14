@@ -10,7 +10,7 @@
 #include "encoder/client_secret.h"
 #include "encoder/encoder.h"
 #include "encoder/file_observation_store.h"
-#include "encoder/posix_file_system.h"
+#include "util/posix_file_system.h"
 // Generated from file_observation_store_test_config.yaml
 #include "encoder/file_observation_store_test_config.h"
 
@@ -19,6 +19,7 @@ namespace encoder {
 
 using config::ClientConfig;
 using util::EncryptedMessageMaker;
+using util::PosixFileSystem;
 
 namespace {
 

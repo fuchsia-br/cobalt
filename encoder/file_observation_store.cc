@@ -15,6 +15,7 @@ namespace cobalt {
 namespace encoder {
 
 using tensorflow_statusor::StatusOr;
+using util::FileSystem;
 using util::Status;
 using util::StatusCode;
 
@@ -27,11 +28,11 @@ const char kActiveFileName[] = "in_progress.data";
 // range 1000000-9999999.
 const std::regex kFinalizedFileRegex(R"(\d{13}-\d{7}.data)");
 
-FileObservationStore::FileObservationStore(
-    size_t max_bytes_per_observation, size_t max_bytes_per_envelope,
-    size_t max_bytes_total,
-    std::unique_ptr<FileObservationStore::FileSystem> fs,
-    const std::string &root_directory)
+FileObservationStore::FileObservationStore(size_t max_bytes_per_observation,
+                                           size_t max_bytes_per_envelope,
+                                           size_t max_bytes_total,
+                                           std::unique_ptr<FileSystem> fs,
+                                           const std::string &root_directory)
     : ObservationStore(max_bytes_per_observation, max_bytes_per_envelope,
                        max_bytes_total),
       fs_(std::move(fs)),

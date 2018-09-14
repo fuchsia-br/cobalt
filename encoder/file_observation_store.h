@@ -18,6 +18,7 @@
 #include "encoder/observation_store.h"
 #include "third_party/protobuf/src/google/protobuf/io/zero_copy_stream_impl.h"
 #include "third_party/tensorflow_statusor/statusor.h"
+#include "util/file_system.h"
 #include "util/protected_fields.h"
 
 namespace cobalt {
@@ -33,57 +34,6 @@ namespace encoder {
 // This object is thread safe.
 class FileObservationStore : public ObservationStore {
  public:
-  // FileSystem is an abstract class used for interacting with the file system
-  // in a platform independent way.
-  class FileSystem {
-   public:
-    // MakeDirectory creates a directory on the file system.
-    //
-    // |directory|. An absolute path to the directory to be created.
-    //
-    // Returns: True if the directory was created successfully.
-    virtual bool MakeDirectory(const std::string &directory) = 0;
-
-    // ListFiles lists the files in a given directory.
-    //
-    // |directory|. An absolute path to the directory to list.
-    //
-    // Returns: A StatusOr with a vector of filenames. An Ok status indicates
-    // that the list operation succeeded, even if the vector is empty.
-    //
-    // Note: On unix like systems, the directories "." and ".." should not be
-    // returned.
-    virtual tensorflow_statusor::StatusOr<std::vector<std::string>> ListFiles(
-        const std::string &directory) = 0;
-
-    // Delete deletes a file or an empty directory.
-    //
-    // |file|. An absolute path to the file or directory to be deleted.
-    //
-    // Returns: True if the file was successfully deleted.
-    virtual bool Delete(const std::string &file) = 0;
-
-    // FileSize returns the size of the |file| on disk.
-    //
-    // |file|. An absolute path to the file whose size is needed.
-    //
-    // Returns: A StatusOr containing the size of the file in bytes. An OK
-    // status indicates that the FileSize operation succeeded, even if the
-    // size_t is 0.
-    virtual tensorflow_statusor::StatusOr<size_t> FileSize(
-        const std::string &file) = 0;
-
-    // Rename renames a file.
-    //
-    // |from|. An absolute path to the file that is to be renamed.
-    // |to|. An absolute path to the new name for the file.
-    //
-    // Returns: True if the file was renamed successfully.
-    virtual bool Rename(const std::string &from, const std::string &to) = 0;
-
-    virtual ~FileSystem() {}
-  };
-
   // FileEnvelopeHolder is an implementation of
   // ObservationStore::EnvelopeHolder.
   //
@@ -100,7 +50,7 @@ class FileObservationStore : public ObservationStore {
     // observation files are written. (e.g. /system/data/cobalt_legacy)
     //
     // |file_name|. The file name for the file containing the observations.
-    FileEnvelopeHolder(FileSystem *fs, const std::string &root_directory,
+    FileEnvelopeHolder(util::FileSystem *fs, const std::string &root_directory,
                        const std::string &file_name)
         : fs_(fs),
           root_directory_(root_directory),
@@ -118,7 +68,7 @@ class FileObservationStore : public ObservationStore {
    private:
     std::string FullPath(const std::string &filename) const;
 
-    FileSystem *fs_;
+    util::FileSystem *fs_;
     const std::string root_directory_;
 
     // file_names contains a set of file names that contain observations.
@@ -137,7 +87,7 @@ class FileObservationStore : public ObservationStore {
   // files should be written. (e.g. /system/data/cobalt_legacy)
   FileObservationStore(size_t max_bytes_per_observation,
                        size_t max_bytes_per_envelope, size_t max_bytes_total,
-                       std::unique_ptr<FileSystem> fs,
+                       std::unique_ptr<util::FileSystem> fs,
                        const std::string &root_directory);
 
   StoreStatus AddEncryptedObservation(
@@ -200,7 +150,7 @@ class FileObservationStore : public ObservationStore {
   google::protobuf::io::OstreamOutputStream *GetActiveFile(
       util::ProtectedFields<Fields>::LockedFieldsPtr *fields);
 
-  const std::unique_ptr<FileSystem> fs_;
+  const std::unique_ptr<util::FileSystem> fs_;
   const std::string root_directory_;
   const std::string active_file_name_;
   mutable std::random_device random_dev_;

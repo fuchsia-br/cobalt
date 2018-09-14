@@ -37,3 +37,11 @@ add_library(status
             status_codes.h
             status.h)
 add_cobalt_dependencies(status)
+
+add_library(posix_file_system
+            posix_file_system.h
+            posix_file_system.cc)
+target_link_libraries(posix_file_system
+                      status
+                      tensorflow_statusor)
+add_cobalt_dependencies(posix_file_system)

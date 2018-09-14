@@ -2,20 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef COBALT_ENCODER_POSIX_FILE_SYSTEM_H_
-#define COBALT_ENCODER_POSIX_FILE_SYSTEM_H_
+#ifndef COBALT_UTIL_POSIX_FILE_SYSTEM_H_
+#define COBALT_UTIL_POSIX_FILE_SYSTEM_H_
 
 #include <string>
 #include <vector>
 
-#include "encoder/file_observation_store.h"
+#include "util/file_system.h"
 
 namespace cobalt {
-namespace encoder {
+namespace util {
 
-// PosixFileSystem implements FileObservationStore::FileSystem for posix
-// compliant systems.
-class PosixFileSystem : public FileObservationStore::FileSystem {
+// PosixFileSystem implements FileSystem for posix compliant systems.
+class PosixFileSystem : public FileSystem {
  public:
   bool MakeDirectory(const std::string &directory) override;
   tensorflow_statusor::StatusOr<std::vector<std::string>> ListFiles(
@@ -26,7 +25,7 @@ class PosixFileSystem : public FileObservationStore::FileSystem {
   bool Rename(const std::string &from, const std::string &to) override;
 };
 
-}  // namespace encoder
+}  // namespace util
 }  // namespace cobalt
 
-#endif  // COBALT_ENCODER_POSIX_FILE_SYSTEM_H_
+#endif  // COBALT_UTIL_POSIX_FILE_SYSTEM_H_

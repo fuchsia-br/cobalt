@@ -9,10 +9,10 @@
 #include <memory>
 #include <sstream>
 
-#include "encoder/posix_file_system.h"
+#include "util/posix_file_system.h"
 
 namespace cobalt {
-namespace encoder {
+namespace util {
 
 using tensorflow_statusor::StatusOr;
 using util::Status;
@@ -68,5 +68,5 @@ bool PosixFileSystem::Rename(const std::string &from, const std::string &to) {
   return std::rename(from.c_str(), to.c_str()) == 0;
 }
 
-}  // namespace encoder
+}  // namespace util
 }  // namespace cobalt
