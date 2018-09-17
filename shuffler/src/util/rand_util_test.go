@@ -105,14 +105,6 @@ func TestSecureRandom(t *testing.T) {
 		t.Errorf("got [%v], want a random string", bytes1Str)
 	}
 
-	bytes2, err := r.RandomBytes(num)
-	if err != nil {
-		t.Errorf("got error [%v], want random bytes", err)
-	}
-	if bytes.Equal(bytes1, bytes2) {
-		t.Errorf("got [%v], expected a random string on every call", string(bytes2))
-	}
-
 	if len(bytes1Str) != int(num) {
 		t.Errorf("got string [%v], expecting a string of length [%d]", bytes1Str, num)
 	}
@@ -134,13 +126,4 @@ func TestSecureRandom(t *testing.T) {
 		t.Errorf("got [%d], want a random integer between [0] and [%d]", n, max)
 	}
 
-	// subsequent random number generation within the range
-	p, err := r.RandomUint63(max)
-	if err != nil {
-		t.Errorf("got error [%v], want success", err)
-	}
-
-	if n == p {
-		t.Errorf("got [%d], expected randomness in next generated number", p)
-	}
 }
