@@ -27,6 +27,11 @@ std::unique_ptr<ProjectConfigs> ProjectConfigs::CreateFromCobaltConfigBytes(
     LOG(ERROR) << "Unable to parse a CobaltConfig from the provided bytes.";
     return nullptr;
   }
+  return CreateFromCobaltConfigProto(std::move(cobalt_config));
+}
+
+std::unique_ptr<ProjectConfigs> ProjectConfigs::CreateFromCobaltConfigProto(
+    std::unique_ptr<CobaltConfig> cobalt_config) {
   return std::make_unique<ProjectConfigs>(std::move(cobalt_config));
 }
 
@@ -36,10 +41,20 @@ ProjectConfigs::ProjectConfigs(std::unique_ptr<CobaltConfig> cobalt_config)
     customers_by_id_[customer.customer_id()] = &customer;
     customers_by_name_[customer.customer_name()] = &customer;
     for (const auto& project : customer.projects()) {
-      projects_by_id_[std::make_pair(customer.customer_id(),
-                                     project.project_id())] = &project;
-      projects_by_name_[std::make_pair(customer.customer_name(),
-                                       project.project_name())] = &project;
+      projects_by_id_[std::make_tuple(customer.customer_id(),
+                                      project.project_id())] = &project;
+      projects_by_name_[std::make_tuple(customer.customer_name(),
+                                        project.project_name())] = &project;
+      for (const auto& metric : project.metrics()) {
+        metrics_by_id_[std::make_tuple(customer.customer_id(),
+                                       project.project_id(), metric.id())] =
+            &metric;
+        for (const auto& report : metric.reports()) {
+          reports_by_id_[std::make_tuple(customer.customer_id(),
+                                         project.project_id(), metric.id(),
+                                         report.id())] = &report;
+        }
+      }
     }
   }
 }
@@ -64,7 +79,7 @@ const CustomerConfig* ProjectConfigs::GetCustomerConfig(
 const ProjectConfig* ProjectConfigs::GetProjectConfig(
     const std::string& customer_name, const std::string& project_name) const {
   auto iter =
-      projects_by_name_.find(std::make_pair(customer_name, project_name));
+      projects_by_name_.find(std::make_tuple(customer_name, project_name));
   if (iter == projects_by_name_.end()) {
     return nullptr;
   }
@@ -72,8 +87,29 @@ const ProjectConfig* ProjectConfigs::GetProjectConfig(
 }
 const ProjectConfig* ProjectConfigs::GetProjectConfig(
     uint32_t customer_id, uint32_t project_id) const {
-  auto iter = projects_by_id_.find(std::make_pair(customer_id, project_id));
+  auto iter = projects_by_id_.find(std::make_tuple(customer_id, project_id));
   if (iter == projects_by_id_.end()) {
+    return nullptr;
+  }
+  return iter->second;
+}
+
+const MetricDefinition* ProjectConfigs::GetMetricDefinition(
+    uint32_t customer_id, uint32_t project_id, uint32_t metric_id) const {
+  auto iter =
+      metrics_by_id_.find(std::make_tuple(customer_id, project_id, metric_id));
+  if (iter == metrics_by_id_.end()) {
+    return nullptr;
+  }
+  return iter->second;
+}
+
+const ReportDefinition* ProjectConfigs::GetReportDefinition(
+    uint32_t customer_id, uint32_t project_id, uint32_t metric_id,
+    uint32_t report_id) const {
+  auto iter = reports_by_id_.find(
+      std::make_tuple(customer_id, project_id, metric_id, report_id));
+  if (iter == reports_by_id_.end()) {
     return nullptr;
   }
   return iter->second;

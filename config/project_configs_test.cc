@@ -15,6 +15,7 @@ namespace config {
 
 namespace {
 
+const size_t kNumReportsPerMetric = 3;
 const size_t kNumMetricsPerProject = 5;
 const size_t kNumCustomers = 2;
 
@@ -27,9 +28,17 @@ std::string NameForId(uint32_t id) {
 // We create 3n projects for customer n.
 size_t NumProjectsForCustomer(uint32_t customer_id) { return 3 * customer_id; }
 
+void SetupReport(uint32_t report_id, ReportDefinition* report) {
+  report->set_id(report_id);
+  report->set_report_name(NameForId(report_id));
+}
+
 void SetupMetric(uint32_t metric_id, MetricDefinition* metric) {
   metric->set_id(metric_id);
   metric->set_metric_name(NameForId(metric_id));
+  for (size_t i = 1u; i < kNumReportsPerMetric; i++) {
+    SetupReport(i, metric->add_reports());
+  }
 }
 
 void SetupProject(uint32_t project_id, ProjectConfig* project) {
@@ -171,6 +180,102 @@ class ProjectConfigsTest : public ::testing::Test {
     return true;
   }
 };
+
+// Test GetCustomerConfig by id.
+TEST_F(ProjectConfigsTest, GetCustomerConfigById) {
+  ProjectConfigs project_configs(NewTestConfig());
+  const CustomerConfig* customer;
+
+  customer = project_configs.GetCustomerConfig(1);
+  EXPECT_NE(customer, nullptr);
+  EXPECT_EQ(customer->customer_id(), 1u);
+
+  customer = project_configs.GetCustomerConfig(2);
+  EXPECT_NE(customer, nullptr);
+  EXPECT_EQ(customer->customer_id(), 2u);
+
+  // Customer does not exist.
+  customer = project_configs.GetCustomerConfig(20);
+  EXPECT_EQ(customer, nullptr);
+}
+
+// Test GetProjectConfig by id.
+TEST_F(ProjectConfigsTest, GetProjectConfigById) {
+  ProjectConfigs project_configs(NewTestConfig());
+  const ProjectConfig* project;
+
+  project = project_configs.GetProjectConfig(1, 1);
+  EXPECT_NE(project, nullptr);
+  EXPECT_EQ(project->project_id(), 1u);
+
+  project = project_configs.GetProjectConfig(1, 2);
+  EXPECT_NE(project, nullptr);
+  EXPECT_EQ(project->project_id(), 2u);
+
+  // Customer does not exist.
+  project = project_configs.GetProjectConfig(20, 2);
+  EXPECT_EQ(project, nullptr);
+
+  // Customer exists, project does not exist.
+  project = project_configs.GetProjectConfig(1, 20);
+  EXPECT_EQ(project, nullptr);
+}
+
+// Test GetMetricDefintion.
+TEST_F(ProjectConfigsTest, GetMetricDefinitionById) {
+  ProjectConfigs project_configs(NewTestConfig());
+  const MetricDefinition* metric;
+
+  metric = project_configs.GetMetricDefinition(1, 1, 1);
+  EXPECT_NE(metric, nullptr);
+  EXPECT_EQ(metric->id(), 1u);
+
+  metric = project_configs.GetMetricDefinition(1, 1, 2);
+  EXPECT_NE(metric, nullptr);
+  EXPECT_EQ(metric->id(), 2u);
+
+  // Customer does not exist.
+  metric = project_configs.GetMetricDefinition(20, 1, 2);
+  EXPECT_EQ(metric, nullptr);
+
+  // Customer exists, project does not exist.
+  metric = project_configs.GetMetricDefinition(1, 20, 2);
+  EXPECT_EQ(metric, nullptr);
+
+  // Customer exists, project exists, metric does not exist.
+  metric = project_configs.GetMetricDefinition(1, 1, 20);
+  EXPECT_EQ(metric, nullptr);
+}
+
+// Test GetReportDefinition.
+TEST_F(ProjectConfigsTest, GetReportDefinitionById) {
+  ProjectConfigs project_configs(NewTestConfig());
+  const ReportDefinition* report;
+
+  report = project_configs.GetReportDefinition(1, 1, 1, 1);
+  EXPECT_NE(report, nullptr);
+  EXPECT_EQ(report->id(), 1u);
+
+  report = project_configs.GetReportDefinition(1, 1, 1, 2);
+  EXPECT_NE(report, nullptr);
+  EXPECT_EQ(report->id(), 2u);
+
+  // Customer does not exist.
+  report = project_configs.GetReportDefinition(20, 1, 2, 2);
+  EXPECT_EQ(report, nullptr);
+
+  // Customer exists, project does not exist.
+  report = project_configs.GetReportDefinition(1, 20, 2, 2);
+  EXPECT_EQ(report, nullptr);
+
+  // Customer exists, project exists, metric does not exist.
+  report = project_configs.GetReportDefinition(1, 1, 20, 2);
+  EXPECT_EQ(report, nullptr);
+
+  // Customer exists, project exists, metric exist, report does not exist.
+  report = project_configs.GetReportDefinition(1, 1, 1, 20);
+  EXPECT_EQ(report, nullptr);
+}
 
 // Tests using a ProjectConfigs constructed directly from a
 // CobaltConfig

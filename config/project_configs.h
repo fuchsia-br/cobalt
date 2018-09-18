@@ -8,6 +8,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include "config/cobalt_config.pb.h"
@@ -32,6 +33,10 @@ class ProjectConfigs {
   static std::unique_ptr<ProjectConfigs> CreateFromCobaltConfigBytes(
       const std::string& cobalt_config_bytes);
 
+  // Constructs and returns and instance of ProjectConfigs from |cobalt_config|.
+  static std::unique_ptr<ProjectConfigs> CreateFromCobaltConfigProto(
+      std::unique_ptr<CobaltConfig> cobalt_config);
+
   // Constructs a ProjectConfigs that wraps the given |cobalt_config|.
   explicit ProjectConfigs(std::unique_ptr<CobaltConfig> cobalt_config);
 
@@ -54,6 +59,20 @@ class ProjectConfigs {
   const ProjectConfig* GetProjectConfig(uint32_t customer_id,
                                         uint32_t project_id) const;
 
+  // Returns the MetricDefinition for the metric with the given
+  // (customer_id, project_id, metric_id), or nullptr if no such metric exists.
+  const MetricDefinition* GetMetricDefinition(uint32_t customer_id,
+                                              uint32_t project_id,
+                                              uint32_t metric_id) const;
+
+  // Returns the ReportDefinition for the metric with the given
+  // (customer_id, project_id, metric_id, report_id), or nullptr if no such
+  // report exists.
+  const ReportDefinition* GetReportDefinition(uint32_t customer_id,
+                                              uint32_t project_id,
+                                              uint32_t metric_id,
+                                              uint32_t report_id) const;
+
  private:
   std::unique_ptr<CobaltConfig> cobalt_config_;
 
@@ -61,10 +80,18 @@ class ProjectConfigs {
 
   std::map<uint32_t, const CustomerConfig*> customers_by_id_;
 
-  std::map<std::pair<std::string, std::string>, const ProjectConfig*>
+  std::map<std::tuple<std::string, std::string>, const ProjectConfig*>
       projects_by_name_;
 
-  std::map<std::pair<uint32_t, uint32_t>, const ProjectConfig*> projects_by_id_;
+  std::map<std::tuple<uint32_t, uint32_t>, const ProjectConfig*>
+      projects_by_id_;
+
+  std::map<std::tuple<uint32_t, uint32_t, uint32_t>, const MetricDefinition*>
+      metrics_by_id_;
+
+  std::map<std::tuple<uint32_t, uint32_t, uint32_t, uint32_t>,
+           const ReportDefinition*>
+      reports_by_id_;
 };
 
 }  // namespace config
