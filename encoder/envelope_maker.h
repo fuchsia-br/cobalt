@@ -83,9 +83,7 @@ class EnvelopeMaker : public ObservationStore::EnvelopeHolder {
   bool Empty() const { return envelope_.batch_size() == 0; }
 
   void Clear() {
-    SystemProfile* saved_profile = envelope_.release_system_profile();
     envelope_.Clear();
-    envelope_.set_allocated_system_profile(saved_profile);
     batch_map_.clear();
     num_bytes_ = 0;
   }

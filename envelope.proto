@@ -1,0 +1,21 @@
+// Copyright 2018 The Fuchsia Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+syntax = "proto3";
+
+package cobalt;
+
+option go_package = "cobalt";
+
+import "observation_batch.proto";
+
+// An envelope contains multiple ObservationBatches. An encrypted Envelope
+// is the unit sent from an Encoder client to a Shuffler.
+message Envelope {
+  // We used to put a SystemProfile into an Envelope but we no longer do.
+  // Now we only put SystemProfiles into ObservationBatches.
+  reserved 3;
+  reserved "system_profile";
+
+  repeated ObservationBatch batch = 1;
+}

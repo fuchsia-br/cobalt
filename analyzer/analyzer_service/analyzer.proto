@@ -18,8 +18,8 @@ package cobalt.analyzer;
 
 option go_package = "analyzer_service";
 
-import "observation.proto";
 import "google/protobuf/empty.proto";
+import "observation_batch.proto";
 
 // The Analyzer receives observations from the shufflers.  Reports based on
 // these observations are periodically generated and published.

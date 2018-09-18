@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "./observation.pb.h"
+#include "./observation_batch.pb.h"
 #include "analyzer/store/data_store.h"
 #include "config/metric_config.h"
 #include "config/report_configs.pb.h"

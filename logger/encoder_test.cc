@@ -181,9 +181,6 @@ void CheckSystemProfile(const Encoder::Result& result,
   EXPECT_EQ(expected_board_name,
             result.metadata->system_profile().board_name());
   EXPECT_EQ(expected_product, result.metadata->system_profile().product_name());
-  // Note build_level is deprecated. Here we only test that it is unset.
-  EXPECT_EQ(SystemProfile::UNKNOWN,
-            result.metadata->system_profile().build_level());
 }
 
 void CheckDefaultSystemProfile(const Encoder::Result& result) {

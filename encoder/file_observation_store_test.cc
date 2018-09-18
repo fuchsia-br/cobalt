@@ -74,13 +74,6 @@ class FakeSystemData : public SystemDataInterface {
     return system_profile_;
   };
 
-  static void CheckSystemProfile(const Envelope &envelope) {
-    // SystemProfile is not placed in the envelope at this time.
-    EXPECT_EQ(SystemProfile::UNKNOWN_OS, envelope.system_profile().os());
-    EXPECT_EQ(SystemProfile::UNKNOWN_ARCH, envelope.system_profile().arch());
-    EXPECT_EQ("", envelope.system_profile().board_name());
-  }
-
  private:
   SystemProfile system_profile_;
 };

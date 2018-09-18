@@ -71,13 +71,6 @@ class FakeSystemData : public SystemDataInterface {
     return system_profile_;
   };
 
-  static void CheckSystemProfile(const Envelope& envelope) {
-    // SystemProfile is not placed in the envelope at this time.
-    EXPECT_EQ(SystemProfile::UNKNOWN_OS, envelope.system_profile().os());
-    EXPECT_EQ(SystemProfile::UNKNOWN_ARCH, envelope.system_profile().arch());
-    EXPECT_EQ("", envelope.system_profile().board_name());
-  }
-
  private:
   SystemProfile system_profile_;
 };
@@ -293,7 +286,6 @@ class EnvelopeMakerTest : public ::testing::Test {
       EXPECT_EQ(i + 1, recovered_envelope.batch(i).meta_data().metric_id());
       EXPECT_EQ(4, recovered_envelope.batch(i).encrypted_observation_size());
     }
-    FakeSystemData::CheckSystemProfile(recovered_envelope);
   }
 
  protected:

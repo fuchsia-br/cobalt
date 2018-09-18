@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package cobalt.encoder;
 
-import "observation.proto";
+import "observation_batch.proto";
 import "encrypted_message.proto";
 
 // ObservationStoreRecord is used internally by FileObservationStore for

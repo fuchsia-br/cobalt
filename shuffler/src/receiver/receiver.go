@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/golang/protobuf/proto"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -102,22 +101,6 @@ func (s *ShufflerServer) Process(ctx context.Context,
 	// some dispatch criteria. The data store shuffles the order of the
 	// Observation before persisting.
 	batches := envelope.GetBatch()
-	systemProfile := envelope.GetSystemProfile()
-	if systemProfile != nil {
-		// For efficiency the client only sends the SystemProfile fields that are
-		// common across all Batches once per envelope.  Since we are about to break
-		// the Envelope up and shuffle its contents in with other Envelopes, here we
-		// copy the SystemProfile from the Envelope and merge it into each of the
-		// MetaData.
-		for _, b := range batches {
-			if b.MetaData.SystemProfile == nil {
-				profile := *systemProfile
-				b.MetaData.SystemProfile = &profile
-			} else {
-				proto.Merge(b.MetaData.GetSystemProfile(), systemProfile)
-			}
-		}
-	}
 	if err := s.store.AddAllObservations(batches, storage.GetDayIndexUtc(time.Now())); err != nil {
 		return nil, err
 	}

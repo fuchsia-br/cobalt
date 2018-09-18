@@ -19,6 +19,7 @@ package cobalt.analyzer;
 option go_package = "report_master";
 
 import "observation.proto";
+import "observation_batch.proto";
 import "config/report_configs.proto";
 import "google/protobuf/timestamp.proto";
 

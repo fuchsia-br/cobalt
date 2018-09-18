@@ -7,7 +7,7 @@
 
 #include <string>
 
-#include "./observation.pb.h"
+#include "./observation_batch.pb.h"
 
 namespace cobalt {
 namespace encoder {

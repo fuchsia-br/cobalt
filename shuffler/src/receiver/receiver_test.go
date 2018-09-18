@@ -49,18 +49,6 @@ func makeEnvelope(numBatches int, numObservationsPerBatch int) envelopeData {
 			metadata.SystemProfile.Arch = shufflerpb.SystemProfile_X86_64
 		}
 		expectedBucketKeys = append(expectedBucketKeys, *metadata)
-		// We either set the SystemProfile in the ObservationMetadata to be nil, or
-		// a value that is disjoint from the SystemProfile for the whole batch to
-		// simulate the fact that the encoder doesn't need to specify a
-		// SystemProfile for each batch, but if it does, the values should be
-		// merged.
-		if includeArchInProfile {
-			metadata.SystemProfile = &shufflerpb.SystemProfile{
-				Arch: shufflerpb.SystemProfile_X86_64,
-			}
-		} else {
-			metadata.SystemProfile = nil
-		}
 		batch = append(batch, &shufflerpb.ObservationBatch{
 			MetaData:             metadata,
 			EncryptedObservation: storage.MakeRandomEncryptedMsgs(numObservationsPerBatch),
@@ -68,7 +56,7 @@ func makeEnvelope(numBatches int, numObservationsPerBatch int) envelopeData {
 	}
 
 	return envelopeData{
-		envelope:           &shufflerpb.Envelope{SystemProfile: storage.NewFakeSystemProfile(), Batch: batch},
+		envelope:           &shufflerpb.Envelope{Batch: batch},
 		expectedBucketKeys: expectedBucketKeys,
 	}
 }
