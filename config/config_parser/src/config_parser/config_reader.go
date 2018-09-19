@@ -27,7 +27,7 @@ func ReadConfigFromDir(rootDir string) (c []ProjectConfig, err error) {
 		return c, err
 	}
 
-	if err := readConfig(r, &c); err != nil {
+	if err := ReadConfig(r, &c); err != nil {
 		return c, err
 	}
 
@@ -240,8 +240,8 @@ func readProjectsList(r configReader, l *[]ProjectConfig) (err error) {
 	return nil
 }
 
-// readConfig reads and parses the configuration for all projects from a configReader.
-func readConfig(r configReader, l *[]ProjectConfig) (err error) {
+// ReadConfig reads and parses the configuration for all projects from a configReader.
+func ReadConfig(r configReader, l *[]ProjectConfig) (err error) {
 	if err = readProjectsList(r, l); err != nil {
 		return err
 	}

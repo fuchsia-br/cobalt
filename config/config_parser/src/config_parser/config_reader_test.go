@@ -143,7 +143,7 @@ func TestReadProjectConfig(t *testing.T) {
 	}
 }
 
-// Tests the readConfig function's basic functionality.
+// Tests the ReadConfig function's basic functionality.
 func TestReadConfig(t *testing.T) {
 	r := memConfigReader{
 		customers: customersYaml}
@@ -151,7 +151,7 @@ func TestReadConfig(t *testing.T) {
 	r.SetProject("fuchsia", "module_usage_tracking", projectConfigYaml)
 	r.SetProject("test_customer", "test_project", projectConfigYaml)
 	l := []ProjectConfig{}
-	if err := readConfig(r, &l); err != nil {
+	if err := ReadConfig(r, &l); err != nil {
 		t.Errorf("Error reading project config: %v", err)
 	}
 
