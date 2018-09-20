@@ -70,7 +70,8 @@ message ObservationMetadata {
   uint32 metric_id = 3;
 
   // Starting in Cobalt 1.0 an Observation is for a particular Report.
-  // The triple (customer_id, project_id, report_id) specify the Report.
+  // The tuple (customer_id, project_id, metric_id, report_id) specifies the
+  // Report.
   uint32 report_id = 7;
 
   // The day on which the observation occurred, expressed as the zero-based
