@@ -319,7 +319,7 @@ void LassoRunner::RunFirstRapporStep(const int max_nonzero_coeffs,
   second_step_cols->clear();
   second_step_cols->reserve(how_many_nonzero_coeffs);
   for (int i = 0; i < est_candidate_weights->size(); i++) {
-    if (est_candidate_weights->coeffRef(i) > zero_threshold_) {
+    if (est_candidate_weights->coeff(i) > zero_threshold_) {
       second_step_cols->push_back(i);
     }
   }
