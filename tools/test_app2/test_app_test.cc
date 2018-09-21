@@ -74,7 +74,7 @@ class TestLoggerFactory : public LoggerFactory {
   std::unique_ptr<LoggerInterface> NewLogger() override;
 
   const ProjectContext* project_context() override;
-  bool SendAccumulatedObservtions() override;
+  bool SendAccumulatedObservations() override;
 
  private:
   const ProjectContext* project_context_;
@@ -91,7 +91,7 @@ const ProjectContext* TestLoggerFactory::project_context() {
   return project_context_;
 }
 
-bool TestLoggerFactory::SendAccumulatedObservtions() { return true; }
+bool TestLoggerFactory::SendAccumulatedObservations() { return true; }
 
 }  // namespace
 

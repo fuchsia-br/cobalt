@@ -24,6 +24,7 @@
 #include "glog/logging.h"
 #include "logger/encoder.h"
 #include "logger/project_context.h"
+#include "logger/status.h"
 #include "util/clearcut/curl_http_client.h"
 #include "util/pem_util.h"
 
@@ -33,14 +34,19 @@ using config::ProjectConfigs;
 using encoder::ClearcutV1ShippingManager;
 using encoder::ClientSecret;
 using encoder::MemoryObservationStore;
+using encoder::ObservationStoreWriterInterface;
 using encoder::ShippingManager;
 using encoder::SystemData;
 using encoder::SystemDataInterface;
 using logger::Encoder;
 using logger::EventValuesPtr;
+using logger::kOK;
+using logger::kOther;
 using logger::Logger;
 using logger::LoggerInterface;
+using logger::ObservationWriter;
 using logger::ProjectContext;
+using logger::Status;
 using util::EncryptedMessageMaker;
 using util::PemUtil;
 
@@ -228,7 +234,7 @@ class RealLoggerFactory : public LoggerFactory {
       std::unique_ptr<SystemDataInterface> system_data);
 
   std::unique_ptr<LoggerInterface> NewLogger() override;
-  bool SendAccumulatedObservtions() override;
+  bool SendAccumulatedObservations() override;
   const ProjectContext* project_context() override {
     return project_context_.get();
   }
@@ -241,6 +247,7 @@ class RealLoggerFactory : public LoggerFactory {
   std::unique_ptr<ClearcutV1ShippingManager> shipping_manager_;
   std::unique_ptr<SystemDataInterface> system_data_;
   std::unique_ptr<Encoder> encoder_;
+  std::unique_ptr<ObservationWriter> observation_writer_;
 };
 
 RealLoggerFactory::RealLoggerFactory(
@@ -260,12 +267,14 @@ RealLoggerFactory::RealLoggerFactory(
 std::unique_ptr<LoggerInterface> RealLoggerFactory::NewLogger() {
   encoder_.reset(
       new Encoder(ClientSecret::GenerateNewSecret(), system_data_.get()));
+  observation_writer_.reset(
+      new ObservationWriter(observation_store_.get(), shipping_manager_.get(),
+                            observation_encrypter_.get()));
   return std::unique_ptr<LoggerInterface>(new Logger(
-      encoder_.get(), observation_store_.get(), shipping_manager_.get(),
-      observation_encrypter_.get(), project_context_.get()));
+      encoder_.get(), observation_writer_.get(), project_context_.get()));
 }
 
-bool RealLoggerFactory::SendAccumulatedObservtions() {
+bool RealLoggerFactory::SendAccumulatedObservations() {
   shipping_manager_->RequestSendSoon();
   shipping_manager_->WaitUntilIdle(kDeadlinePerSendAttempt);
   auto status = shipping_manager_->last_send_status();
@@ -612,7 +621,7 @@ void TestApp::Send(const std::vector<std::string>& command) {
     return;
   }
 
-  if (logger_factory_->SendAccumulatedObservtions()) {
+  if (logger_factory_->SendAccumulatedObservations()) {
     if (mode_ == TestApp::kInteractive) {
       std::cout << "Send to server succeeded." << std::endl;
     } else {

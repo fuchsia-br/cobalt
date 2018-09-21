@@ -22,6 +22,8 @@ namespace encoder {
 // isolated into an abstract interface that can be mocked out in tests.
 class ObservationStoreWriterInterface {
  public:
+  virtual ~ObservationStoreWriterInterface() = default;
+
   enum StoreStatus {
     // AddEncryptedObservation() succeeded.
     kOk = 0,

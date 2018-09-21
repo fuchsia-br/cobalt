@@ -24,7 +24,7 @@ class LoggerFactory {
 
   virtual const logger::ProjectContext* project_context() = 0;
 
-  virtual bool SendAccumulatedObservtions() = 0;
+  virtual bool SendAccumulatedObservations() = 0;
 };
 
 // The Cobalt testing client application.

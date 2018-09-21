@@ -6,6 +6,11 @@ add_library(project_context
             project_context.cc)
 add_cobalt_dependencies(project_context)
 
+add_library(observation_writer
+            observation_writer.cc)
+add_cobalt_dependencies(observation_writer)
+
+
 add_library(encoder2
             encoder.cc)
 target_link_libraries(encoder2
@@ -20,6 +25,7 @@ add_library(logger
 target_link_libraries(logger
                       encoder2
                       encrypted_message_util
+                      observation_writer
                       project_context)
 add_cobalt_dependencies(logger)
 

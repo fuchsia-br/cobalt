@@ -12,6 +12,8 @@ namespace encoder {
 // notifications when an Observation has been added to the ObservationStore.
 class ObservationStoreUpdateRecipient {
  public:
+  virtual ~ObservationStoreUpdateRecipient() = default;
+
   // Notifies the Recipient that AddEncryptedObservation() has been invoked on
   // the ObservationStore.
   virtual void NotifyObservationsAdded() = 0;

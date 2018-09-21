@@ -256,6 +256,7 @@ class TestUpdateRecipient : public ObservationStoreUpdateRecipient {
 
   int invocation_count = 0;
 };
+
 }  // namespace
 
 class LoggerTest : public ::testing::Test {
@@ -266,13 +267,16 @@ class LoggerTest : public ::testing::Test {
     project_context_.reset(new ProjectContext(kCustomerId, kProjectId,
                                               kCustomerName, kProjectName,
                                               std::move(metric_definitions)));
+    observation_store_.reset(new FakeObservationStore);
+    update_recipient_.reset(new TestUpdateRecipient);
     observation_encrypter_.reset(
         new EncryptedMessageMaker("", EncryptedMessage::NONE));
-
+    observation_writer_.reset(
+        new ObservationWriter(observation_store_.get(), update_recipient_.get(),
+                              observation_encrypter_.get()));
     encoder_.reset(
         new Encoder(ClientSecret::GenerateNewSecret(), system_data_.get()));
-    logger_.reset(new Logger(encoder_.get(), &observation_store_,
-                             &update_recipient_, observation_encrypter_.get(),
+    logger_.reset(new Logger(encoder_.get(), observation_writer_.get(),
                              project_context_.get()));
   }
 
@@ -287,37 +291,37 @@ class LoggerTest : public ::testing::Test {
     CHECK(observations);
     size_t expected_num_received = observations->size();
     CHECK(expected_report_ids.size() == expected_num_received);
-    auto num_received = observation_store_.messages_received.size();
-    EXPECT_EQ(num_received, observation_store_.metadata_received.size());
-    if (num_received != observation_store_.metadata_received.size()) {
+    auto num_received = observation_store_->messages_received.size();
+    EXPECT_EQ(num_received, observation_store_->metadata_received.size());
+    if (num_received != observation_store_->metadata_received.size()) {
       return false;
     }
     EXPECT_EQ(num_received, expected_num_received);
     if (num_received != expected_num_received) {
       return false;
     }
-    num_received = update_recipient_.invocation_count;
+    num_received = update_recipient_->invocation_count;
     EXPECT_EQ(num_received, expected_num_received);
     if (num_received != expected_num_received) {
       return false;
     }
     MessageDecrypter message_decrypter("");
     for (auto i = 0u; i < expected_num_received; i++) {
-      bool isNull = (observation_store_.metadata_received[i].get() == nullptr);
+      bool isNull = (observation_store_->metadata_received[i].get() == nullptr);
       EXPECT_FALSE(isNull);
       if (isNull) {
         return false;
       }
-      EXPECT_EQ(observation_store_.metadata_received[i]->report_id(),
+      EXPECT_EQ(observation_store_->metadata_received[i]->report_id(),
                 expected_report_ids[i])
           << "i=" << i;
-      isNull = (observation_store_.messages_received[i].get() == nullptr);
+      isNull = (observation_store_->messages_received[i].get() == nullptr);
       EXPECT_FALSE(isNull);
       if (isNull) {
         return false;
       }
       bool successfullyDeserialized = message_decrypter.DecryptMessage(
-          *(observation_store_.messages_received[i]), &(observations->at(i)));
+          *(observation_store_->messages_received[i]), &(observations->at(i)));
       EXPECT_TRUE(successfullyDeserialized);
       if (!successfullyDeserialized) {
         return false;
@@ -386,8 +390,9 @@ class LoggerTest : public ::testing::Test {
 
   std::unique_ptr<Encoder> encoder_;
   std::unique_ptr<Logger> logger_;
-  FakeObservationStore observation_store_;
-  TestUpdateRecipient update_recipient_;
+  std::unique_ptr<ObservationWriter> observation_writer_;
+  std::unique_ptr<FakeObservationStore> observation_store_;
+  std::unique_ptr<TestUpdateRecipient> update_recipient_;
   std::unique_ptr<EncryptedMessageMaker> observation_encrypter_;
   std::unique_ptr<ProjectContext> project_context_;
   std::unique_ptr<SystemDataInterface> system_data_;

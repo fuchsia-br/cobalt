@@ -11,19 +11,17 @@
 #include <vector>
 
 #include "./observation2.pb.h"
-#include "encoder/observation_store.h"
-#include "encoder/observation_store_update_recipient.h"
 #include "logger/encoder.h"
 #include "logger/logger_interface.h"
+#include "logger/observation_writer.h"
 #include "logger/project_context.h"
 #include "logger/status.h"
 #include "util/clock.h"
-#include "util/encrypted_message_util.h"
 
 namespace cobalt {
 namespace logger {
 
-// Concrete implementation of LogerInterface.
+// Concrete implementation of LoggerInterface.
 //
 // After constructing a Logger use the Log*() methods to Log Events to Cobalt.
 //
@@ -38,22 +36,13 @@ class Logger : public LoggerInterface {
   // valid as long as the Logger is being used. The Logger uses this to
   // encode immediate Observations.
   //
-  // |observation_store| A writer interface to the system's singleton instance
-  // of Observation Store. This must remain valid as long as the Logger is
-  // being used. The Logger uses this to write immediate Observations.
+  // |observation_writer| An instance of ObservationWriter, used by the Logger
+  // to write immediate Observations to an ObservationStore. Must remain valid
+  // as long as the Logger is in use.
   //
-  // |update_recipient| The Logger uses this to notify the update recipient
-  // when an immediate Observation has been added to the Observation Store.
-  // This must remain valid as long as the Logger is being used.
-  //
-  // |observation_encrypter| This is used to encrypt immediate Observations
-  // to the public key of Cobalt's Analyzer prior to writing them into the
-  // Observation Store. This must remain valid as long as the Logger is being
-  // used.
-  Logger(const Encoder* encoder,
-         encoder::ObservationStoreWriterInterface* observation_store,
-         encoder::ObservationStoreUpdateRecipient* update_recipient,
-         const util::EncryptedMessageMaker* observation_encrypter,
+  // |project| The ProjectContext of the client-side project for which the
+  // Logger will log events.
+  Logger(const Encoder* encoder, ObservationWriter* observation_writer,
          const ProjectContext* project);
 
   virtual ~Logger() = default;
@@ -66,7 +55,7 @@ class Logger : public LoggerInterface {
 
   Status LogElapsedTime(uint32_t metric_id, uint32_t event_type_index,
                         const std::string& component,
-                        int64_t elpased_micros) override;
+                        int64_t elapsed_micros) override;
 
   Status LogFrameRate(uint32_t metric_id, uint32_t event_type_index,
                       const std::string& component, float fps) override;
@@ -86,17 +75,12 @@ class Logger : public LoggerInterface {
  private:
   friend class EventLogger;
 
-  Status WriteObservation(const Observation2& observation,
-                          std::unique_ptr<ObservationMetadata> metadata);
-
   void SetClock(std::unique_ptr<util::ClockInterface> clock) {
     clock_ = std::move(clock);
   }
 
   const Encoder* encoder_;
-  encoder::ObservationStoreWriterInterface* observation_store_;
-  encoder::ObservationStoreUpdateRecipient* update_recipient_;
-  const util::EncryptedMessageMaker* observation_encrypter_;
+  const ObservationWriter* observation_writer_;
   const ProjectContext* project_context_;
   std::unique_ptr<util::ClockInterface> clock_;
 };

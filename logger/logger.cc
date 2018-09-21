@@ -14,19 +14,14 @@
 #include "config/encodings.pb.h"
 #include "config/metric_definition.pb.h"
 #include "config/report_definition.pb.h"
-#include "encoder/observation_store.h"
 #include "logger/project_context.h"
 #include "util/clock.h"
 #include "util/datetime_util.h"
-#include "util/encrypted_message_util.h"
 
 namespace cobalt {
 namespace logger {
 
-using ::cobalt::encoder::ObservationStoreUpdateRecipient;
-using ::cobalt::encoder::ObservationStoreWriterInterface;
 using ::cobalt::util::ClockInterface;
-using ::cobalt::util::EncryptedMessageMaker;
 using ::cobalt::util::SystemClock;
 using ::cobalt::util::TimeToDayIndex;
 using ::google::protobuf::RepeatedPtrField;
@@ -226,23 +221,13 @@ class CustomEventLogger : public EventLogger {
 
 //////////////////// Logger method implementations ////////////////////////
 
-Logger::Logger(const Encoder* encoder,
-               ObservationStoreWriterInterface* observation_store,
-               ObservationStoreUpdateRecipient* update_recipient,
-               const EncryptedMessageMaker* observation_encrypter,
+Logger::Logger(const Encoder* encoder, ObservationWriter* observation_writer,
                const ProjectContext* project)
     : encoder_(encoder),
-      observation_store_(observation_store),
-      update_recipient_(update_recipient),
-      observation_encrypter_(observation_encrypter),
+      observation_writer_(observation_writer),
       project_context_(project),
       clock_(new SystemClock()) {
-  // event_store is allowed to be NULL for now.
-  CHECK(observation_store);
-  CHECK(update_recipient);
-  CHECK(observation_encrypter);
   CHECK(project);
-  // system_data is allowed to be NULL.
 }
 
 Status Logger::LogEvent(uint32_t metric_id, uint32_t event_type_index) {
@@ -327,35 +312,12 @@ Status Logger::LogString(uint32_t metric_id, const std::string& str) {
                            &event_record);
 }
 
-
 Status Logger::LogCustomEvent(uint32_t metric_id, EventValuesPtr event_values) {
   EventRecord event_record;
   auto* custom_event = event_record.event->mutable_custom_event();
   custom_event->mutable_values()->swap(*event_values);
   auto event_logger = std::make_unique<CustomEventLogger>(this);
-  return event_logger->Log(metric_id, MetricDefinition::CUSTOM,
-                           &event_record);
-}
-
-Status Logger::WriteObservation(const Observation2& observation,
-                                std::unique_ptr<ObservationMetadata> metadata) {
-  auto encrypted_observation = std::make_unique<EncryptedMessage>();
-  if (!observation_encrypter_->Encrypt(observation,
-                                       encrypted_observation.get())) {
-    LOG(ERROR) << "Encryption of an Observation failed.";
-    return kOther;
-  }
-  auto store_status = observation_store_->AddEncryptedObservation(
-      std::move(encrypted_observation), std::move(metadata));
-  if (store_status != ObservationStoreWriterInterface::kOk) {
-    LOG(ERROR)
-        << "ObservationStore::AddEncryptedObservation() failed with status "
-        << store_status;
-    return kOther;
-  }
-
-  update_recipient_->NotifyObservationsAdded();
-  return kOK;
+  return event_logger->Log(metric_id, MetricDefinition::CUSTOM, &event_record);
 }
 
 //////////////////// EventLogger method implementations ////////////////////////
@@ -452,8 +414,8 @@ Status EventLogger::MaybeGenerateImmediateObservation(
   if (encoder_result.observation == nullptr) {
     return kOK;
   }
-  return logger_->WriteObservation(*encoder_result.observation,
-                                   std::move(encoder_result.metadata));
+  return logger_->observation_writer_->WriteObservation(
+      *encoder_result.observation, std::move(encoder_result.metadata));
 }
 
 // The default implementation of MaybeEncodeImmediateObservation does nothing
@@ -463,6 +425,7 @@ Encoder::Result EventLogger::MaybeEncodeImmediateObservation(
     EventRecord* event_record) {
   Encoder::Result result;
   result.status = kOK;
+  result.observation = nullptr;
   return result;
 }
 
@@ -734,8 +697,7 @@ Encoder::Result CustomEventLogger::MaybeEncodeImmediateObservation(
   const MetricDefinition& metric = *(event_record->metric);
   const Event& event = *(event_record->event);
   CHECK(event.has_custom_event());
-  auto* custom_event =
-      event_record->event->mutable_custom_event();
+  auto* custom_event = event_record->event->mutable_custom_event();
   switch (report.report_type()) {
     // Each report type has its own logic for generating immediate
     // observations.
