@@ -1,0 +1,17 @@
+// Copyright 2018 The Fuchsia Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package cobalt;
+
+option go_package = "cobalt";
+
+// The state of a single experiment on a device.
+message Experiment {
+  // The id of the experiment as defined by the Experiment framework.
+  int64 experiment_id = 1;
+  // The id of the experiment arm as defined by the Experiment framework.
+  int64 arm_id = 2;
+}

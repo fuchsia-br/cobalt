@@ -17,6 +17,7 @@
 #include "config/client_config.h"
 #include "encoder/client_secret.h"
 #include "encoder/encoder.h"
+#include "encoder/fake_system_data.h"
 #include "encoder/memory_observation_store.h"
 #include "encoder/observation_store.h"
 #include "encoder/project_context.h"
@@ -68,22 +69,6 @@ std::shared_ptr<ProjectContext> GetTestProject() {
       kCustomerId, kProjectId,
       std::shared_ptr<ClientConfig>(client_config.release())));
 }
-
-class FakeSystemData : public SystemDataInterface {
- public:
-  FakeSystemData() {
-    system_profile_.set_os(SystemProfile::FUCHSIA);
-    system_profile_.set_arch(SystemProfile::ARM_64);
-    system_profile_.set_board_name("Fake Board Name");
-  }
-
-  const SystemProfile& system_profile() const override {
-    return system_profile_;
-  };
-
- private:
-  SystemProfile system_profile_;
-};
 
 struct FakeSendRetryer : public SendRetryerInterface {
   explicit FakeSendRetryer(uint32_t metric_id = kDefaultMetricId)

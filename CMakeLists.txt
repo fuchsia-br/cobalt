@@ -552,7 +552,7 @@ macro(cobalt_protobuf_generate_go TARGET_NAME SRCS_OUT USE_GRPC)
             -I ${CMAKE_SOURCE_DIR}
             -I ${PROTOBUF_INCLUDE_DIR}
             -I ${CMAKE_SOURCE_DIR}/third_party/go/src
-            --go_out=plugins=${_plugin_prefix}Mobservation.proto=cobalt,Mobservation_batch.proto=cobalt,Menvelope.proto=cobalt,Mencrypted_message.proto=cobalt:${_gen_root_dir}
+            --go_out=plugins=${_plugin_prefix}Mobservation.proto=cobalt,Mobservation_batch.proto=cobalt,Menvelope.proto=cobalt,Mencrypted_message.proto=cobalt,Mexperiment.proto=cobalt:${_gen_root_dir}
     DEPENDS ${_protofiles}
     DEPENDS build_external_projects
   )
@@ -620,6 +620,7 @@ cobalt_make_protobuf_cpp_lib(cobalt_proto_lib
                              encrypted_message
                              envelope
                              event
+                             experiment
                              observation
                              observation2
                              observation_batch)
@@ -630,6 +631,7 @@ cobalt_protobuf_generate_go(generate_cobalt_pb_go_files
                             false
                             encrypted_message
                             envelope
+                            experiment
                             observation
                             observation_batch)
 

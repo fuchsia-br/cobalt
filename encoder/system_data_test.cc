@@ -48,6 +48,23 @@ TEST(SystemDataTest, BasicTest) {
   }
 }
 
+TEST(SystemDataTest, SetExperimentTest) {
+  const int kExperimentId = 1;
+  const int kArmId = 123;
+
+  SystemData system_data("test_product");
+
+  Experiment experiment;
+  experiment.set_experiment_id(kExperimentId);
+  experiment.set_arm_id(kArmId);
+  std::vector<Experiment> experiments = {experiment};
+
+  system_data.SetExperimentState(experiments);
+
+  EXPECT_EQ(system_data.experiments().front().experiment_id(), kExperimentId);
+  EXPECT_EQ(system_data.experiments().front().arm_id(), kArmId);
+}
+
 }  // namespace encoder
 
 }  // namespace cobalt

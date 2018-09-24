@@ -16,12 +16,14 @@
 #include "./logging.h"
 #include "./observation.pb.h"
 #include "./observation2.pb.h"
+#include "encoder/fake_system_data.h"
 #include "logger/project_context.h"
 #include "logger/status.h"
 
 namespace cobalt {
 
 using encoder::ClientSecret;
+using encoder::FakeSystemData;
 using encoder::SystemDataInterface;
 using google::protobuf::RepeatedPtrField;
 using google::protobuf::util::MessageDifferencer;
@@ -152,23 +154,6 @@ EventValuesPtr NewCustomEvent(std::vector<std::string> dimension_names,
   }
   return custom_event;
 }
-
-class FakeSystemData : public SystemDataInterface {
- public:
-  FakeSystemData() {
-    system_profile_.set_os(SystemProfile::FUCHSIA);
-    system_profile_.set_arch(SystemProfile::ARM_64);
-    system_profile_.set_board_name("Testing Board");
-    system_profile_.set_product_name("Testing Product");
-  }
-
-  const SystemProfile& system_profile() const override {
-    return system_profile_;
-  };
-
- private:
-  SystemProfile system_profile_;
-};
 
 void CheckSystemProfile(const Encoder::Result& result,
                         SystemProfile::OS expected_os,

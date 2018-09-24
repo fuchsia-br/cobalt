@@ -9,6 +9,7 @@
 #include "./logging.h"
 #include "encoder/client_secret.h"
 #include "encoder/encoder.h"
+#include "encoder/fake_system_data.h"
 #include "encoder/file_observation_store.h"
 #include "util/posix_file_system.h"
 // Generated from file_observation_store_test_config.yaml
@@ -61,22 +62,6 @@ std::shared_ptr<ProjectContext> GetTestProject() {
       kCustomerId, kProjectId,
       std::shared_ptr<ClientConfig>(client_config.release())));
 }
-
-class FakeSystemData : public SystemDataInterface {
- public:
-  FakeSystemData() {
-    system_profile_.set_os(SystemProfile::FUCHSIA);
-    system_profile_.set_arch(SystemProfile::ARM_64);
-    system_profile_.set_board_name("Fake Board Name");
-  }
-
-  const SystemProfile &system_profile() const override {
-    return system_profile_;
-  };
-
- private:
-  SystemProfile system_profile_;
-};
 
 class FileObservationStoreTest : public ::testing::Test {
  public:

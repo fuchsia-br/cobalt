@@ -58,6 +58,7 @@ add_library(encoder
             ${COBALT_PROTO_HDRS} ${CONFIG_PROTO_HDRS}
             ${FILE_OBSERVATION_STORE_INTERNAL_HDRS})
 target_link_libraries(encoder
+                      absl::synchronization
                       client_config
                       client_secret
                       encrypted_message_util

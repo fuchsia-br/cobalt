@@ -35,6 +35,7 @@ static_library("encoder") {
   public_configs = [ "//third_party/cobalt:cobalt_config" ]
 
   deps = [
+    "//third_party/abseil-cpp/absl:synchronization",
     "//third_party/cobalt/algorithms/forculus:forculus_encoder",
     "//third_party/cobalt/algorithms/rappor:rappor_encoder",
   ]
