@@ -317,16 +317,16 @@ std::unique_ptr<TestApp> TestApp::CreateFromFlagsOrDie(int argc, char* argv[]) {
   // ShippingDispatcher in manual mode. It will never send
   // automatically and it will send immediately in response to
   // RequestSendSoon().
-  auto schedule_params = ShippingManager::ScheduleParams(
-      ShippingManager::kMaxSeconds, std::chrono::seconds(0));
+  auto upload_scheduler = encoder::UploadScheduler(
+      encoder::UploadScheduler::kMaxSeconds, std::chrono::seconds(0));
   if (mode == TestApp::kAutomatic) {
     // In automatic mode, let the ShippingManager send to the Shuffler
     // every 10 seconds.
-    schedule_params = ShippingManager::ScheduleParams(std::chrono::seconds(10),
-                                                      std::chrono::seconds(1));
+    upload_scheduler = encoder::UploadScheduler(std::chrono::seconds(10),
+                                                std::chrono::seconds(1));
   }
   auto shipping_manager = std::make_unique<ClearcutV1ShippingManager>(
-      schedule_params, observation_store.get(), envelope_encrypter.get(),
+      upload_scheduler, observation_store.get(), envelope_encrypter.get(),
       std::make_unique<clearcut::ClearcutUploader>(
           FLAGS_clearcut_endpoint,
           std::make_unique<util::clearcut::CurlHTTPClient>()));

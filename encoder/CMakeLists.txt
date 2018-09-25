@@ -54,6 +54,7 @@ add_library(encoder
             observation_store.cc
             memory_observation_store.cc
             file_observation_store.cc
+            upload_scheduler.cc
             "../third_party/protobuf/src/google/protobuf/util/delimited_message_util.cc"
             ${COBALT_PROTO_HDRS} ${CONFIG_PROTO_HDRS}
             ${FILE_OBSERVATION_STORE_INTERNAL_HDRS})
@@ -81,7 +82,8 @@ add_executable(encoder_tests
                shuffler_client_test.cc
                system_data_test.cc
                ${FILE_OBSERVATION_STORE_TEST_CONFIG_H}
-               file_observation_store_test.cc)
+               file_observation_store_test.cc
+               upload_scheduler_test.cc)
 target_link_libraries(encoder_tests
                       client_secret
                       encoder

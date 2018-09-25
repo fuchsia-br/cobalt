@@ -459,13 +459,13 @@ TestApp::TestApp(
   // ShippingManager in manual mode. It will never send
   // automatically and it will send immediately in response to
   // RequestSendSoon().
-  auto schedule_params = ShippingManager::ScheduleParams(
-      ShippingManager::kMaxSeconds, std::chrono::seconds(0));
+  auto schedule_params = encoder::UploadScheduler(
+      encoder::UploadScheduler::kMaxSeconds, std::chrono::seconds(0));
   if (mode_ == TestApp::kAutomatic) {
     // In automatic mode, let the ShippingManager send to the Shuffler
     // every 10 seconds.
-    schedule_params = ShippingManager::ScheduleParams(std::chrono::seconds(10),
-                                                      std::chrono::seconds(1));
+    schedule_params = encoder::UploadScheduler(std::chrono::seconds(10),
+                                               std::chrono::seconds(1));
   }
   shipping_manager_.reset(new LegacyShippingManager(
       schedule_params, observation_store_.get(), encrypt_to_shuffler_.get(),

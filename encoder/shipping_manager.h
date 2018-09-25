@@ -21,6 +21,7 @@
 #include "encoder/observation_store_update_recipient.h"
 #include "encoder/send_retryer.h"
 #include "encoder/shuffler_client.h"
+#include "encoder/upload_scheduler.h"
 #include "third_party/clearcut/uploader.h"
 
 namespace cobalt {
@@ -49,44 +50,9 @@ using send_retryer::SendRetryerInterface;
 // device use the same set of ShippingManagers.
 class ShippingManager : public ObservationStoreUpdateRecipient {
  public:
-  // Use this constant instead of std::chrono::seconds::max() in
-  // ScheduleParams below in order to effectively set the wait time to
-  // infinity.
-  static const std::chrono::seconds kMaxSeconds;
-
-  // Parameters passed to the ShippingManager constructor that control its
-  // behavior with respect to scheduling.
-  //
-  // schedule_interval: How frequently should ShippingManager perform regular
-  // periodic sends to the Shuffler? Set to kMaxSeconds to effectively
-  // disable periodic sends.
-  //
-  // min_interval: Because of expedited sends, ShippingManager may sometimes
-  // send to the Shuffler more frequently than |schedule_interval|. This
-  // parameter is a safety setting. ShippingManager will never perform two
-  // sends within a single period of |min_interval| seconds.
-  //
-  // REQUIRED:
-  // 0 <= min_interval <= schedule_interval <= kMaxSeconds
-  class ScheduleParams {
-   public:
-    ScheduleParams(std::chrono::seconds schedule_interval,
-                   std::chrono::seconds min_interval)
-        : schedule_interval_(schedule_interval), min_interval_(min_interval) {
-      CHECK_GE(min_interval.count(), 0);
-      CHECK_LE(min_interval_.count(), schedule_interval_.count());
-      CHECK_LE(schedule_interval.count(), kMaxSeconds.count());
-    }
-
-   private:
-    friend class ShippingManager;
-    std::chrono::seconds schedule_interval_;
-    std::chrono::seconds min_interval_;
-  };
-
   // Constructor
   //
-  // scheduling_params: These control the ShippingManager's behavior with
+  // upload_scheduler: These control the ShippingManager's behavior with
   // respect to scheduling sends.
   //
   // observation_store: The ObservationStore used for storing and retrieving
@@ -94,7 +60,7 @@ class ShippingManager : public ObservationStoreUpdateRecipient {
   //
   // encrypt_to_shuffler: An util::EncryptedMessageMaker used to encrypt
   // messages to the shuffler and the analyzer.
-  ShippingManager(const ScheduleParams& scheduling_params,
+  ShippingManager(const UploadScheduler& upload_scheduler,
                   ObservationStore* observation_store,
                   util::EncryptedMessageMaker* encrypt_to_shuffler);
 
@@ -170,7 +136,7 @@ class ShippingManager : public ObservationStoreUpdateRecipient {
   SendEnvelopeToBackend(
       std::unique_ptr<ObservationStore::EnvelopeHolder> envelope_to_send) = 0;
 
-  const ScheduleParams schedule_params_;
+  UploadScheduler upload_scheduler_;
 
   // Variables accessed only by the worker thread. These are not
   // protected by a mutex.
@@ -297,7 +263,7 @@ class LegacyShippingManager : public ShippingManager {
   // send_retryer: The instance of |SendRetryerInterface| encapsulated by
   // this ShippingManager. ShippingManager does not take ownership of
   // send_retryer which must outlive ShippingManager.
-  LegacyShippingManager(const ScheduleParams& scheduling_params,
+  LegacyShippingManager(const UploadScheduler& upload_scheduler,
                         ObservationStore* observation_store,
                         util::EncryptedMessageMaker* encrypt_to_shuffler,
                         const SendRetryerParams send_retryer_params,
@@ -315,7 +281,7 @@ class LegacyShippingManager : public ShippingManager {
 class ClearcutV1ShippingManager : public ShippingManager {
  public:
   ClearcutV1ShippingManager(
-      const ScheduleParams& scheduling_params,
+      const UploadScheduler& upload_scheduler,
       ObservationStore* observation_store,
       util::EncryptedMessageMaker* encrypt_to_shuffler,
       std::unique_ptr<::clearcut::ClearcutUploader> clearcut);

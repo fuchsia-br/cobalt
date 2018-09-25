@@ -33,18 +33,13 @@ grpc::Status CobaltStatusToGrpcStatus(util::Status status) {
 
 }  // namespace
 
-// Definition of the static constant declared in shipping_manager.h.
-// This must be less than 2^31. There appears to be a bug in
-// std::condition_variable::wait_for() in which setting the wait time to
-// std::chrono::seconds::max() effectively sets the wait time to zero.
-const std::chrono::seconds ShippingManager::kMaxSeconds(999999999);
-
 ShippingManager::ShippingManager(
-    const ScheduleParams& schedule_params, ObservationStore* observation_store,
+    const UploadScheduler& upload_scheduler,
+    ObservationStore* observation_store,
     util::EncryptedMessageMaker* encrypt_to_shuffler)
-    : schedule_params_(schedule_params),
+    : upload_scheduler_(upload_scheduler),
       next_scheduled_send_time_(std::chrono::system_clock::now() +
-                                schedule_params_.schedule_interval_),
+                                upload_scheduler_.Interval()),
       encrypt_to_shuffler_(encrypt_to_shuffler) {
   CHECK(observation_store);
   _mutex_protected_fields_do_not_access_directly_.observation_store =
@@ -163,15 +158,15 @@ void ShippingManager::Run() {
     }
 
     // We start each iteration of the loop with a sleep of
-    // schedule_params_.min_interval.
+    // upload_scheduler_.MinInterval().
     // This ensures that we never send twice within one
-    // schedule_params_.min_interval period.
+    // upload_scheduler_.MinInterval() period.
 
-    // Sleep for schedule_params_.min_interval or until shut_down_.
+    // Sleep for upload_scheduler_.MinInterval() or until shut_down_.
     VLOG(4) << "ShippingManager worker: sleeping for "
-            << schedule_params_.min_interval_.count() << " seconds.";
+            << upload_scheduler_.MinInterval().count() << " seconds.";
     locked->fields->shutdown_notifier.wait_for(
-        locked->lock, schedule_params_.min_interval_,
+        locked->lock, upload_scheduler_.MinInterval(),
         [&locked] { return (locked->fields->shut_down); });
     VLOG(4) << "ShippingManager worker: waking up from sleep. shut_down_="
             << locked->fields->shut_down;
@@ -207,15 +202,16 @@ void ShippingManager::Run() {
         locked->fields->expedited_send_requested = false;
         locked->lock.unlock();
         SendAllEnvelopes();
-        next_scheduled_send_time_ = std::chrono::system_clock::now() +
-                                    schedule_params_.schedule_interval_;
+        next_scheduled_send_time_ =
+            std::chrono::system_clock::now() + upload_scheduler_.Interval();
         locked->lock.lock();
       } else {
         // Wait until the next scheduled send time or until notified of
         // a new request for an expedited send or we are shut down.
-        VLOG(4) << "ShippingManager worker: waiting "
-                << schedule_params_.schedule_interval_.count()
-                << " seconds for next scheduled send.";
+        auto time =
+            std::chrono::system_clock::to_time_t(next_scheduled_send_time_);
+        VLOG(4) << "ShippingManager worker: waiting until " << std::ctime(&time)
+                << " for next scheduled send.";
         locked->fields->waiting_for_schedule = true;
         locked->fields->waiting_for_schedule_notifier.notify_all();
         locked->fields->expedited_send_notifier.wait_until(
@@ -277,13 +273,12 @@ void ShippingManager::InvokeSendCallbacksLockHeld(MutexProtectedFields* fields,
 }
 
 LegacyShippingManager::LegacyShippingManager(
-    const ScheduleParams& scheduling_params,
+    const UploadScheduler& upload_scheduler,
     ObservationStore* observation_store,
     util::EncryptedMessageMaker* encrypt_to_shuffler,
     const SendRetryerParams send_retryer_params,
     SendRetryerInterface* send_retryer)
-    : ShippingManager(scheduling_params, observation_store,
-                      encrypt_to_shuffler),
+    : ShippingManager(upload_scheduler, observation_store, encrypt_to_shuffler),
       send_retryer_params_(send_retryer_params),
       send_retryer_(send_retryer) {
   CHECK(send_retryer_);
@@ -324,12 +319,11 @@ std::unique_ptr<EnvelopeHolder> LegacyShippingManager::SendEnvelopeToBackend(
 }
 
 ClearcutV1ShippingManager::ClearcutV1ShippingManager(
-    const ScheduleParams& scheduling_params,
+    const UploadScheduler& upload_scheduler,
     ObservationStore* observation_store,
     util::EncryptedMessageMaker* encrypt_to_shuffler,
     std::unique_ptr<clearcut::ClearcutUploader> clearcut)
-    : ShippingManager(scheduling_params, observation_store,
-                      encrypt_to_shuffler),
+    : ShippingManager(upload_scheduler, observation_store, encrypt_to_shuffler),
       clearcut_(std::move(clearcut)) {}
 
 std::unique_ptr<EnvelopeHolder>

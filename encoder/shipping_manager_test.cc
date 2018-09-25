@@ -51,7 +51,7 @@ const size_t kMaxBytesTotal = 1000;
 
 const std::chrono::seconds kInitialRpcDeadline(10);
 const std::chrono::seconds kDeadlinePerSendAttempt(60);
-const std::chrono::seconds kMaxSeconds = ShippingManager::kMaxSeconds;
+const std::chrono::seconds kMaxSeconds = UploadScheduler::kMaxSeconds;
 
 // Returns a ProjectContext obtained by parsing the configuration specified
 // in shipping_manager_test_config.yaml
@@ -172,19 +172,18 @@ class ShippingManagerTest : public ::testing::Test {
             std::chrono::seconds min_interval,
             uint32_t metric_id = kDefaultMetricId) {
     send_retryer_.reset(new FakeSendRetryer(metric_id));
-    ShippingManager::ScheduleParams schedule_params(schedule_interval,
-                                                    min_interval);
+    UploadScheduler upload_scheduler(schedule_interval, min_interval);
     LegacyShippingManager::SendRetryerParams send_retryer_params(
         kInitialRpcDeadline, kDeadlinePerSendAttempt);
     if (metric_id == kDefaultMetricId) {
       shipping_manager_.reset(new LegacyShippingManager(
-          schedule_params, &observation_store_, &encrypt_to_shuffler_,
+          upload_scheduler, &observation_store_, &encrypt_to_shuffler_,
           send_retryer_params, send_retryer_.get()));
     } else {
       auto http_client = std::make_unique<FakeHTTPClient>();
       http_client_ = http_client.get();
       shipping_manager_.reset(new ClearcutV1ShippingManager(
-          schedule_params, &observation_store_, &encrypt_to_shuffler_,
+          upload_scheduler, &observation_store_, &encrypt_to_shuffler_,
           std::make_unique<clearcut::ClearcutUploader>(
               "https://test.com", std::move(http_client))));
     }
