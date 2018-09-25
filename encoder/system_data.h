@@ -45,7 +45,8 @@ class SystemData : public SystemDataInterface {
 
   // Returns a vector with all experiments the system has a notion of.
   const std::vector<Experiment>& experiments() const override
-      SHARED_LOCKS_REQUIRED(experiments_mutex_) {
+      LOCKS_EXCLUDED(experiments_mutex_) {
+    absl::ReaderMutexLock lock(&experiments_mutex_);
     return experiments_;
   }
 
@@ -56,7 +57,8 @@ class SystemData : public SystemDataInterface {
 
   // Resets the experiment state to the one provided.
   void SetExperimentState(std::vector<Experiment> experiments)
-      EXCLUSIVE_LOCKS_REQUIRED(experiments_mutex_) {
+      LOCKS_EXCLUDED(experiments_mutex_) {
+    absl::WriterMutexLock lock(&experiments_mutex_);
     experiments_ = std::move(experiments);
   }
 
@@ -67,7 +69,7 @@ class SystemData : public SystemDataInterface {
   void PopulateSystemProfile();
 
   SystemProfile system_profile_;
-  absl::Mutex experiments_mutex_;
+  mutable absl::Mutex experiments_mutex_;
   std::vector<Experiment> experiments_ GUARDED_BY(experiments_mutex_);
 };
 

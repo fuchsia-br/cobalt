@@ -37,7 +37,7 @@ static_library("encoder") {
   public_configs = [ "//third_party/cobalt:cobalt_config" ]
 
   deps = [
-    "//third_party/abseil-cpp/absl:synchronization",
+    "//third_party/abseil-cpp/absl/synchronization:synchronization",
     "//third_party/cobalt/algorithms/forculus:forculus_encoder",
     "//third_party/cobalt/algorithms/rappor:rappor_encoder",
   ]
@@ -125,6 +125,7 @@ source_set("unittests") {
     ":generate_encoder_test_config",
     ":generate_envelope_maker_test_config",
     ":generate_shipping_manager_test_config",
+    "//third_party/abseil-cpp",
     "//third_party/gflags",
     "//third_party/gtest",
 
