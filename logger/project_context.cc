@@ -11,45 +11,48 @@
 namespace cobalt {
 namespace logger {
 
-Project::Project(uint32_t customer_id, uint32_t project_id,
-                 std::string customer_name, std::string project_name,
-                 ReleaseStage release_stage)
-    : customer_id_(customer_id),
-      project_id_(project_id),
-      customer_name_(std::move(customer_name)),
-      project_name_(std::move(project_name)),
-      release_stage_(release_stage) {}
-
-ProjectContext::MetricRef::MetricRef(const ProjectContext* project,
-                                     const MetricDefinition* metric_definition)
-    : project_context_(project), metric_definition_(metric_definition) {}
-
-const Project& ProjectContext::MetricRef::project() const {
-  return project_context_->project();
+std::string MetricDebugString(const MetricDefinition& metric) {
+  std::ostringstream stream;
+  stream << metric.metric_name() << " (" << metric.id() << ")";
+  return stream.str();
 }
 
-uint32_t ProjectContext::MetricRef::metric_id() const {
-  return metric_definition_->id();
-}
+MetricRef::MetricRef(const Project* project,
+                     const MetricDefinition* metric_definition)
+    : project_(project), metric_definition_(metric_definition) {}
 
-const std::string& ProjectContext::MetricRef::metric_name() const {
+const Project& MetricRef::project() const { return *project_; }
+
+uint32_t MetricRef::metric_id() const { return metric_definition_->id(); }
+
+const std::string& MetricRef::metric_name() const {
   return metric_definition_->metric_name();
 }
 
-const ProjectContext::MetricRef ProjectContext::RefMetric(
-    const MetricDefinition* metric_definition) const {
-  return MetricRef(this, metric_definition);
+namespace {
+
+void PopulateProject(uint32_t customer_id, uint32_t project_id,
+                     const std::string& customer_name,
+                     const std::string& project_name,
+                     ReleaseStage release_stage, Project* project) {
+  project->set_customer_id(customer_id);
+  project->set_project_id(project_id);
+  project->set_customer_name(std::move(customer_name));
+  project->set_project_name(std::move(project_name));
+  project->set_release_stage(release_stage);
 }
+
+}  // namespace
 
 ProjectContext::ProjectContext(
     uint32_t customer_id, uint32_t project_id, std::string customer_name,
     std::string project_name,
     std::unique_ptr<MetricDefinitions> metric_definitions,
     ReleaseStage release_stage)
-    : project_(customer_id, project_id, std::move(customer_name),
-               std::move(project_name), release_stage),
-      metric_definitions_(std::move(metric_definitions)) {
+    : metric_definitions_(std::move(metric_definitions)) {
   CHECK(metric_definitions_);
+  PopulateProject(customer_id, project_id, customer_name, project_name,
+                  release_stage, &project_);
   for (const auto& metric : metric_definitions_->metric()) {
     if (metric.customer_id() == project_.customer_id() &&
         metric.project_id() == project_.project_id()) {
@@ -85,16 +88,9 @@ const MetricDefinition* ProjectContext::GetMetric(
   return iter->second;
 }
 
-const std::string Project::DebugString() const {
-  std::ostringstream stream;
-  stream << customer_name_ << "." << project_name_;
-  return stream.str();
-}
-
-std::string MetricDebugString(const MetricDefinition& metric) {
-  std::ostringstream stream;
-  stream << metric.metric_name() << " (" << metric.id() << ")";
-  return stream.str();
+const MetricRef ProjectContext::RefMetric(
+    const MetricDefinition* metric_definition) const {
+  return MetricRef(&project_, metric_definition);
 }
 
 }  // namespace logger

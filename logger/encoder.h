@@ -134,7 +134,7 @@ class Encoder {
   //
   // num_categories: The number of categories to use in the Basic RAPPOR
   // encoding.
-  Result EncodeBasicRapporObservation(ProjectContext::MetricRef metric,
+  Result EncodeBasicRapporObservation(MetricRef metric,
                                       const ReportDefinition* report,
                                       uint32_t day_index, uint32_t value_index,
                                       uint32_t num_categories) const;
@@ -156,7 +156,7 @@ class Encoder {
   // |component_name_hash| field.
   //
   // value: This will populate the Observation's |value| field.
-  Result EncodeIntegerEventObservation(ProjectContext::MetricRef metric,
+  Result EncodeIntegerEventObservation(MetricRef metric,
                                        const ReportDefinition* report,
                                        uint32_t day_index,
                                        uint32_t event_type_index,
@@ -182,7 +182,7 @@ class Encoder {
   // histogram: This will be used to populate the Observation's |buckets| field.
   // This method does not validate |histogram| against the Metric definition.
   // That is the caller's responsibility.
-  Result EncodeHistogramObservation(ProjectContext::MetricRef metric,
+  Result EncodeHistogramObservation(MetricRef metric,
                                     const ReportDefinition* report,
                                     uint32_t day_index,
                                     uint32_t event_type_index,
@@ -202,7 +202,7 @@ class Encoder {
   // event_values: This will be used to populate the Observation's |values|
   // field. This method does not validate |event_values| against the Metric's
   // proto definition. That is the caller's responsibility.
-  Result EncodeCustomObservation(ProjectContext::MetricRef metric,
+  Result EncodeCustomObservation(MetricRef metric,
                                  const ReportDefinition* report,
                                  uint32_t day_index,
                                  EventValuesPtr event_values) const;
@@ -223,7 +223,7 @@ class Encoder {
   // day_index: The day index associated with the Observation being encoded.
   //
   // str: The string to encode using String RAPPOR.
-  Result EncodeRapporObservation(ProjectContext::MetricRef metric,
+  Result EncodeRapporObservation(MetricRef metric,
                                  const ReportDefinition* report,
                                  uint32_t day_index,
                                  const std::string& str) const;
@@ -241,7 +241,7 @@ class Encoder {
   // day_index: The day index associated with the Observation being encoded.
   //
   // str: The string to encrypt using Forculus.
-  Result EncodeForculusObservation(ProjectContext::MetricRef metric,
+  Result EncodeForculusObservation(MetricRef metric,
                                    const ReportDefinition* report,
                                    uint32_t day_index,
                                    const std::string& str) const;
@@ -249,8 +249,7 @@ class Encoder {
  private:
   // Makes an Observation and ObservationMetadata with all information that
   // is independent of which Encode*() method is being invoked.
-  Result MakeObservation(ProjectContext::MetricRef metric,
-                         const ReportDefinition* report,
+  Result MakeObservation(MetricRef metric, const ReportDefinition* report,
                          uint32_t day_index) const;
 
   const encoder::ClientSecret client_secret_;

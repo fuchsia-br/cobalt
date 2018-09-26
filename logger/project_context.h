@@ -11,61 +11,37 @@
 #include <utility>
 
 #include "config/metric_definition.pb.h"
+#include "config/project.pb.h"
+#include "logger/status.h"
 
 namespace cobalt {
 namespace logger {
 
 std::string MetricDebugString(const MetricDefinition& metric);
 
-// Project represents some of the metadata about a Cobalt project including
-// the name and ID of the project and customer and also the
-// project's declared release stage. An instance of Project does not contain
-// all of the MetricDefinitions for the project. See |ProjectContext|.
-class Project {
+// A reference object that gives access to the names and IDs of a Metric and
+// its owning Project and Customer. One way to obtain a MetricRef is the method
+// ProjectContext::RefMetric().
+class MetricRef {
  public:
-  Project(uint32_t customer_id, uint32_t project_id, std::string customer_name,
-          std::string project_name, ReleaseStage release_stage);
+  // A MetricRef is constructed from a Project and a MetricDefinition. The
+  // Project and MetricDefinition must remain valid as long as the MetricRef is
+  // being used.
+  MetricRef(const Project* project, const MetricDefinition* metric_definition);
 
-  uint32_t customer_id() const { return customer_id_; }
-  uint32_t project_id() const { return project_id_; }
-  const std::string customer_name() const { return customer_name_; }
-  const std::string project_name() const { return project_name_; }
-  ReleaseStage release_stage() const { return release_stage_; }
-
-  const std::string DebugString() const;
+  const Project& project() const;
+  uint32_t metric_id() const;
+  const std::string& metric_name() const;
 
  private:
-  const uint32_t customer_id_;
-  const uint32_t project_id_;
-  const std::string customer_name_;
-  const std::string project_name_;
-
-  // The stage in the release cycle that this project declares itself to be.
-  const ReleaseStage release_stage_;
+  friend class ProjectContext;
+  const Project* project_;
+  const MetricDefinition* metric_definition_;
 };
 
 // ProjectContext stores the Cobalt configuration for a single Cobalt project.
 class ProjectContext {
  public:
-  // A reference object that gives access to the names and IDs of a Metric and
-  // its owning Project and Customer. A MetricRef is obtained via the method
-  // RefMetric(). The ProjectContext must remain valid as long as the MetricRef
-  // is being used.
-  class MetricRef {
-   public:
-    const Project& project() const;
-    uint32_t metric_id() const;
-    const std::string& metric_name() const;
-
-   private:
-    friend class ProjectContext;
-
-    MetricRef(const ProjectContext* project,
-              const MetricDefinition* metric_definition);
-    const ProjectContext* project_context_;
-    const MetricDefinition* metric_definition_;
-  };
-
   ProjectContext(uint32_t customer_id, uint32_t project_id,
                  std::string customer_name, std::string project_name,
                  std::unique_ptr<MetricDefinitions> metric_definitions,
@@ -73,11 +49,10 @@ class ProjectContext {
 
   const MetricDefinition* GetMetric(const std::string& metric_name) const;
   const MetricDefinition* GetMetric(const uint32_t metric_id) const;
-
-  // Makes a MetricRef that wraps this ProjectContext and the given
+  // Makes a MetricRef that wraps this ProjectContext's Project and the given
   // metric_definition (which should have been obtained via GetMetric()).
-  // This ProjectContext must remain valid as long as the returned MetricRef
-  // is being used.
+  // The Project and MetricDefinition must remain valid as long as the returned
+  // MetricRef is being used.
   const MetricRef RefMetric(const MetricDefinition* metric_definition) const;
 
   const Project& project() const { return project_; }

@@ -51,8 +51,8 @@ Encoder::Encoder(ClientSecret client_secret,
     : client_secret_(client_secret), system_data_(system_data) {}
 
 Encoder::Result Encoder::EncodeBasicRapporObservation(
-    ProjectContext::MetricRef metric, const ReportDefinition* report,
-    uint32_t day_index, uint32_t value_index, uint32_t num_categories) const {
+    MetricRef metric, const ReportDefinition* report, uint32_t day_index,
+    uint32_t value_index, uint32_t num_categories) const {
   auto result = MakeObservation(metric, report, day_index);
   auto* observation = result.observation.get();
   auto* basic_rappor_observation = observation->mutable_basic_rappor();
@@ -123,9 +123,10 @@ Encoder::Result Encoder::EncodeBasicRapporObservation(
   return result;
 }
 
-Encoder::Result Encoder::EncodeRapporObservation(
-    ProjectContext::MetricRef metric, const ReportDefinition* report,
-    uint32_t day_index, const std::string& str) const {
+Encoder::Result Encoder::EncodeRapporObservation(MetricRef metric,
+                                                 const ReportDefinition* report,
+                                                 uint32_t day_index,
+                                                 const std::string& str) const {
   auto result = MakeObservation(metric, report, day_index);
   auto* observation = result.observation.get();
   auto* rappor_observation = observation->mutable_string_rappor();
@@ -146,7 +147,7 @@ Encoder::Result Encoder::EncodeRapporObservation(
     rappor_config.set_num_cohorts(kLargeNumCohorts);
   }
 
-// Compute heuristic for num_bloom_bits.
+  // Compute heuristic for num_bloom_bits.
   if (report->expected_string_set_size() == 0) {
     rappor_config.set_num_bloom_bits(kDefaultNumBits);
   } else if (report->expected_string_set_size() < kTinyNumCandidates) {
@@ -219,8 +220,8 @@ Encoder::Result Encoder::EncodeRapporObservation(
 }
 
 Encoder::Result Encoder::EncodeForculusObservation(
-    ProjectContext::MetricRef metric, const ReportDefinition* report,
-    uint32_t day_index, const std::string& str) const {
+    MetricRef metric, const ReportDefinition* report, uint32_t day_index,
+    const std::string& str) const {
   auto result = MakeObservation(metric, report, day_index);
   auto* observation = result.observation.get();
   auto* forculus_observation = observation->mutable_forculus();
@@ -265,8 +266,8 @@ Encoder::Result Encoder::EncodeForculusObservation(
 }
 
 Encoder::Result Encoder::EncodeIntegerEventObservation(
-    ProjectContext::MetricRef metric, const ReportDefinition* report,
-    uint32_t day_index, uint32_t event_type_index, const std::string component,
+    MetricRef metric, const ReportDefinition* report, uint32_t day_index,
+    uint32_t event_type_index, const std::string component,
     int64_t value) const {
   auto result = MakeObservation(metric, report, day_index);
   auto* observation = result.observation.get();
@@ -286,8 +287,8 @@ Encoder::Result Encoder::EncodeIntegerEventObservation(
 }
 
 Encoder::Result Encoder::EncodeHistogramObservation(
-    ProjectContext::MetricRef metric, const ReportDefinition* report,
-    uint32_t day_index, uint32_t event_type_index, const std::string component,
+    MetricRef metric, const ReportDefinition* report, uint32_t day_index,
+    uint32_t event_type_index, const std::string component,
     HistogramPtr histogram) const {
   auto result = MakeObservation(metric, report, day_index);
   auto* observation = result.observation.get();
@@ -305,10 +306,9 @@ Encoder::Result Encoder::EncodeHistogramObservation(
   return result;
 }
 
-
 Encoder::Result Encoder::EncodeCustomObservation(
-  ProjectContext::MetricRef metric, const ReportDefinition* report,
-  uint32_t day_index, EventValuesPtr event_values) const {
+    MetricRef metric, const ReportDefinition* report, uint32_t day_index,
+    EventValuesPtr event_values) const {
   auto result = MakeObservation(metric, report, day_index);
   auto* observation = result.observation.get();
   auto* custom_observation = observation->mutable_custom();
@@ -316,8 +316,7 @@ Encoder::Result Encoder::EncodeCustomObservation(
   return result;
 }
 
-
-Encoder::Result Encoder::MakeObservation(ProjectContext::MetricRef metric,
+Encoder::Result Encoder::MakeObservation(MetricRef metric,
                                          const ReportDefinition* report,
                                          uint32_t day_index) const {
   Result result;
