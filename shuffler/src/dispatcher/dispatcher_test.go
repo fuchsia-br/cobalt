@@ -16,7 +16,6 @@ package dispatcher
 
 import (
 	"fmt"
-	"reflect"
 	"testing"
 	"time"
 
@@ -26,6 +25,8 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+
+	proto "github.com/golang/protobuf/proto"
 )
 
 // This is a fake Analyzer transport client that just caches the Observations
@@ -459,7 +460,7 @@ func TestMakeBatch(t *testing.T) {
 		t.Errorf("Got chunk of size [%v], expected [%d]", len(encMsgList), chunkSize)
 	}
 
-	if !reflect.DeepEqual(encMsgList[0], obVals[5].EncryptedObservation) {
+	if !proto.Equal(encMsgList[0], obVals[5].EncryptedObservation) {
 		t.Errorf("Got [%v], expected [%v]", encMsgList[0], obVals[5].EncryptedObservation)
 	}
 
@@ -474,7 +475,7 @@ func TestMakeBatch(t *testing.T) {
 		return
 	}
 
-	if !reflect.DeepEqual(encMsgList[0], obVals[27].EncryptedObservation) {
+	if !proto.Equal(encMsgList[0], obVals[27].EncryptedObservation) {
 		t.Errorf("Got [%v], expected [%v]", encMsgList[0], obVals[27].EncryptedObservation)
 	}
 

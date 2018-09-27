@@ -17,6 +17,7 @@ package yamlpb
 import (
 	test_pb "config/config_parser/src/yamlpb"
 	"github.com/golang/glog"
+	"github.com/golang/protobuf/proto"
 	"reflect"
 	"testing"
 )
@@ -125,7 +126,7 @@ second_oneof:
 			&test_pb.OtherNestedTestMessage{StringV: "something"},
 		},
 	}
-	if !reflect.DeepEqual(m, e) {
+	if !proto.Equal(&m, &e) {
 		t.Errorf("%v != %v", m, e)
 	}
 }
@@ -161,7 +162,7 @@ func TestMarshalString(t *testing.T) {
 		t.Error(err)
 	}
 
-	if !reflect.DeepEqual(m, r) {
+	if !proto.Equal(&m, &r) {
 		t.Errorf("yamlpb roundtrip failed: %v != %v", m, r)
 	}
 }

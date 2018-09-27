@@ -7,8 +7,9 @@ package config_parser
 import (
 	"config"
 	"fmt"
-	"reflect"
 	"testing"
+
+	proto "github.com/golang/protobuf/proto"
 )
 
 type memConfigReader struct {
@@ -228,7 +229,7 @@ func TestAppendV1Config(t *testing.T) {
 			},
 		},
 	}
-	if !reflect.DeepEqual(s, expected) {
+	if !proto.Equal(&s, &expected) {
 		t.Errorf("%v != %v", s, expected)
 	}
 }

@@ -20,6 +20,7 @@ metric_configs:
   time_zone_policy: UTC
   parts:
     "Part1":
+      data_type: STRING
 
 - id: 2
   name: "Clearcut"
@@ -27,6 +28,7 @@ metric_configs:
   backend: V1_BACKEND
   parts:
     Part1:
+      data_type: STRING
 
 ################################################################################
 #  EncodingConfigs
@@ -36,4 +38,4 @@ encoding_configs:
 # EncodingConfig 1 is the NoOp encoding.
 - id: 1
   name: "NoOp"
-  no_op_encoding:
+  no_op_encoding: {}

@@ -15,10 +15,11 @@
 package util
 
 import (
-	"reflect"
 	"testing"
 
 	"cobalt"
+
+	"github.com/golang/protobuf/proto"
 )
 
 var privateKeyPem, publicKeyPem string
@@ -81,7 +82,7 @@ func TestNoEncryption(t *testing.T) {
 	}
 
 	// Compare the recovered envelope with the plaintext envelope
-	if !reflect.DeepEqual(&envelope1, &envelope2) {
+	if !proto.Equal(&envelope1, &envelope2) {
 		t.Errorf("%v != %v", envelope1, envelope2)
 	}
 }
@@ -115,7 +116,7 @@ func TestHybridEncryption(t *testing.T) {
 	}
 
 	// Compare the recovered envelope with the plaintext envelope
-	if !reflect.DeepEqual(&envelope1, &envelope2) {
+	if !proto.Equal(&envelope1, &envelope2) {
 		t.Errorf("%v != %v", envelope1, envelope2)
 	}
 }

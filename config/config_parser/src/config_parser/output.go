@@ -20,7 +20,12 @@ type OutputFormatter func(c *config.CobaltConfig) (outputBytes []byte, err error
 
 // Outputs the serialized proto.
 func BinaryOutput(c *config.CobaltConfig) (outputBytes []byte, err error) {
-	return proto.Marshal(c)
+	buf := proto.Buffer{}
+	buf.SetDeterministic(true)
+	if err := buf.Marshal(c); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // Outputs the serialized proto base64 encoded.

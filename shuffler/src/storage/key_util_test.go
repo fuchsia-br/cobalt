@@ -19,7 +19,6 @@ import (
 	shufflerpb "cobalt"
 	"encoding/base64"
 	"encoding/binary"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -84,7 +83,7 @@ func TestBKey(t *testing.T) {
 	got := &shufflerpb.ObservationMetadata{}
 	if err := proto.Unmarshal(decodedBKey, got); err != nil {
 		t.Errorf("got error [%v], want [%v]", err, om)
-	} else if !reflect.DeepEqual(got, om) {
+	} else if !proto.Equal(got, om) {
 		t.Errorf("got [%v], want [%v]", got, om)
 	}
 }
@@ -97,7 +96,7 @@ func TestUnmarshalBKey(t *testing.T) {
 	}
 	if got, err := UnmarshalBKey(bKey); err != nil {
 		t.Errorf("got error [%v], want unmarshalled proto", err)
-	} else if !reflect.DeepEqual(om, got) {
+	} else if !proto.Equal(om, got) {
 		t.Errorf("got [%v], want [%v]", got, om)
 	}
 }

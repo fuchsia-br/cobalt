@@ -247,6 +247,7 @@ ExternalProject_Add(googleapis_external_project
                                 -DCMAKE_CXX_FLAGS=${EXTERNAL_PROJECT_CMAKE_CXX_FLAGS}
                                 -DCMAKE_INSTALL_PREFIX:PATH=${GOOGLEAPIS_INSTALL_DIR}
                                 -DPROTOC=${PROTOC}
+                                -DGO_PROTO_GEN_SRC_DIR=${GO_PROTO_GEN_SRC_DIR}
                                 -DPROTOBUF_INCLUDE_DIR=${PROTOBUF_INCLUDE_DIR}
                                 -DGRPC_INCLUDE_DIR=${GRPC_INCLUDE_DIR}
                                 -DPROTOBUF_LIB_DIR=${PROTOBUF_LIB_DIR}
@@ -542,7 +543,7 @@ macro(cobalt_protobuf_generate_go TARGET_NAME SRCS_OUT USE_GRPC)
       list(APPEND _generated_srcs "${_gen_full_dir}/${name}.pb.go")
       set_source_files_properties("${gen_full}/${name}.pb.go" PROPERTIES GENERATED TRUE)
   endforeach()
-  set(_plugin_prefix "")
+  set(_plugin_prefix ",")
   if(${USE_GRPC})
     set(_plugin_prefix "grpc,")
   endif()

@@ -16,7 +16,6 @@ package config_parser
 
 import (
 	"config"
-	"reflect"
 	"testing"
 
 	proto "github.com/golang/protobuf/proto"
@@ -105,7 +104,7 @@ report_configs:
 		},
 	}
 
-	if !reflect.DeepEqual(e, c.ProjectConfig) {
+	if !proto.Equal(&e, &c.ProjectConfig) {
 		t.Errorf("%v\n!=\n%v", proto.MarshalTextString(&e), proto.MarshalTextString(&c.ProjectConfig))
 	}
 }
@@ -175,7 +174,7 @@ metric_definitions:
 		},
 	}
 
-	if !reflect.DeepEqual(e, c.ProjectConfig) {
+	if !proto.Equal(&e, &c.ProjectConfig) {
 		t.Errorf("%v\n!=\n%v", proto.MarshalTextString(&e), proto.MarshalTextString(&c.ProjectConfig))
 	}
 

@@ -17,13 +17,14 @@ package shuffler_config
 import (
 	"os"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"shuffler"
+
+	proto "github.com/golang/protobuf/proto"
 )
 
 var configDir = "shuffler/src/shuffler_config"
@@ -58,7 +59,7 @@ func TestDefaultConfig(t *testing.T) {
 		DisposalAgeDays:  4,
 	}
 
-	if !reflect.DeepEqual(got, want) {
+	if !proto.Equal(got, want) {
 		t.Errorf("Got response: %v, expecting: %v", got, want)
 	}
 
@@ -93,7 +94,7 @@ func TestCustomConfig(t *testing.T) {
 		t.Errorf("Error loading the config file: %v", err)
 	}
 
-	if !reflect.DeepEqual(out, in) {
+	if !proto.Equal(out, in) {
 		t.Errorf("Got response: %v, expecting: %v", out, in)
 	}
 

@@ -20,6 +20,7 @@ metric_configs:
   time_zone_policy: UTC
   parts:
     "Part1":
+      data_type: STRING
 
 # Metric 2 has one string part, and local time_zone_policy.
 - id: 2
@@ -27,6 +28,7 @@ metric_configs:
   time_zone_policy: UTC
   parts:
     "Part1":
+      data_type: STRING
 
 # Metric 3 has one string part, and local time_zone_policy.
 - id: 3
@@ -34,6 +36,7 @@ metric_configs:
   time_zone_policy: UTC
   parts:
     "Part1":
+      data_type: STRING
 
 ################################################################################
 #  EncodingConfigs
@@ -61,4 +64,4 @@ encoding_configs:
 # EncodingConfig 3 is the NoOp encoding.
 - id: 3
   name: "NoOp"
-  no_op_encoding:
+  no_op_encoding: {}
