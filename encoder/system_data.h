@@ -11,7 +11,6 @@
 #include <vector>
 #include <utility>
 
-#include "./experiment.pb.h"
 #include "./observation_batch.pb.h"
 #include "third_party/abseil-cpp/absl/synchronization/mutex.h"
 
