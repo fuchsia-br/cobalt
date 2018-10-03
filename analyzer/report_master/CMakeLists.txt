@@ -59,7 +59,8 @@ target_link_libraries(analyzer_report_master_lib
                       pem_util
                       forculus_analyzer
                       rappor_analyzer
-                      report_master_proto_lib)
+                      report_master_proto_lib
+                      rapidjson)
 add_cobalt_dependencies(analyzer_report_master_lib)
 
 # Build the Report Master executable

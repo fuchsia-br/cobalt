@@ -7,7 +7,7 @@
 #include <string>
 
 #include "glog/logging.h"
-#include "third_party/rapidjson/rapidjson/document.h"
+#include "rapidjson/document.h"
 #include "util/crypto_util/base64.h"
 #include "util/log_based_metrics.h"
 
