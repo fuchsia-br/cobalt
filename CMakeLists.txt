@@ -624,6 +624,18 @@ cobalt_make_protobuf_cpp_lib(cobalt_proto_lib
                              observation2
                              observation_batch)
 
+# Generate the C++ bindings for some server-side-only proto files.
+# These are protos that are not used on the client at all but nevertheless
+# are stored in the Cobalt repo so that they are open-sourced. Here we
+# build them just to ensure they are syntactically correct.
+cobalt_make_protobuf_cpp_lib(cobalt_server_side_proto_lib
+                             COBALT_SERVER_SIDE_PROTO_HDRS
+                             false
+                             report_row)
+add_custom_target(BUILD_SERVER_SIDE_PROTOS ALL
+    DEPENDS cobalt_server_side_proto_lib
+)
+
 # Generate the go bindings for the Cobalt proto files in the root directory.
 cobalt_protobuf_generate_go(generate_cobalt_pb_go_files
                             COBALT_PB_GO_FILES

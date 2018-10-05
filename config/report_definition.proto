@@ -69,19 +69,7 @@ message ReportDefinition {
     // ReportDefinition fields particular to this type:
     //   - local_privacy_noise_level # Gives Basic RAPPOR parameters
     //
-    // Report fields:
-    //   - date # The date on which the events occurred, as measured on the
-    //          # device
-    //   - system_profile # One or more fields from the SystemProfile message
-    //                      type (cobalt/observation.proto) describing the
-    //                      system on which the events occurred.
-    //   - event # The name of the event type.
-    //   - count # The total count of the event occurrence on that date, over
-    //             all reporting devices with that system profile. Unless the
-    //             local_privacy_noise_level is set to NONE, this value is an
-    //             estimate.
-    //   - std_err # An estimate of the standard error in the value of Count
-    //               estimate.
+    // Report row type: SimpleOccurrenceCountReportRow. (See report_row.proto)
     //
     // Example report:
     //

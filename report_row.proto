@@ -1,0 +1,42 @@
+// Copyright 2018 The Fuchsia Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+syntax = "proto3";
+
+package cobalt;
+
+import "observation_batch.proto";
+
+// A row of output for a report of type SimpleOccurrenceCount. Gives the total
+// daily, fleet-wide count of the number of occurrences of a single event type,
+// on a single day, considering only devices matching a single system profile.
+message SimpleOccurrenceCountReportRow {
+  // The date on which the logged events occurred, as measured on the device.
+  // This is a string in yyyy-mm-dd format.
+  string date = 1;
+
+  // A profile of the system from which the events were logged. This will be
+  // populated with only the fields that are specified in the
+  // |system_profile_field| entry in the ReportDefinition for this report.
+  SystemProfile system_profile = 2;
+
+  // The name of the event type. If the event_type_index has not been assigned
+  // a name (in the event_types field of the MetricDefinition) then this will
+  // be a string of the form "<index=42>".
+  string event_type = 3;
+
+  // The total count of the event occurrence on the |date|, over all reporting
+  // devices with the |system_profile|. Unless |local_privacy_noise_level| in
+  // the Reportdefintion is set to NONE, this value is an estimate.
+  float count = 4;
+
+  // An estimate of the standard error in the value of the |count|. This will
+  // be zero if |local_privacy_noise_level| in the Reportdefintion is NONE.
+  // Multiply this value by z_{alpha/2} to obtain the radius of an approximate
+  // 100(1 - alpha)% confidence interval. For example an approximate 95%
+  // confidence interval for the count is given by
+  // (count_estimate - 1.96*std_error, count_estimate + 1.96 * std_error)
+  // because 1.96 ~= z_{.025} meaning that P(Z > 1.96) ~= 0.025 where
+  // Z ~ Normal(0, 1).
+  float std_err = 5;
+}
