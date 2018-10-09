@@ -38,6 +38,7 @@ add_definitions(-DHAVE_GLOG=1)
 # //third_party/googletest.
 add_definitions(-DHAVE_GOOGLETEST=1)
 
+set(DIR_CONFIG_PARSER_TESTS "${CMAKE_BINARY_DIR}/config_parser_tests")
 set(DIR_GTESTS "${CMAKE_BINARY_DIR}/gtests")
 set(DIR_SYSROOT "${CMAKE_SOURCE_DIR}/sysroot")
 set(DIR_END_TO_END_TESTS "${CMAKE_BINARY_DIR}/e2e_tests")
