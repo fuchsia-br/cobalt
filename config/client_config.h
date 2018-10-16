@@ -78,13 +78,24 @@ class ClientConfig {
   const class Metric* Metric(uint32_t customer_id, uint32_t project_id,
                              const std::string& metric_name);
 
+  bool IsLegacy() {
+    return encoding_configs_ != nullptr && metrics_ != nullptr;
+  }
+
+  std::unique_ptr<CustomerConfig> TakeCustomerConfig() {
+    return std::move(customer_config_);
+  }
+
  private:
-  // Constructs an ClientConfig that wraps the given registries.
+  // Constructs an ClientConfig that wraps the given registries. (v0.1)
   ClientConfig(std::shared_ptr<config::EncodingRegistry> encoding_configs,
                std::shared_ptr<config::MetricRegistry> metrics);
 
+  explicit ClientConfig(std::unique_ptr<CustomerConfig> customer_config);
+
   std::shared_ptr<config::EncodingRegistry> encoding_configs_;
   std::shared_ptr<config::MetricRegistry> metrics_;
+  std::unique_ptr<CustomerConfig> customer_config_;
 };
 
 }  // namespace config

@@ -376,8 +376,7 @@ Status EventLogger::InitializeEvent(uint32_t metric_id,
   if (event_record->metric->metric_type() != expected_type) {
     LOG(ERROR) << "Metric '" << MetricDebugString(*event_record->metric)
                << "' in project '" << project_context()->DebugString()
-               << "' is not of type "
-               << MetricDefinition_MetricType_Name(expected_type) << ".";
+               << "' is not of type " << expected_type << ".";
     return kInvalidArguments;
   }
 

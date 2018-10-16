@@ -94,6 +94,17 @@ ClientConfig::CreateFromCobaltProjectConfigBytes(
     project_id = cobalt_config.encoding_configs()[0].project_id();
   }
 
+  if (cobalt_config.customers_size() > 1) {
+    LOG(ERROR) << "More than one customer found in config.";
+    return std::make_pair(nullptr, project_id);
+  }
+
+  if (cobalt_config.customers_size() > 0 &&
+      cobalt_config.customers(0).projects_size() > 1) {
+    LOG(ERROR) << "More than one projects found in config.";
+    return std::make_pair(nullptr, project_id);
+  }
+
   // Validate configs
   if (!ValidateSingleProjectConfig<::cobalt::Metric>(
           cobalt_config.metric_configs(), customer_id, project_id)) {
@@ -112,28 +123,35 @@ ClientConfig::CreateFromCobaltProjectConfigBytes(
 
 std::unique_ptr<ClientConfig> ClientConfig::CreateFromCobaltConfig(
     CobaltConfig* cobalt_config) {
-  RegisteredEncodings registered_encodings;
-  registered_encodings.mutable_element()->Swap(
-      cobalt_config->mutable_encoding_configs());
-  auto encodings = EncodingRegistry::TakeFrom(&registered_encodings, nullptr);
-  if (encodings.second != config::kOK) {
-    LOG(ERROR) << "Invalid EncodingConfigs. " << ErrorMessage(encodings.second);
-    return std::unique_ptr<ClientConfig>(nullptr);
-  }
+  if (cobalt_config->customers_size() > 0) {
+    auto customer = std::make_unique<CustomerConfig>();
+    cobalt_config->mutable_customers(0)->Swap(customer.get());
+    return std::unique_ptr<ClientConfig>(new ClientConfig(std::move(customer)));
+  } else {
+    RegisteredEncodings registered_encodings;
+    registered_encodings.mutable_element()->Swap(
+        cobalt_config->mutable_encoding_configs());
+    auto encodings = EncodingRegistry::TakeFrom(&registered_encodings, nullptr);
+    if (encodings.second != config::kOK) {
+      LOG(ERROR) << "Invalid EncodingConfigs. "
+                 << ErrorMessage(encodings.second);
+      return std::unique_ptr<ClientConfig>(nullptr);
+    }
 
-  RegisteredMetrics registered_metrics;
-  registered_metrics.mutable_element()->Swap(
-      cobalt_config->mutable_metric_configs());
-  auto metrics = MetricRegistry::TakeFrom(&registered_metrics, nullptr);
-  if (metrics.second != config::kOK) {
-    LOG(ERROR) << "Error getting Metrics from registry. "
-               << ErrorMessage(metrics.second);
-    return std::unique_ptr<ClientConfig>(nullptr);
-  }
+    RegisteredMetrics registered_metrics;
+    registered_metrics.mutable_element()->Swap(
+        cobalt_config->mutable_metric_configs());
+    auto metrics = MetricRegistry::TakeFrom(&registered_metrics, nullptr);
+    if (metrics.second != config::kOK) {
+      LOG(ERROR) << "Error getting Metrics from registry. "
+                 << ErrorMessage(metrics.second);
+      return std::unique_ptr<ClientConfig>(nullptr);
+    }
 
-  return std::unique_ptr<ClientConfig>(new ClientConfig(
-      std::shared_ptr<config::EncodingRegistry>(encodings.first.release()),
-      std::shared_ptr<config::MetricRegistry>(metrics.first.release())));
+    return std::unique_ptr<ClientConfig>(new ClientConfig(
+        std::shared_ptr<config::EncodingRegistry>(encodings.first.release()),
+        std::shared_ptr<config::MetricRegistry>(metrics.first.release())));
+  }
 }
 
 const EncodingConfig* ClientConfig::EncodingConfig(
@@ -154,7 +172,14 @@ const Metric* ClientConfig::Metric(uint32_t customer_id, uint32_t project_id,
 ClientConfig::ClientConfig(
     std::shared_ptr<config::EncodingRegistry> encoding_configs,
     std::shared_ptr<config::MetricRegistry> metrics)
-    : encoding_configs_(encoding_configs), metrics_(metrics) {}
+    : encoding_configs_(encoding_configs),
+      metrics_(metrics),
+      customer_config_(nullptr) {}
+
+ClientConfig::ClientConfig(std::unique_ptr<CustomerConfig> customer_config)
+    : encoding_configs_(nullptr),
+      metrics_(nullptr),
+      customer_config_(std::move(customer_config)) {}
 
 }  // namespace config
 }  // namespace cobalt
