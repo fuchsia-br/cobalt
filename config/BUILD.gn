@@ -40,3 +40,12 @@ static_library("client_config") {
     "//third_party/cobalt:cobalt_proto",
   ]
 }
+
+source_set("id") {
+  sources = [
+    "id.cc",
+    "id.h",
+  ]
+
+  configs += [ "//third_party/cobalt:cobalt_config" ]
+}
