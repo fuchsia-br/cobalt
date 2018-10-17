@@ -2,6 +2,20 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+import("//third_party/cobalt_config/cobalt_config.gni")
+
+cobalt_config("internal_metrics_config") {
+  output_name = "internal_metrics_config"
+  add_extensions = true
+
+  customer_id = 2147483647
+  project_name = "metrics"
+  namespace = "cobalt.logger"
+
+  generate_binarypb = false
+  generate_cc = true
+}
+
 source_set("status") {
   sources = [
     "status.h",
@@ -71,6 +85,21 @@ source_set("logger_interface") {
   ]
 }
 
+source_set("internal_metrics") {
+  sources = [
+    "internal_metrics.cc",
+    "internal_metrics.h",
+  ]
+
+  public_configs = [ "//third_party/cobalt:cobalt_config" ]
+
+  public_deps = [
+    ":logger_interface",
+    ":internal_metrics_config_cc",
+    "//garnet/public/lib/fxl",
+  ]
+}
+
 source_set("logger") {
   sources = [
     "logger.cc",
@@ -81,6 +110,7 @@ source_set("logger") {
 
   public_deps = [
     ":encoder",
+    ":internal_metrics",
     ":logger_interface",
     ":observation_writer",
     ":project_context",
@@ -88,3 +118,4 @@ source_set("logger") {
     "//third_party/cobalt/config:id",
   ]
 }
+

@@ -186,7 +186,7 @@ func main() {
 		case "cpp":
 			namespaceList := []string{}
 			if *namespace != "" {
-				namespaceList = strings.Split(*namespace, ",")
+				namespaceList = strings.Split(*namespace, ".")
 			}
 			outputFormatter = config_parser.CppOutputFactory(*varName, namespaceList)
 		case "dart":

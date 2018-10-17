@@ -613,6 +613,27 @@ macro(generate_test_config_h INPUT_YAML OUTFILE CUSTOMER_ID PROJECT_ID STRING_VA
   )
 endmacro()
 
+macro(generate_cobalt_config_h)
+  set(oneValueArgs CUSTOMER_ID PROJECT_NAME OUTPUT_FILE NAMESPACE)
+  cmake_parse_arguments(ARGS "" "${oneValueArgs}" "" ${ARGN})
+
+  if ("${ARGS_OUTPUT_FILE}" STREQUAL "")
+    message(FATAL_ERROR "generate_cobalt_config_h requires OUTPUT_FILE to be specified")
+  endif()
+
+  set_source_files_properties(${ARGS_OUTPUT_FILE} PROPERTIES GENERATED TRUE)
+  add_custom_command(OUTPUT ${ARGS_OUTPUT_FILE}
+    COMMAND ${CONFIG_PARSER_BINARY}
+    ARGS -config_dir=${CMAKE_SOURCE_DIR}/third_party/config
+    ARGS -customer_id=${ARGS_CUSTOMER_ID}
+    ARGS -project_name=${ARGS_PROJECT_NAME}
+    ARGS -out_format=cpp
+    ARGS -output_file=${ARGS_OUTPUT_FILE}
+    ARGS -namespace=${ARGS_NAMESPACE}
+    DEPENDS ${CONFIG_PARSER_BINARY}
+  )
+endmacro()
+
 
 # Generate the C++ bindings for the Cobalt proto files in the root directory.
 # Also compile the generated C++ files into a static library.

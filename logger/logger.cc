@@ -12,6 +12,7 @@
 #include "./observation2.pb.h"
 #include "algorithms/rappor/rappor_config_helper.h"
 #include "config/encodings.pb.h"
+#include "config/id.h"
 #include "config/metric_definition.pb.h"
 #include "config/report_definition.pb.h"
 #include "logger/project_context.h"
@@ -223,16 +224,24 @@ class CustomEventLogger : public EventLogger {
 //////////////////// Logger method implementations ////////////////////////
 
 Logger::Logger(const Encoder* encoder, ObservationWriter* observation_writer,
-               const ProjectContext* project)
+               const ProjectContext* project, LoggerInterface* internal_logger)
     : encoder_(encoder),
       observation_writer_(observation_writer),
       project_context_(project),
       clock_(new SystemClock()) {
   CHECK(project);
+
+  if (internal_logger) {
+    internal_metrics_.reset(new InternalMetricsImpl(internal_logger));
+  } else {
+    // We were not provided with a metrics logger. We must create one.
+    internal_metrics_.reset(new NoOpInternalMetrics());
+  }
 }
 
 Status Logger::LogEvent(uint32_t metric_id, uint32_t event_code) {
   EventRecord event_record;
+  internal_metrics_->LoggerCalled(LoggerCallsMadeEventCode::LogEvent);
   auto* occurrence_event = event_record.event->mutable_occurrence_event();
   occurrence_event->set_event_code(event_code);
   auto event_logger = std::make_unique<OccurrenceEventLogger>(this);
@@ -243,6 +252,7 @@ Status Logger::LogEvent(uint32_t metric_id, uint32_t event_code) {
 Status Logger::LogEventCount(uint32_t metric_id, uint32_t event_code,
                              const std::string& component,
                              int64_t period_duration_micros, uint32_t count) {
+  internal_metrics_->LoggerCalled(LoggerCallsMadeEventCode::LogEventCount);
   EventRecord event_record;
   auto* count_event = event_record.event->mutable_count_event();
   count_event->set_event_code(event_code);
@@ -257,6 +267,7 @@ Status Logger::LogEventCount(uint32_t metric_id, uint32_t event_code,
 Status Logger::LogElapsedTime(uint32_t metric_id, uint32_t event_code,
                               const std::string& component,
                               int64_t elapsed_micros) {
+  internal_metrics_->LoggerCalled(LoggerCallsMadeEventCode::LogElapsedTime);
   EventRecord event_record;
   auto* elapsed_time_event = event_record.event->mutable_elapsed_time_event();
   elapsed_time_event->set_event_code(event_code);
@@ -269,6 +280,7 @@ Status Logger::LogElapsedTime(uint32_t metric_id, uint32_t event_code,
 
 Status Logger::LogFrameRate(uint32_t metric_id, uint32_t event_code,
                             const std::string& component, float fps) {
+  internal_metrics_->LoggerCalled(LoggerCallsMadeEventCode::LogFrameRate);
   EventRecord event_record;
   auto* frame_rate_event = event_record.event->mutable_frame_rate_event();
   frame_rate_event->set_event_code(event_code);
@@ -281,6 +293,7 @@ Status Logger::LogFrameRate(uint32_t metric_id, uint32_t event_code,
 
 Status Logger::LogMemoryUsage(uint32_t metric_id, uint32_t event_code,
                               const std::string& component, int64_t bytes) {
+  internal_metrics_->LoggerCalled(LoggerCallsMadeEventCode::LogMemoryUsage);
   EventRecord event_record;
   auto* memory_usage_event = event_record.event->mutable_memory_usage_event();
   memory_usage_event->set_event_code(event_code);
@@ -294,6 +307,7 @@ Status Logger::LogMemoryUsage(uint32_t metric_id, uint32_t event_code,
 Status Logger::LogIntHistogram(uint32_t metric_id, uint32_t event_code,
                                const std::string& component,
                                HistogramPtr histogram) {
+  internal_metrics_->LoggerCalled(LoggerCallsMadeEventCode::LogIntHistogram);
   EventRecord event_record;
   auto* int_histogram_event = event_record.event->mutable_int_histogram_event();
   int_histogram_event->set_event_code(event_code);
@@ -305,6 +319,7 @@ Status Logger::LogIntHistogram(uint32_t metric_id, uint32_t event_code,
 }
 
 Status Logger::LogString(uint32_t metric_id, const std::string& str) {
+  internal_metrics_->LoggerCalled(LoggerCallsMadeEventCode::LogString);
   EventRecord event_record;
   auto* string_used_event = event_record.event->mutable_string_used_event();
   string_used_event->set_str(str);
@@ -314,6 +329,7 @@ Status Logger::LogString(uint32_t metric_id, const std::string& str) {
 }
 
 Status Logger::LogCustomEvent(uint32_t metric_id, EventValuesPtr event_values) {
+  internal_metrics_->LoggerCalled(LoggerCallsMadeEventCode::LogCustomEvent);
   EventRecord event_record;
   auto* custom_event = event_record.event->mutable_custom_event();
   custom_event->mutable_values()->swap(*event_values);
@@ -341,6 +357,7 @@ Status EventLogger::Log(uint32_t metric_id,
             << MetricDebugString(*event_record->metric) << "] in project "
             << project_context()->DebugString() << ".";
   }
+
   for (const auto& report : event_record->metric->reports()) {
     status = MaybeUpdateLocalAggregation(report, event_record);
     if (status != kOK) {
@@ -397,9 +414,9 @@ Status EventLogger::ValidateEvent(const EventRecord& event_record) {
 // and returns OK.
 Status EventLogger::MaybeUpdateLocalAggregation(const ReportDefinition& report,
                                                 EventRecord* event_record) {
-  // TODO(pesk) Implement this method in subclasses of EventLoger corresponding
-  // to Metric types for which there exist Report types for which which
-  // you want to perform local aggregation.
+  // TODO(pesk) Implement this method in subclasses of EventLoger
+  // corresponding to Metric types for which there exist Report types for
+  // which which you want to perform local aggregation.
   return kOK;
 }
 
@@ -418,8 +435,8 @@ Status EventLogger::MaybeGenerateImmediateObservation(
       *encoder_result.observation, std::move(encoder_result.metadata));
 }
 
-// The default implementation of MaybeEncodeImmediateObservation does nothing
-// and returns OK.
+// The default implementation of MaybeEncodeImmediateObservation does
+// nothing and returns OK.
 Encoder::Result EventLogger::MaybeEncodeImmediateObservation(
     const ReportDefinition& report, bool may_invalidate,
     EventRecord* event_record) {
@@ -526,7 +543,7 @@ Encoder::Result IntegerPerformanceEventLogger::MaybeEncodeImmediateObservation(
   }
 }
 
-////////////// ElapsedTimeEventLogger method implementations /////////////////
+////////////// ElapsedTimeEventLogger method implementations ///////////////////
 
 uint32_t ElapsedTimeEventLogger::EventCode(const Event& event) {
   CHECK(event.has_elapsed_time_event());
@@ -576,7 +593,7 @@ int64_t MemoryUsageEventLogger::IntValue(const Event& event) {
   return event.memory_usage_event().bytes();
 }
 
-/////////////// IntHistogramEventLogger method implementations ////////////////
+/////////////// IntHistogramEventLogger method implementations /////////////////
 
 Status IntHistogramEventLogger::ValidateEvent(const EventRecord& event_record) {
   CHECK(event_record.event->has_int_histogram_event());
@@ -640,8 +657,8 @@ Encoder::Result IntHistogramEventLogger::MaybeEncodeImmediateObservation(
       HistogramPtr histogram =
           std::make_unique<RepeatedPtrField<HistogramBucket>>();
       if (may_invalidate) {
-        // We move the buckets out of |int_histogram_event| thereby invalidating
-        // that variable.
+        // We move the buckets out of |int_histogram_event| thereby
+        // invalidating that variable.
         histogram->Swap(int_histogram_event->mutable_buckets());
       } else {
         histogram->CopyFrom(int_histogram_event->buckets());
@@ -657,7 +674,7 @@ Encoder::Result IntHistogramEventLogger::MaybeEncodeImmediateObservation(
   }
 }
 
-/////////////// StringUsedEventLogger method implementations ////////////////
+/////////////// StringUsedEventLogger method implementations ///////////////////
 Encoder::Result StringUsedEventLogger::MaybeEncodeImmediateObservation(
     const ReportDefinition& report, bool may_invalidate,
     EventRecord* event_record) {

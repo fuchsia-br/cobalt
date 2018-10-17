@@ -10,8 +10,8 @@
 #include <utility>
 #include <vector>
 
-#include "logger/status.h"
 #include "logger/encoder.h"
+#include "logger/status.h"
 
 namespace cobalt {
 namespace logger {
@@ -80,7 +80,7 @@ class LoggerInterface {
   // of microseconds.
   virtual Status LogElapsedTime(uint32_t metric_id, uint32_t event_code,
                                 const std::string& component,
-                                int64_t elpased_micros) = 0;
+                                int64_t elapsed_micros) = 0;
 
   // Logs a measured average frame rate.
   //

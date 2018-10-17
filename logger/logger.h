@@ -12,6 +12,7 @@
 
 #include "./observation2.pb.h"
 #include "logger/encoder.h"
+#include "logger/internal_metrics.h"
 #include "logger/logger_interface.h"
 #include "logger/observation_writer.h"
 #include "logger/project_context.h"
@@ -42,8 +43,13 @@ class Logger : public LoggerInterface {
   //
   // |project| The ProjectContext of the client-side project for which the
   // Logger will log events.
+  //
+  // |internal_logger| An instance of LoggerInterface, used internally by the
+  // Logger to send metrics about Cobalt to Cobalt. If nullptr, no such internal
+  // logging will be performed by this Logger.
   Logger(const Encoder* encoder, ObservationWriter* observation_writer,
-         const ProjectContext* project);
+         const ProjectContext* project,
+         LoggerInterface* internal_logger = nullptr);
 
   virtual ~Logger() = default;
 
@@ -83,6 +89,8 @@ class Logger : public LoggerInterface {
   const ObservationWriter* observation_writer_;
   const ProjectContext* project_context_;
   std::unique_ptr<util::ClockInterface> clock_;
+
+  std::unique_ptr<InternalMetrics> internal_metrics_;
 };
 
 }  // namespace logger
