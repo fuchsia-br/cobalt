@@ -30,6 +30,7 @@ class MetricRef {
   MetricRef(const Project* project, const MetricDefinition* metric_definition);
 
   const Project& project() const;
+  const std::string ProjectDebugString() const;
   uint32_t metric_id() const;
   const std::string& metric_name() const;
 
@@ -57,7 +58,7 @@ class ProjectContext {
 
   const Project& project() const { return project_; }
 
-  const std::string DebugString() const { return project_.DebugString(); }
+  const std::string DebugString() const;
 
  private:
   Project project_;

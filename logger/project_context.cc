@@ -23,6 +23,14 @@ MetricRef::MetricRef(const Project* project,
 
 const Project& MetricRef::project() const { return *project_; }
 
+const std::string MetricRef::ProjectDebugString() const {
+#ifdef PROTO_LITE
+  return project_->project_name();
+#else
+  return project_->DebugString();
+#endif
+}
+
 uint32_t MetricRef::metric_id() const { return metric_definition_->id(); }
 
 const std::string& MetricRef::metric_name() const {
@@ -91,6 +99,14 @@ const MetricDefinition* ProjectContext::GetMetric(
 const MetricRef ProjectContext::RefMetric(
     const MetricDefinition* metric_definition) const {
   return MetricRef(&project_, metric_definition);
+}
+
+const std::string ProjectContext::DebugString() const {
+#ifdef PROTO_LITE
+  return project_.project_name();
+#else
+  return project_.DebugString();
+#endif
 }
 
 }  // namespace logger

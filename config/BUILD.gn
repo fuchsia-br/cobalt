@@ -4,6 +4,10 @@
 
 import("//third_party/protobuf/proto_library.gni")
 
+config("proto_config") {
+  defines = [ "PROTO_LITE" ]
+}
+
 proto_library("cobalt_config_proto") {
   proto_in_dir = "//third_party/cobalt"
   sources = [
@@ -11,6 +15,7 @@ proto_library("cobalt_config_proto") {
     "encodings.proto",
     "metric_definition.proto",
     "metrics.proto",
+    "project.proto",
     "report_configs.proto",
     "report_definition.proto",
     "window_size.proto",
@@ -24,7 +29,10 @@ proto_library("cobalt_config_proto") {
     "//third_party/cobalt:cobalt_proto",
   ]
 
-  extra_configs = [ "//third_party/cobalt:cobalt_config" ]
+  extra_configs = [
+    ":proto_config",
+    "//third_party/cobalt:cobalt_config",
+  ]
 }
 
 static_library("client_config") {

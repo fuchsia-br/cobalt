@@ -88,7 +88,7 @@ Encoder::Result Encoder::EncodeBasicRapporObservation(
     default:
       LOG(ERROR) << "Invalid Cobalt config: Report " << report->report_name()
                  << " for metric " << metric.metric_name() << " in project "
-                 << metric.project().DebugString()
+                 << metric.ProjectDebugString()
                  << " does not have local_privacy_noise_level set to a "
                     "recognized value.";
       result.status = kInvalidConfig;
@@ -108,7 +108,7 @@ Encoder::Result Encoder::EncodeBasicRapporObservation(
       LOG(ERROR) << "BasicRapporEncoder returned kInvalidConfig for: Report "
                  << report->report_name() << " for metric "
                  << metric.metric_name() << " in project "
-                 << metric.project().DebugString() << ".";
+                 << metric.ProjectDebugString() << ".";
       result.status = kInvalidConfig;
       return result;
 
@@ -116,7 +116,7 @@ Encoder::Result Encoder::EncodeBasicRapporObservation(
       LOG(ERROR) << "BasicRapporEncoder returned kInvalidInput for: Report "
                  << report->report_name() << " for metric "
                  << metric.metric_name() << " in project "
-                 << metric.project().DebugString() << ".";
+                 << metric.ProjectDebugString() << ".";
       result.status = kInvalidArguments;
       return result;
   }
@@ -186,7 +186,7 @@ Encoder::Result Encoder::EncodeRapporObservation(MetricRef metric,
     default:
       LOG(ERROR) << "Invalid Cobalt config: Report " << report->report_name()
                  << " for metric " << metric.metric_name() << " in project "
-                 << metric.project().DebugString()
+                 << metric.ProjectDebugString()
                  << " does not have local_privacy_noise_level set to a "
                     "recognized value.";
       result.status = kInvalidConfig;
@@ -204,7 +204,7 @@ Encoder::Result Encoder::EncodeRapporObservation(MetricRef metric,
       LOG(ERROR) << "RapporEncoder returned kInvalidConfig for: Report "
                  << report->report_name() << " for metric "
                  << metric.metric_name() << " in project "
-                 << metric.project().DebugString() << ".";
+                 << metric.ProjectDebugString() << ".";
       result.status = kInvalidConfig;
       return result;
 
@@ -212,7 +212,7 @@ Encoder::Result Encoder::EncodeRapporObservation(MetricRef metric,
       LOG(ERROR) << "RapporEncoder returned kInvalidInput for: Report "
                  << report->report_name() << " for metric "
                  << metric.metric_name() << " in project "
-                 << metric.project().DebugString() << ".";
+                 << metric.ProjectDebugString() << ".";
       result.status = kInvalidArguments;
       return result;
   }
@@ -229,7 +229,7 @@ Encoder::Result Encoder::EncodeForculusObservation(
   if (report->threshold() < 2) {
     LOG(ERROR) << "Invalid Cobalt config: Report " << report->report_name()
                << " for metric " << metric.metric_name() << " in project "
-               << metric.project().DebugString()
+               << metric.ProjectDebugString()
                << " has an invalid value for |threshold|.";
     result.status = kInvalidConfig;
     return result;
@@ -251,7 +251,7 @@ Encoder::Result Encoder::EncodeForculusObservation(
       LOG(ERROR) << "ForculusEncrypter returned kInvalidConfig for: Report "
                  << report->report_name() << " for metric "
                  << metric.metric_name() << " in project "
-                 << metric.project().DebugString() << ".";
+                 << metric.ProjectDebugString() << ".";
       result.status = kInvalidConfig;
       return result;
 
@@ -259,7 +259,7 @@ Encoder::Result Encoder::EncodeForculusObservation(
       LOG(ERROR) << "ForculusEncrypter returned kEncryptionFailed for: Report "
                  << report->report_name() << " for metric "
                  << metric.metric_name() << " in project "
-                 << metric.project().DebugString() << ".";
+                 << metric.ProjectDebugString() << ".";
       result.status = kOther;
   }
   return result;
@@ -279,7 +279,7 @@ Encoder::Result Encoder::EncodeIntegerEventObservation(
     LOG(ERROR) << "Hashing the component name failed for: Report "
                << report->report_name() << " for metric "
                << metric.metric_name() << " in project "
-               << metric.project().DebugString() << ".";
+               << metric.ProjectDebugString() << ".";
     result.status = kOther;
   }
   integer_event_observation->set_value(value);
@@ -299,7 +299,7 @@ Encoder::Result Encoder::EncodeHistogramObservation(
     LOG(ERROR) << "Hashing the component name failed for: Report "
                << report->report_name() << " for metric "
                << metric.metric_name() << " in project "
-               << metric.project().DebugString() << ".";
+               << metric.ProjectDebugString() << ".";
     result.status = kOther;
   }
   histogram_observation->mutable_buckets()->Swap(histogram.get());

@@ -2,15 +2,25 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+source_set("status") {
+  sources = [
+    "status.h",
+  ]
+}
+
 source_set("project_context") {
   sources = [
     "project_context.cc",
     "project_context.h",
   ]
 
-  public_configs = [ "//third_party/cobalt:cobalt_config" ]
+  public_configs = [
+    "//third_party/cobalt:cobalt_config",
+    "//third_party/cobalt/config:proto_config",
+  ]
 
   public_deps = [
+    ":status",
     "//garnet/public/lib/fxl",
     "//third_party/cobalt/config:cobalt_config_proto",
   ]
@@ -25,6 +35,8 @@ source_set("encoder") {
   public_configs = [ "//third_party/cobalt:cobalt_config" ]
 
   public_deps = [
+    ":project_context",
+    ":status",
     "//garnet/public/lib/fxl",
     "//third_party/abseil-cpp",
     "//third_party/cobalt/config:cobalt_config_proto",
@@ -40,8 +52,22 @@ source_set("observation_writer") {
   public_configs = [ "//third_party/cobalt:cobalt_config" ]
 
   public_deps = [
+    ":status",
     "//garnet/public/lib/fxl",
-    "//third_party/cobalt/config:cobalt_config_proto",
+    "//third_party/cobalt:cobalt_proto",
+  ]
+}
+
+source_set("logger_interface") {
+  sources = [
+    "logger_interface.h",
+  ]
+
+  public_configs = [ "//third_party/cobalt:cobalt_config" ]
+
+  public_deps = [
+    ":encoder",
+    ":status",
   ]
 }
 
@@ -53,9 +79,12 @@ source_set("logger") {
 
   public_configs = [ "//third_party/cobalt:cobalt_config" ]
 
-  deps = [
+  public_deps = [
     ":encoder",
+    ":logger_interface",
     ":observation_writer",
     ":project_context",
+    ":status",
+    "//third_party/cobalt/config:id",
   ]
 }
