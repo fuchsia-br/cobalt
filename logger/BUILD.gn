@@ -26,8 +26,8 @@ source_set("encoder") {
 
   public_deps = [
     "//garnet/public/lib/fxl",
-    "//third_party/cobalt/config:cobalt_config_proto",
     "//third_party/abseil-cpp",
+    "//third_party/cobalt/config:cobalt_config_proto",
   ]
 }
 
@@ -54,8 +54,8 @@ source_set("logger") {
   public_configs = [ "//third_party/cobalt:cobalt_config" ]
 
   deps = [
-    ":project_context",
     ":encoder",
     ":observation_writer",
+    ":project_context",
   ]
 }

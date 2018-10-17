@@ -19,12 +19,10 @@ static_library("clearcut") {
     "uploader.cc",
     "uploader.h",
   ]
-  configs += [
-    "//third_party/cobalt:cobalt_config",
-  ]
+  configs += [ "//third_party/cobalt:cobalt_config" ]
   public_deps = [
     ":clearcut_proto",
-    "//third_party/cobalt/third_party/tensorflow_statusor:statusor",
     "//third_party/abseil-cpp",
+    "//third_party/cobalt/third_party/tensorflow_statusor:statusor",
   ]
 }

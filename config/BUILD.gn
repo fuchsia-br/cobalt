@@ -9,15 +9,15 @@ proto_library("cobalt_config_proto") {
   sources = [
     "cobalt_config.proto",
     "encodings.proto",
-    "metrics.proto",
     "metric_definition.proto",
+    "metrics.proto",
     "report_configs.proto",
     "report_definition.proto",
     "window_size.proto",
   ]
   import_dirs = [ "//third_party/protobuf/src" ]
   generate_python = false
-  generate_go = (current_toolchain == host_toolchain)
+  generate_go = current_toolchain == host_toolchain
   cc_generator_options = "lite"
 
   deps = [

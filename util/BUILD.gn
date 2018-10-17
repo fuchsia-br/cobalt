@@ -47,8 +47,8 @@ static_library("pem_util") {
 static_library("status") {
   sources = [
     "status.cc",
-    "status_codes.h",
     "status.h",
+    "status_codes.h",
   ]
   configs += [ "//third_party/cobalt:cobalt_config" ]
 }
@@ -56,17 +56,19 @@ static_library("status") {
 static_library("posix_file_system") {
   sources = [
     "file_system.h",
-    "posix_file_system.h",
     "posix_file_system.cc",
+    "posix_file_system.h",
   ]
   configs += [ "//third_party/cobalt:cobalt_config" ]
 }
 
 static_library("consistent_proto_store") {
   sources = [
-    "consistent_proto_store.h",
     "consistent_proto_store.cc",
+    "consistent_proto_store.h",
   ]
   configs += [ "//third_party/cobalt:cobalt_config" ]
-  deps = [ ":status" ]
+  deps = [
+    ":status",
+  ]
 }

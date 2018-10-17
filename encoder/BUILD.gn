@@ -64,7 +64,7 @@ proto_library("file_observation_store_internal_proto") {
   extra_configs = [ "//third_party/cobalt:cobalt_config" ]
   import_dirs = [
     "//third_party/protobuf/src",
-    "//third_party/cobalt"
+    "//third_party/cobalt",
   ]
   cc_generator_options = "lite"
   generate_python = false
