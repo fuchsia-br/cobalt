@@ -150,12 +150,12 @@ func main() {
 			if *namespace != "" {
 				namespaceList = strings.Split(*namespace, ",")
 			}
-			outputFormatter = config_parser.CppOutputFactory(*varName, namespaceList, configLocation)
+			outputFormatter = config_parser.CppOutputFactory(*varName, namespaceList)
 		case "dart":
 			if len(configs) > 1 {
 				glog.Exitf("Dart output can only be used with a single project config.")
 			}
-			outputFormatter = config_parser.DartOutputFactory(*varName, configLocation)
+			outputFormatter = config_parser.DartOutputFactory(*varName)
 		default:
 			glog.Exitf("'%v' is an invalid out_format parameter. 'bin', 'b64', 'cpp' and 'dart' are the only valid values for out_format.", *outFormat)
 		}
