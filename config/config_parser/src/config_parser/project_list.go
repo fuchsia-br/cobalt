@@ -20,6 +20,7 @@ package config_parser
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 
 	yaml "github.com/go-yaml/yaml"
@@ -65,6 +66,9 @@ func parseCustomerList(content string, l *[]ProjectConfig) (err error) {
 		}
 		if customerId < 0 {
 			return fmt.Errorf("Customer id for '%v' is negative. Customer ids must be positive.", customerName)
+		}
+		if customerId == math.MaxInt32 && customerName != "cobalt_internal" {
+			return fmt.Errorf("Customer '%v' tried to register id %d, which is reserved for the internal customer 'cobalt_internal'.", customerName, math.MaxInt32)
 		}
 		if customerIds[customerId] {
 			return fmt.Errorf("Customer id %v for customer '%v' repeated. Customer names must be unique.", customerId, customerName)
