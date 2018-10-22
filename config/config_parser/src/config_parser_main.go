@@ -25,14 +25,15 @@ var (
 	repoUrl        = flag.String("repo_url", "", "URL of the repository containing the config. Exactly one of 'repo_url', 'config_file' or 'config_dir' must be specified.")
 	configDir      = flag.String("config_dir", "", "Directory containing the config. Exactly one of 'repo_url', 'config_file' or 'config_dir' must be specified.")
 	configFile     = flag.String("config_file", "", "File containing the config for a single project. Exactly one of 'repo_url', 'config_file' or 'config_dir' must be specified.")
-	outFile        = flag.String("output_file", "", "File to which the serialized config should be written. Defaults to stdout.")
+	outFile        = flag.String("output_file", "", "File to which the serialized config should be written. Defaults to stdout. When multiple output formats are specified, it will append the format to the filename")
+	addFileSuffix  = flag.Bool("add_file_suffix", false, "Append the out_format to the out_file, even if there is only one out_format specified")
 	checkOnly      = flag.Bool("check_only", false, "Only check that the configuration is valid.")
 	skipValidation = flag.Bool("skip_validation", false, "Skip validating the config, write it no matter what.")
 	gitTimeoutSec  = flag.Int64("git_timeout", 60, "How many seconds should I wait on git commands?")
 	customerId     = flag.Int64("customer_id", -1, "Customer Id for the config to be read. Must be set if and only if 'config_file' is set.")
 	projectId      = flag.Int64("project_id", -1, "Project Id for the config to be read. Must be set if and only if 'config_file' is set.")
 	projectName    = flag.String("project_name", "", "Project name for the config to be read. Must be set if and only if 'config_dir' is set.")
-	outFormat      = flag.String("out_format", "bin", "Specifies the output format. Supports 'bin' (serialized proto), 'b64' (serialized proto to base 64), 'cpp' (a C++ file containing a variable with a base64-encoded serialized proto.) and 'dart' (a Dart file...)")
+	outFormat      = flag.String("out_format", "bin", "Specifies the output formats (separated by ' '). Supports 'bin' (serialized proto), 'b64' (serialized proto to base 64), 'cpp' (a C++ file containing a variable with a base64-encoded serialized proto.) and 'dart' (a Dart file...)")
 	varName        = flag.String("var_name", "config", "When using the 'cpp' or 'dart' output format, this will specify the variable name to be used in the output.")
 	namespace      = flag.String("namespace", "", "When using the 'cpp' output format, this will specify the comma-separated namespace within which the config variable must be places.")
 	depFile        = flag.String("dep_file", "", "Generate a depfile (see gn documentation) that lists all the project configuration files. Requires -output_file and -config_dir.")
@@ -134,82 +135,89 @@ func main() {
 		}
 	}
 
-	var outputFormatter config_parser.OutputFormatter
-	switch *outFormat {
-	case "bin":
-		outputFormatter = config_parser.BinaryOutput
-	case "b64":
-		outputFormatter = config_parser.Base64Output
-	case "cpp":
-		namespaceList := []string{}
-		if *namespace != "" {
-			namespaceList = strings.Split(*namespace, ",")
-		}
-		outputFormatter = config_parser.CppOutputFactory(*varName, namespaceList, configLocation)
-	case "dart":
-		if len(configs) > 1 {
-			glog.Exitf("Dart output can only be used with a single project config.")
-		}
-		outputFormatter = config_parser.DartOutputFactory(*varName, configLocation)
-	default:
-		glog.Exitf("'%v' is an invalid out_format parameter. 'bin', 'b64', 'cpp' and 'dart' are the only valid values for out_format.", *outFormat)
-	}
-
 	c := config_parser.MergeConfigs(configs)
 
-	// Then, we serialize the configuration.
-	configBytes, err := outputFormatter(&c)
-	if err != nil {
-		glog.Exit(err)
-	}
+	outFormats := strings.Split(*outFormat, " ")
+	for _, format := range outFormats {
+		var outputFormatter config_parser.OutputFormatter
+		switch format {
+		case "bin":
+			outputFormatter = config_parser.BinaryOutput
+		case "b64":
+			outputFormatter = config_parser.Base64Output
+		case "cpp":
+			namespaceList := []string{}
+			if *namespace != "" {
+				namespaceList = strings.Split(*namespace, ",")
+			}
+			outputFormatter = config_parser.CppOutputFactory(*varName, namespaceList, configLocation)
+		case "dart":
+			if len(configs) > 1 {
+				glog.Exitf("Dart output can only be used with a single project config.")
+			}
+			outputFormatter = config_parser.DartOutputFactory(*varName, configLocation)
+		default:
+			glog.Exitf("'%v' is an invalid out_format parameter. 'bin', 'b64', 'cpp' and 'dart' are the only valid values for out_format.", *outFormat)
+		}
 
-	// Check that the output file is not empty.
-	if len(configBytes) == 0 {
-		glog.Exit("Output file is empty.")
-	}
-
-	// If no errors have occured yet and checkOnly was set, we are done.
-	if *checkOnly {
-		fmt.Printf("%s OK\n", configLocation)
-		os.Exit(0)
-	}
-
-	// By default we print the output to stdout.
-	w := os.Stdout
-
-	// If an output file is specified, we write to a temporary file and then rename
-	// the temporary file with the specified output file name.
-	if *outFile != "" {
-		if w, err = ioutil.TempFile("", "cobalt_config"); err != nil {
+		// Then, we serialize the configuration.
+		configBytes, err := outputFormatter(&c)
+		if err != nil {
 			glog.Exit(err)
 		}
-		defer w.Close()
-	}
 
-	_, err = w.Write(configBytes)
-	if err != nil {
-		glog.Exit(err)
-	}
+		// Check that the output file is not empty.
+		if len(configBytes) == 0 {
+			glog.Exit("Output file is empty.")
+		}
 
-	if *outFile != "" {
-		if err := os.Rename(w.Name(), *outFile); err != nil {
-			// Rename doesn't work if /tmp is in a different partition. Attempting to copy.
-			// TODO(azani): Look into doing this atomically.
-			in, err := os.Open(w.Name())
-			if err != nil {
+		// If no errors have occured yet and checkOnly was set, we are done.
+		if *checkOnly {
+			fmt.Printf("%s OK\n", configLocation)
+			os.Exit(0)
+		}
+
+		// By default we print the output to stdout.
+		w := os.Stdout
+
+		// If an output file is specified, we write to a temporary file and then rename
+		// the temporary file with the specified output file name.
+		if *outFile != "" {
+			if w, err = ioutil.TempFile("", "cobalt_config"); err != nil {
 				glog.Exit(err)
 			}
-			defer in.Close()
+			defer w.Close()
+		}
 
-			out, err := os.Create(*outFile)
-			if err != nil {
-				glog.Exit(err)
+		_, err = w.Write(configBytes)
+		if err != nil {
+			glog.Exit(err)
+		}
+
+		if *outFile != "" {
+			fname := *outFile
+			if len(outFormats) > 1 || *addFileSuffix {
+				fname = fmt.Sprintf("%s.%s", *outFile, format)
 			}
-			defer out.Close()
+			if err := os.Rename(w.Name(), fname); err != nil {
+				// Rename doesn't work if /tmp is in a different partition. Attempting to copy.
+				// TODO(azani): Look into doing this atomically.
+				in, err := os.Open(w.Name())
+				if err != nil {
+					glog.Exit(err)
+				}
+				defer in.Close()
 
-			_, err = io.Copy(out, in)
-			if err != nil {
-				glog.Exit(err)
+				out, err := os.Create(fname)
+				if err != nil {
+					glog.Exit(err)
+				}
+				defer out.Close()
+
+				_, err = io.Copy(out, in)
+				if err != nil {
+					glog.Exit(err)
+				}
 			}
 		}
 	}
