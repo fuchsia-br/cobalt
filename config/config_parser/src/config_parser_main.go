@@ -26,6 +26,9 @@ var (
 	configDir      = flag.String("config_dir", "", "Directory containing the config. Exactly one of 'repo_url', 'config_file' or 'config_dir' must be specified.")
 	configFile     = flag.String("config_file", "", "File containing the config for a single project. Exactly one of 'repo_url', 'config_file' or 'config_dir' must be specified.")
 	outFile        = flag.String("output_file", "", "File to which the serialized config should be written. Defaults to stdout. When multiple output formats are specified, it will append the format to the filename")
+	outFilename    = flag.String("out_filename", "", "The base name to use for writing files. Should not be used with output_file.")
+	outDir         = flag.String("out_dir", "", "The directory into which files should be written.")
+	dartOutDir     = flag.String("dart_out_dir", "", "The directory to write dart files to (if different from out_dir)")
 	addFileSuffix  = flag.Bool("add_file_suffix", false, "Append the out_format to the out_file, even if there is only one out_format specified")
 	checkOnly      = flag.Bool("check_only", false, "Only check that the configuration is valid.")
 	skipValidation = flag.Bool("skip_validation", false, "Skip validating the config, write it no matter what.")
@@ -39,16 +42,38 @@ var (
 	depFile        = flag.String("dep_file", "", "Generate a depfile (see gn documentation) that lists all the project configuration files. Requires -output_file and -config_dir.")
 )
 
+func generateFilename(format string) string {
+	if *outFilename != "" {
+		dir := *outDir
+		if format == "dart" && *dartOutDir != "" {
+			dir = *dartOutDir
+		}
+		fnameBase := fmt.Sprintf("%s/%s", dir, *outFilename)
+		switch format {
+		case "bin":
+			return fmt.Sprintf("%s.pb", fnameBase)
+		case "cpp":
+			return fmt.Sprintf("%s.h", fnameBase)
+		default:
+			return fmt.Sprintf("%s.%s", fnameBase, format)
+		}
+	} else {
+		return *outFile
+	}
+}
+
 // Write a depfile listing the files in 'files' at the location specified by
 // outFile.
-func writeDepFile(outFile string, files []string, depFile string) error {
+func writeDepFile(formats, files []string, depFile string) error {
 	w, err := os.Create(depFile)
 	if err != nil {
 		return err
 	}
 	defer w.Close()
 
-	_, err = io.WriteString(w, fmt.Sprintf("%s: %s", outFile, strings.Join(files, " ")))
+	for _, format := range formats {
+		_, err = io.WriteString(w, fmt.Sprintf("%s: %s\n", generateFilename(format), strings.Join(files, " ")))
+	}
 	return err
 }
 
@@ -79,8 +104,20 @@ func main() {
 		glog.Exit("-dep_file requires -config_dir")
 	}
 
-	if *depFile != "" && *outFile == "" {
-		glog.Exit("-dep_file requires -output_file")
+	if *depFile != "" && (*outFile == "" && *outFilename == "") {
+		glog.Exit("-dep_file requires -output_file or -out_filename")
+	}
+
+	if *outFile != "" && *outFilename != "" {
+		glog.Exit("-output_file and -out_filename are mutually exclusive.")
+	}
+
+	if (*outDir != "" || *dartOutDir != "") && *outFile != "" {
+		glog.Exit("-output_file should not be set at the same time as -out_dir or -dart_out_dir")
+	}
+
+	if (*outDir != "" || *dartOutDir != "") && *outFilename == "" {
+		glog.Exit("-out_dir or -dart_out_dir require specifying -out_filename.")
 	}
 
 	var configLocation string
@@ -92,13 +129,15 @@ func main() {
 		configLocation = *configDir
 	}
 
+	outFormats := strings.FieldsFunc(*outFormat, func(c rune) bool { return c == ' ' })
+
 	if *depFile != "" {
 		files, err := config_parser.GetConfigFilesListFromConfigDir(configLocation)
 		if err != nil {
 			glog.Exit(err)
 		}
 
-		if err := writeDepFile(*outFile, files, *depFile); err != nil {
+		if err := writeDepFile(outFormats, files, *depFile); err != nil {
 			glog.Exit(err)
 		}
 	}
@@ -137,7 +176,6 @@ func main() {
 
 	c := config_parser.MergeConfigs(configs)
 
-	outFormats := strings.Split(*outFormat, " ")
 	for _, format := range outFormats {
 		var outputFormatter config_parser.OutputFormatter
 		switch format {
@@ -182,7 +220,7 @@ func main() {
 
 		// If an output file is specified, we write to a temporary file and then rename
 		// the temporary file with the specified output file name.
-		if *outFile != "" {
+		if *outFile != "" || *outFilename != "" {
 			if w, err = ioutil.TempFile("", "cobalt_config"); err != nil {
 				glog.Exit(err)
 			}
@@ -194,11 +232,9 @@ func main() {
 			glog.Exit(err)
 		}
 
-		if *outFile != "" {
-			fname := *outFile
-			if len(outFormats) > 1 || *addFileSuffix {
-				fname = fmt.Sprintf("%s.%s", *outFile, format)
-			}
+		fname := generateFilename(format)
+
+		if fname != "" {
 			if err := os.Rename(w.Name(), fname); err != nil {
 				// Rename doesn't work if /tmp is in a different partition. Attempting to copy.
 				// TODO(azani): Look into doing this atomically.
