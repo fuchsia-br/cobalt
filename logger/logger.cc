@@ -10,7 +10,7 @@
 #include "./event.pb.h"
 #include "./logging.h"
 #include "./observation2.pb.h"
-#include "algorithms/rappor/rappor_encoder.h"
+#include "algorithms/rappor/rappor_config_helper.h"
 #include "config/encodings.pb.h"
 #include "config/metric_definition.pb.h"
 #include "config/report_definition.pb.h"
@@ -21,6 +21,7 @@
 namespace cobalt {
 namespace logger {
 
+using ::cobalt::rappor::RapporConfigHelper;
 using ::cobalt::util::ClockInterface;
 using ::cobalt::util::SystemClock;
 using ::cobalt::util::TimeToDayIndex;
@@ -470,7 +471,7 @@ Encoder::Result OccurrenceEventLogger::MaybeEncodeImmediateObservation(
       return encoder()->EncodeBasicRapporObservation(
           project_context()->RefMetric(&metric), &report, event.day_index(),
           occurrence_event.event_type_index(),
-          metric.max_event_type_index() + 1);
+          RapporConfigHelper::BasicRapporNumCategories(metric));
     }
 
     default:

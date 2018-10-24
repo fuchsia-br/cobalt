@@ -4,6 +4,8 @@
 
 static_library("rappor_encoder") {
   sources = [
+    "rappor_config_helper.cc",
+    "rappor_config_helper.h",
     "rappor_config_validator.cc",
     "rappor_config_validator.h",
     "rappor_encoder.cc",

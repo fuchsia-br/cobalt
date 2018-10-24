@@ -48,13 +48,20 @@ target_link_libraries(rappor_analyzer
                       lasso_runner
                       lossmin_loss_minimizers)
 
+add_library(rappor_config_helper
+            rappor_config_helper.cc
+            )
+add_cobalt_dependencies(rappor_config_helper)
+
 # The test depends directly on Boring SSL for the deterministic random.
 include_directories(BEFORE PRIVATE "${CMAKE_SOURCE_DIR}/third_party/boringssl/include")
 add_executable(rappor_tests
                basic_rappor_analyzer_test.cc
                bloom_bit_counter_test rappor_encoder_test.cc rappor_analyzer_test.cc
-               rappor_analyzer_unit_tests.cc rappor_test_utils.cc rappor_test_utils_test.cc)
-target_link_libraries(rappor_tests rappor_encoder rappor_analyzer)
+               rappor_analyzer_unit_tests.cc rappor_test_utils.cc rappor_test_utils_test.cc
+               rappor_config_helper_test.cc)
+target_link_libraries(rappor_tests
+                      rappor_encoder rappor_analyzer rappor_config_helper)
 add_cobalt_test_dependencies(rappor_tests ${DIR_GTESTS})
 
 add_executable(rappor_manual_tests

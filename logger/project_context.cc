@@ -23,7 +23,7 @@ MetricRef::MetricRef(const Project* project,
 
 const Project& MetricRef::project() const { return *project_; }
 
-const std::string MetricRef::ProjectDebugString() const {
+std::string MetricRef::ProjectDebugString() const {
 #ifdef PROTO_LITE
   return project_->project_name();
 #else
@@ -35,6 +35,13 @@ uint32_t MetricRef::metric_id() const { return metric_definition_->id(); }
 
 const std::string& MetricRef::metric_name() const {
   return metric_definition_->metric_name();
+}
+
+std::string MetricRef::FullyQualifiedName() const {
+  std::ostringstream stream;
+  stream << project_->customer_name() << "." << project_->project_name() << "."
+         << metric_definition_->metric_name();
+  return stream.str();
 }
 
 namespace {

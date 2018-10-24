@@ -30,9 +30,15 @@ class MetricRef {
   MetricRef(const Project* project, const MetricDefinition* metric_definition);
 
   const Project& project() const;
-  const std::string ProjectDebugString() const;
+
+  std::string ProjectDebugString() const;
+
   uint32_t metric_id() const;
+
   const std::string& metric_name() const;
+
+  // Returns the string <customer_name>.<project_name>.<metric_name>
+  std::string FullyQualifiedName() const;
 
  private:
   friend class ProjectContext;

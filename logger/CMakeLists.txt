@@ -17,6 +17,7 @@ target_link_libraries(encoder2
                       client_secret
                       forculus_encrypter
                       project_context
+                      rappor_config_helper
                       rappor_encoder)
 add_cobalt_dependencies(encoder2)
 
@@ -26,7 +27,8 @@ target_link_libraries(logger
                       encoder2
                       encrypted_message_util
                       observation_writer
-                      project_context)
+                      project_context
+                      rappor_config_helper)
 add_cobalt_dependencies(logger)
 
 add_executable(logger_tests

@@ -10,9 +10,9 @@
 #include "./logging.h"
 #include "./observation2.pb.h"
 #include "algorithms/forculus/forculus_encrypter.h"
+#include "algorithms/rappor/rappor_config_helper.h"
 #include "algorithms/rappor/rappor_encoder.h"
 #include "logger/project_context.h"
-#include "logger/rappor_settings.h"
 
 namespace cobalt {
 namespace logger {
@@ -23,6 +23,7 @@ using ::cobalt::encoder::ClientSecret;
 using ::cobalt::encoder::SystemDataInterface;
 using ::cobalt::forculus::ForculusEncrypter;
 using ::cobalt::rappor::BasicRapporEncoder;
+using ::cobalt::rappor::RapporConfigHelper;
 using ::cobalt::rappor::RapporEncoder;
 
 namespace {
@@ -58,42 +59,13 @@ Encoder::Result Encoder::EncodeBasicRapporObservation(
   auto* basic_rappor_observation = observation->mutable_basic_rappor();
 
   BasicRapporConfig basic_rappor_config;
-  basic_rappor_config.set_prob_rr(kProbRR);
+  basic_rappor_config.set_prob_rr(RapporConfigHelper::kProbRR);
   basic_rappor_config.mutable_indexed_categories()->set_num_categories(
       num_categories);
-
-  // compute heuristic for p and q.
-  switch (report->local_privacy_noise_level()) {
-    case ReportDefinition::NONE:
-      basic_rappor_config.set_prob_0_becomes_1(kLocalPrivacyNoneProb0Becomes1);
-      basic_rappor_config.set_prob_1_stays_1(kLocalPrivacyNoneProb1Stays1);
-      break;
-
-    case ReportDefinition::SMALL:
-      basic_rappor_config.set_prob_0_becomes_1(kLocalPrivacySmallProb0Becomes1);
-      basic_rappor_config.set_prob_1_stays_1(kLocalPrivacySmallProb1Stays1);
-      break;
-
-    case ReportDefinition::MEDIUM:
-      basic_rappor_config.set_prob_0_becomes_1(
-          kLocalPrivacyMediumProb0Becomes1);
-      basic_rappor_config.set_prob_1_stays_1(kLocalPrivacyMediumProb1Stays1);
-      break;
-
-    case ReportDefinition::LARGE:
-      basic_rappor_config.set_prob_0_becomes_1(kLocalPrivacyLargeProb0Becomes1);
-      basic_rappor_config.set_prob_1_stays_1(kLocalPrivacyLargeProb1Stays1);
-      break;
-
-    default:
-      LOG(ERROR) << "Invalid Cobalt config: Report " << report->report_name()
-                 << " for metric " << metric.metric_name() << " in project "
-                 << metric.ProjectDebugString()
-                 << " does not have local_privacy_noise_level set to a "
-                    "recognized value.";
-      result.status = kInvalidConfig;
-      return result;
-  }
+  float prob_bit_flip =
+      RapporConfigHelper::ProbBitFlip(*report, metric.FullyQualifiedName());
+  basic_rappor_config.set_prob_0_becomes_1(prob_bit_flip);
+  basic_rappor_config.set_prob_1_stays_1(1.0 - prob_bit_flip);
 
   // TODO(rudominer) Stop copying the client_secret_ on each Encode*()
   // operation.
@@ -132,66 +104,16 @@ Encoder::Result Encoder::EncodeRapporObservation(MetricRef metric,
   auto* rappor_observation = observation->mutable_string_rappor();
 
   RapporConfig rappor_config;
-  rappor_config.set_num_hashes(kNumHashes);
-
-  // Compute heuristic for num_cohorts.
-  if (report->expected_population_size() == 0) {
-    rappor_config.set_num_cohorts(kDefaultNumCohorts);
-  } else if (report->expected_population_size() < kTinyPopulationSize) {
-    rappor_config.set_num_cohorts(kTinyNumCohorts);
-  } else if (report->expected_population_size() < kSmallPopulationSize) {
-    rappor_config.set_num_cohorts(kSmallNumCohorts);
-  } else if (report->expected_population_size() < kMediumPopulationSize) {
-    rappor_config.set_num_cohorts(kMediumNumCohorts);
-  } else {
-    rappor_config.set_num_cohorts(kLargeNumCohorts);
-  }
-
-  // Compute heuristic for num_bloom_bits.
-  if (report->expected_string_set_size() == 0) {
-    rappor_config.set_num_bloom_bits(kDefaultNumBits);
-  } else if (report->expected_string_set_size() < kTinyNumCandidates) {
-    rappor_config.set_num_bloom_bits(kTinyNumBits);
-  } else if (report->expected_string_set_size() < kSmallNumCandidates) {
-    rappor_config.set_num_bloom_bits(kSmallNumBits);
-  } else if (report->expected_string_set_size() < kMediumNumCandidates) {
-    rappor_config.set_num_bloom_bits(kMediumNumBits);
-  } else {
-    rappor_config.set_num_bloom_bits(kLargeNumBits);
-  }
-
-  // Compute heuristic for p and q.
-  rappor_config.set_prob_rr(kProbRR);
-  switch (report->local_privacy_noise_level()) {
-    case ReportDefinition::NONE:
-      rappor_config.set_prob_0_becomes_1(kLocalPrivacyNoneProb0Becomes1);
-      rappor_config.set_prob_1_stays_1(kLocalPrivacyNoneProb1Stays1);
-      break;
-
-    case ReportDefinition::SMALL:
-      rappor_config.set_prob_0_becomes_1(kLocalPrivacySmallProb0Becomes1);
-      rappor_config.set_prob_1_stays_1(kLocalPrivacySmallProb1Stays1);
-      break;
-
-    case ReportDefinition::MEDIUM:
-      rappor_config.set_prob_0_becomes_1(kLocalPrivacyMediumProb0Becomes1);
-      rappor_config.set_prob_1_stays_1(kLocalPrivacyMediumProb1Stays1);
-      break;
-
-    case ReportDefinition::LARGE:
-      rappor_config.set_prob_0_becomes_1(kLocalPrivacyLargeProb0Becomes1);
-      rappor_config.set_prob_1_stays_1(kLocalPrivacyLargeProb1Stays1);
-      break;
-
-    default:
-      LOG(ERROR) << "Invalid Cobalt config: Report " << report->report_name()
-                 << " for metric " << metric.metric_name() << " in project "
-                 << metric.ProjectDebugString()
-                 << " does not have local_privacy_noise_level set to a "
-                    "recognized value.";
-      result.status = kInvalidConfig;
-      return result;
-  }
+  rappor_config.set_num_hashes(RapporConfigHelper::kNumHashes);
+  rappor_config.set_num_cohorts(
+      RapporConfigHelper::StringRapporNumCohorts(*report));
+  rappor_config.set_num_bloom_bits(
+      RapporConfigHelper::StringRapporNumBloomBits(*report));
+  rappor_config.set_prob_rr(RapporConfigHelper::kProbRR);
+  float prob_bit_flip =
+      RapporConfigHelper::ProbBitFlip(*report, metric.FullyQualifiedName());
+  rappor_config.set_prob_0_becomes_1(prob_bit_flip);
+  rappor_config.set_prob_1_stays_1(1.0 - prob_bit_flip);
 
   RapporEncoder rappor_encoder(rappor_config, client_secret_);
   ValuePart string_value;
