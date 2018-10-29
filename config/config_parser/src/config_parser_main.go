@@ -53,7 +53,7 @@ func generateFilename(format string) string {
 		case "bin":
 			return fmt.Sprintf("%s.pb", fnameBase)
 		case "cpp":
-			return fmt.Sprintf("%s.h", fnameBase)
+			return fmt.Sprintf("%s.cb.h", fnameBase)
 		default:
 			return fmt.Sprintf("%s.%s", fnameBase, format)
 		}

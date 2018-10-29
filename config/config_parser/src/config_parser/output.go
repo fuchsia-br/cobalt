@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/golang/protobuf/proto"
@@ -93,6 +94,39 @@ func (so *sourceOutputter) writeGenerationWarning() {
 YAML in the cobalt_config repository. Edit the YAML there to make changes.`)
 }
 
+var (
+	wordSeparator     = regexp.MustCompile(`[ _]`)
+	validFirstChar    = regexp.MustCompile(`^[a-zA-Z_]`)
+	invalidIdentChars = regexp.MustCompile(`[^a-zA-Z0-9_]`)
+)
+
+// sanitizeIdent takes an ident and replaces all invalid characters with _.
+//
+// Examples:
+//   sanitizeIdent("0Test") = "_0Test"
+//   sanitizeIdent("THIS IS A TEST") = "THIS_IS_A_TEST"
+//   sanitizeIdent("IHopeThisWorks(DoesIt?)") = "IHopeThisWorks_DoesIT__"
+func sanitizeIdent(name string) string {
+	if !validFirstChar.MatchString(name) {
+		name = "_" + name
+	}
+
+	return invalidIdentChars.ReplaceAllString(name, "_")
+}
+
+// toIdent converts an arbitrary string into a valid ident (should be valid in
+// all supported languages).
+//
+// Examples:
+//
+//   toIdent("this is a string") = "ThisIsAString"
+//   toIdent("testing_a_string") = "TestingAString"
+//   toIdent("more word(s)") = "MoreWord_s_"
+func toIdent(name string) string {
+	capitalizedWords := strings.Title(wordSeparator.ReplaceAllString(name, " "))
+	return sanitizeIdent(strings.Join(strings.Split(capitalizedWords, " "), ""))
+}
+
 // writeIdConstants prints out a list of constants to be used in testing. It
 // uses the Name attribute of each Metric, Report, and Encoding to construct the
 // constants.
@@ -100,15 +134,21 @@ YAML in the cobalt_config repository. Edit the YAML there to make changes.`)
 // For a metric named "SingleString" the constant would be kSingleStringMetricId
 // For a report named "Test" the constant would be kTestReportId
 // For an encoding named "Forculus" the canstant would be kForculusEncodingId
-func (so *sourceOutputter) writeIdConstants(constType string, entries map[string]uint32) {
+func (so *sourceOutputter) writeIdConstants(constType string, entries map[uint32]string) {
 	if len(entries) == 0 {
 		return
 	}
+	var keys []uint32
+	for k := range entries {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+
 	so.writeCommentFmt("%s ID Constants", constType)
-	for name, id := range entries {
+	for _, id := range keys {
+		name := entries[id]
 		so.writeComment(name)
-		re := regexp.MustCompile(`[():]`)
-		name = re.ReplaceAllString(strings.Join(strings.Split(strings.Title(name), " "), ""), "_")
+		name = toIdent(name)
 		switch so.outputType {
 		case CPP:
 			so.writeLineFmt("const uint32_t k%s%sId = %d;", name, constType, id)
@@ -120,33 +160,87 @@ func (so *sourceOutputter) writeIdConstants(constType string, entries map[string
 	so.writeLine("")
 }
 
+// writeEnum prints out an enum with a for list of EventCodes (cobalt v1.0 only)
+//
+// It prints out the event_code string using toIdent, (event_code => EventCode).
+// In c++ and Dart, it also creates a series of constants that effectively
+// export the enum values. For a metric called "foo_bar" with a event named
+// "baz", it would generate the constant:
+// "FooBarEventCode_Baz = FooBarEventCode::Baz"
+func (so *sourceOutputter) writeEnum(prefix string, suffix string, entries map[uint32]string) {
+	if len(entries) == 0 {
+		return
+	}
+
+	var keys []uint32
+	for k := range entries {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+
+	enumName := fmt.Sprintf("%s%s", toIdent(prefix), toIdent(suffix))
+	so.writeCommentFmt("Enum for %s (%s)", prefix, suffix)
+	switch so.outputType {
+	case CPP:
+		so.writeLineFmt("enum class %s {", enumName)
+	case Dart:
+		so.writeLineFmt("class %s {", enumName)
+	}
+	for _, id := range keys {
+		name := entries[id]
+		name = toIdent(name)
+		switch so.outputType {
+		case CPP:
+			so.writeLineFmt("  %s = %d,", name, id)
+		case Dart:
+			so.writeLineFmt("  static const int %s = %d;", name, id)
+		}
+	}
+	switch so.outputType {
+	case CPP:
+		so.writeLine("};")
+	case Dart:
+		so.writeLine("}")
+	}
+	for _, id := range keys {
+		name := toIdent(entries[id])
+		switch so.outputType {
+		case CPP:
+			so.writeLineFmt("const %s %s_%s = %s::%s;", enumName, enumName, name, enumName, name)
+		case Dart:
+			so.writeLineFmt("const int %s_%s = %s::%s;", enumName, name, enumName, name)
+		}
+	}
+	so.writeLine("")
+}
+
 func (so *sourceOutputter) Bytes() []byte {
 	return so.buffer.Bytes()
 }
 
 func (so *sourceOutputter) writeLegacyConstants(c *config.CobaltConfig) {
-	metrics := make(map[string]uint32)
+	metrics := make(map[uint32]string)
 	for _, metric := range c.MetricConfigs {
 		if metric.Name != "" {
-			metrics[metric.Name] = metric.Id
+			metrics[metric.Id] = metric.Name
 		}
 	}
 	// write out the 'Metric' constants (e.g. kTestMetricId)
 	so.writeIdConstants("Metric", metrics)
 
-	reports := make(map[string]uint32)
+	reports := make(map[uint32]string)
 	for _, report := range c.ReportConfigs {
 		if report.Name != "" {
-			reports[report.Name] = report.Id
+			reports[report.Id] = report.Name
 		}
 	}
 	// write out the 'Report' constants (e.g. kTestReportId)
 	so.writeIdConstants("Report", reports)
 
-	encodings := make(map[string]uint32)
+	encodings := make(map[uint32]string)
 	for _, encoding := range c.EncodingConfigs {
 		if encoding.Name != "" {
-			encodings[encoding.Name] = encoding.Id
+			encodings[encoding.Id] = encoding.Name
 		}
 	}
 	// write out the 'Encoding' constants (e.g. kTestEncodingId)
@@ -154,16 +248,24 @@ func (so *sourceOutputter) writeLegacyConstants(c *config.CobaltConfig) {
 }
 
 func (so *sourceOutputter) writeV1Constants(c *config.CobaltConfig) error {
-	metrics := make(map[string]uint32)
+	metrics := make(map[uint32]string)
 	if len(c.Customers) > 1 || len(c.Customers[0].Projects) > 1 {
 		return fmt.Errorf("Cobalt v1.0 output can only be used with a single project config.")
 	}
 	for _, metric := range c.Customers[0].Projects[0].Metrics {
 		if metric.MetricName != "" {
-			metrics[metric.MetricName] = metric.Id
+			metrics[metric.Id] = metric.MetricName
 		}
 	}
 	so.writeIdConstants("Metric", metrics)
+
+	for _, metric := range c.Customers[0].Projects[0].Metrics {
+		events := make(map[uint32]string)
+		for value, name := range metric.EventCodes {
+			events[value] = name
+		}
+		so.writeEnum(metric.MetricName, "EventCode", events)
+	}
 
 	return nil
 }
