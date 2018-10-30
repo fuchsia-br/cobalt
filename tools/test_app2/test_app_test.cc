@@ -38,7 +38,7 @@ metric {
   customer_id: 1
   project_id: 1
   id: 1
-  max_event_type_index: 100
+  max_event_code: 100
   reports: {
     report_name: "ErrorCountsByType"
     id: 123
@@ -261,13 +261,13 @@ TEST_F(TestAppTest, ProcessCommandLineEncodeBad) {
   EXPECT_TRUE(test_app_->ProcessCommandLine("log 100 event"));
   EXPECT_TRUE(
       OutputContains("Malformed log event command. Expected exactly one more "
-                     "argument for <event_type_index>."));
+                     "argument for <event_code>."));
 
   ClearOutput();
   EXPECT_TRUE(test_app_->ProcessCommandLine("log 100 event foo bar"));
   EXPECT_TRUE(
       OutputContains("Malformed log event command. Expected exactly one more "
-                     "argument for <event_type_index>."));
+                     "argument for <event_code>."));
 
   ClearOutput();
   EXPECT_TRUE(test_app_->ProcessCommandLine("log 100 event foo"));

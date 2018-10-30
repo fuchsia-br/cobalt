@@ -20,10 +20,10 @@ message SimpleOccurrenceCountReportRow {
   // |system_profile_field| entry in the ReportDefinition for this report.
   SystemProfile system_profile = 2;
 
-  // The name of the event type. If the event_type_index has not been assigned
-  // a name (in the event_types field of the MetricDefinition) then this will
+  // The name of the event type. If the event_code has not been assigned
+  // a name (in the event_codes field of the MetricDefinition) then this will
   // be a string of the form "<index=42>".
-  string event_type = 3;
+  string event_code = 3;
 
   // The total count of the event occurrence on the |date|, over all reporting
   // devices with the |system_profile|. Unless |local_privacy_noise_level| in

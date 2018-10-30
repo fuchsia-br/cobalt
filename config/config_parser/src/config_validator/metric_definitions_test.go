@@ -47,7 +47,7 @@ func makeValidMetricWithName(name string) config.MetricDefinition {
 		MetricName: name,
 		MetricType: config.MetricDefinition_EVENT_COUNT,
 		MetaData:   &metadata,
-		EventTypes: map[uint32]string{1: "hello_world"},
+		EventCodes: map[uint32]string{1: "hello_world"},
 	}
 }
 
@@ -117,20 +117,20 @@ func TestValidateUnsetMetricType(t *testing.T) {
 	}
 }
 
-// Test that max_event_type_index can only be set if the metric type is EVENT_OCCURRED.
-func TestValidateMaxEventTypeIndexOnlySetIfEventOccurred(t *testing.T) {
+// Test that max_event_code can only be set if the metric type is EVENT_OCCURRED.
+func TestValidateMaxEventCodeOnlySetIfEventOccurred(t *testing.T) {
 	m := makeValidMetric()
-	m.MaxEventTypeIndex = 10
+	m.MaxEventCode = 10
 	m.MetricType = config.MetricDefinition_EVENT_OCCURRED
 
 	if err := validateMetricDefinition(m); err != nil {
-		t.Errorf("Rejected valid metric definition with max_event_type_index set: %v", err)
+		t.Errorf("Rejected valid metric definition with max_event_code set: %v", err)
 	}
 
 	for _, mt := range metricTypesExcept(config.MetricDefinition_EVENT_OCCURRED) {
 		m.MetricType = mt
 		if err := validateMetricDefinition(m); err == nil {
-			t.Errorf("Accepted metric definition with type %s with max_event_type_index set.", mt)
+			t.Errorf("Accepted metric definition with type %s with max_event_code set.", mt)
 		}
 	}
 }
@@ -158,7 +158,7 @@ func TestValidatePartsSetOnlyForCustom(t *testing.T) {
 	m := makeValidMetric()
 	m.Parts = map[string]*config.MetricPart{"hello": nil}
 	m.MetricType = config.MetricDefinition_CUSTOM
-	m.EventTypes = map[uint32]string{}
+	m.EventCodes = map[uint32]string{}
 
 	if err := validateMetricDefinition(m); err != nil {
 		t.Errorf("Rejected valid CUSTOM metric definition: %v", err)
@@ -236,46 +236,46 @@ func TestValidateMetadataReleaseStageNotSet(t *testing.T) {
 	}
 }
 
-func TestValidateEventTypesMaxEventTypeIndexTooBig(t *testing.T) {
+func TestValidateEventCodesMaxEventCodeTooBig(t *testing.T) {
 	m := makeValidMetric()
-	m.MaxEventTypeIndex = 1024
-	m.EventTypes = map[uint32]string{
+	m.MaxEventCode = 1024
+	m.EventCodes = map[uint32]string{
 		1: "hello_world",
 	}
 
-	if err := validateEventTypes(m); err == nil {
-		t.Error("Accepted max_event_type_index with value no less than 1024.")
+	if err := validateEventCodes(m); err == nil {
+		t.Error("Accepted max_event_code with value no less than 1024.")
 	}
 }
 
-func TestValidateEventTypesIndexLargerThanMax(t *testing.T) {
+func TestValidateEventCodesIndexLargerThanMax(t *testing.T) {
 	m := makeValidMetric()
-	m.MaxEventTypeIndex = 100
-	m.EventTypes = map[uint32]string{
+	m.MaxEventCode = 100
+	m.EventCodes = map[uint32]string{
 		1:   "hello_world",
 		101: "blah",
 	}
 
-	if err := validateEventTypes(m); err == nil {
-		t.Error("Accepted event type with index larger than max_event_type_index.")
+	if err := validateEventCodes(m); err == nil {
+		t.Error("Accepted event type with index larger than max_event_code.")
 	}
 }
 
-func TestValidateEventTypesNoEventTypes(t *testing.T) {
+func TestValidateEventCodesNoEventCodes(t *testing.T) {
 	m := makeValidMetric()
-	m.EventTypes = map[uint32]string{}
+	m.EventCodes = map[uint32]string{}
 
-	if err := validateEventTypes(m); err == nil {
+	if err := validateEventCodes(m); err == nil {
 		t.Error("Accepted metric with no event types.")
 	}
 }
 
 func TestValidateEventOccurredNoMax(t *testing.T) {
 	m := makeValidMetric()
-	m.MaxEventTypeIndex = 0
+	m.MaxEventCode = 0
 
 	if err := validateEventOccurred(m); err == nil {
-		t.Error("Accepted EVENT_OCCURRED metric with no max_event_type_index.")
+		t.Error("Accepted EVENT_OCCURRED metric with no max_event_code.")
 	}
 }
 
@@ -288,28 +288,28 @@ func TestValidateIntHistogramNoBuckets(t *testing.T) {
 	}
 }
 
-func TestValidateStringUsedEventTypesSet(t *testing.T) {
+func TestValidateStringUsedEventCodesSet(t *testing.T) {
 	m := makeValidMetric()
-	m.EventTypes = map[uint32]string{1: "hello"}
+	m.EventCodes = map[uint32]string{1: "hello"}
 
 	if err := validateStringUsed(m); err == nil {
-		t.Error("Accepted STRING_USED metric with event_types set.")
+		t.Error("Accepted STRING_USED metric with event_codes set.")
 	}
 }
 
-func TestValidateCustomEventTypesSet(t *testing.T) {
+func TestValidateCustomEventCodesSet(t *testing.T) {
 	m := makeValidMetric()
 	m.Parts = map[string]*config.MetricPart{"hello": nil}
-	m.EventTypes = map[uint32]string{1: "hello"}
+	m.EventCodes = map[uint32]string{1: "hello"}
 
 	if err := validateCustom(m); err == nil {
-		t.Error("Accepted CUSTOM metric with event_types set.")
+		t.Error("Accepted CUSTOM metric with event_codes set.")
 	}
 }
 
 func TestValidateCustomNoParts(t *testing.T) {
 	m := makeValidMetric()
-	m.EventTypes = map[uint32]string{}
+	m.EventCodes = map[uint32]string{}
 	m.Parts = map[string]*config.MetricPart{}
 
 	if err := validateCustom(m); err == nil {
@@ -319,7 +319,7 @@ func TestValidateCustomNoParts(t *testing.T) {
 
 func TestValidateCustomInvalidPartName(t *testing.T) {
 	m := makeValidMetric()
-	m.EventTypes = map[uint32]string{}
+	m.EventCodes = map[uint32]string{}
 	m.Parts = map[string]*config.MetricPart{"_invalid_name": nil}
 
 	if err := validateCustom(m); err == nil {

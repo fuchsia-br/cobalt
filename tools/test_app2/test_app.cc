@@ -94,7 +94,7 @@ void PrintHelp(std::ostream* ostream) {
   *ostream << "help                     \tPrint this help message."
            << std::endl;
   *ostream << "log <num> event <index>  \tLog <num> independent copies "
-              "of the event with event_type_index = <index>"
+              "of the event with event_code = <index>"
            << std::endl;
   *ostream << "log <num> custom <part>:<val> <part>:<val>..." << std::endl;
   *ostream << "                         \tLog <num> independent copies of a "
@@ -489,34 +489,33 @@ void TestApp::LogEvent(uint64_t num_clients,
                        const std::vector<std::string>& command) {
   if (command.size() != 4) {
     *ostream_ << "Malformed log event command. Expected exactly one more "
-                 "argument for <event_type_index>."
+                 "argument for <event_code>."
               << std::endl;
     return;
   }
 
-  int64_t event_type_index;
-  if (!ParseNonNegativeInt(command[3], true, &event_type_index)) {
+  int64_t event_code;
+  if (!ParseNonNegativeInt(command[3], true, &event_code)) {
     return;
   }
 
-  LogEvent(num_clients, event_type_index);
+  LogEvent(num_clients, event_code);
 }
 
-void TestApp::LogEvent(size_t num_clients, uint32_t event_type_index) {
+void TestApp::LogEvent(size_t num_clients, uint32_t event_code) {
   if (!current_metric_) {
     *ostream_ << "Cannot LogEvent. There is no current metric set."
               << std::endl;
     return;
   }
-  VLOG(6) << "TestApp::LogEvents(" << num_clients << ", " << event_type_index
-          << ").";
+  VLOG(6) << "TestApp::LogEvents(" << num_clients << ", " << event_code << ").";
   for (size_t i = 0; i < num_clients; i++) {
     auto logger = logger_factory_->NewLogger();
-    auto status = logger->LogEvent(current_metric_->id(), event_type_index);
+    auto status = logger->LogEvent(current_metric_->id(), event_code);
     if (status != logger::kOK) {
       LOG(ERROR) << "LogEvent() failed with status " << status
                  << ". metric=" << current_metric_->metric_name()
-                 << ". event_type_index=" << event_type_index;
+                 << ". event_code=" << event_code;
       break;
     }
   }

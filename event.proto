@@ -40,13 +40,13 @@ message Event {
 // Records that an event has occurred.
 message OccurrenceEvent {
   // The index of the event type that occurred.
-  uint32 event_type_index = 1;
+  uint32 event_code = 1;
 }
 
 // Records that an event occurred a number of times.
 message CountEvent {
   // The index of the event type that occurred.
-  uint32 event_type_index = 1;
+  uint32 event_code = 1;
   // The associated system component
   string component = 2;
   // Time over which the count was taken, in microseconds.
@@ -58,7 +58,7 @@ message CountEvent {
 // Records that an event occurred a number of times.
 message ElapsedTimeEvent {
   // The index of the event type that occurred.
-  uint32 event_type_index = 1;
+  uint32 event_code = 1;
   // The associated system component
   string component = 2;
   // The elapsed time in microseconds.
@@ -68,7 +68,7 @@ message ElapsedTimeEvent {
 // Records a frame-rate.
 message FrameRateEvent {
   // The index of the event type that occurred.
-  uint32 event_type_index = 1;
+  uint32 event_code = 1;
   // The associated system component
   string component = 2;
   // round(frames-per-second * 1000)
@@ -78,7 +78,7 @@ message FrameRateEvent {
 // Records a memory-usage.
 message MemoryUsageEvent {
   // The index of the event type that occurred.
-  uint32 event_type_index = 1;
+  uint32 event_code = 1;
   // The associated system component
   string component = 2;
   // Memory usage in bytes.
@@ -89,9 +89,9 @@ message MemoryUsageEvent {
 // Metric must be specified in comments near the Metric definition. The
 // numerical values of the buckets is specified in the |int_buckets|
 // field of the MetricDefinition.
-message IntHistogramEvent  {
+message IntHistogramEvent {
   // The index of the event type that occurred.
-  uint32 event_type_index = 1;
+  uint32 event_code = 1;
   // The associated system component
   string component = 2;
 
@@ -108,7 +108,7 @@ message StringUsedEvent {
 }
 
 // Allows users of Cobalt to define custom Metrics with custom semantics. Each
-// Custom event is a collection of CustomEventValues, each of which has a 
+// Custom event is a collection of CustomEventValues, each of which has a
 // dimension name and a value associated with the event.
 message CustomEvent {
   // The keys are the names of the metric dimensions to which each ValuePart

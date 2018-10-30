@@ -149,7 +149,7 @@ class Encoder {
   //
   // day_index: The day index associated with the Observation being encoded.
   //
-  // event_type_index: This will populate the Observation's |event_type_index|
+  // event_code: This will populate the Observation's |event_code|
   // field.
   //
   // component: The hash of this value will populate the Observation's
@@ -158,8 +158,7 @@ class Encoder {
   // value: This will populate the Observation's |value| field.
   Result EncodeIntegerEventObservation(MetricRef metric,
                                        const ReportDefinition* report,
-                                       uint32_t day_index,
-                                       uint32_t event_type_index,
+                                       uint32_t day_index, uint32_t event_code,
                                        const std::string component,
                                        int64_t value) const;
 
@@ -173,7 +172,7 @@ class Encoder {
   //
   // day_index: The day index associated with the Observation being encoded.
   //
-  // event_type_index: This will populate the Observation's |event_type_index|
+  // event_code: This will populate the Observation's |event_code|
   // field.
   //
   // component: The hash of this value will populate the Observation's
@@ -184,8 +183,7 @@ class Encoder {
   // That is the caller's responsibility.
   Result EncodeHistogramObservation(MetricRef metric,
                                     const ReportDefinition* report,
-                                    uint32_t day_index,
-                                    uint32_t event_type_index,
+                                    uint32_t day_index, uint32_t event_code,
                                     const std::string component,
                                     HistogramPtr histogram) const;
 

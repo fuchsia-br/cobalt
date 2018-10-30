@@ -47,23 +47,23 @@ class Logger : public LoggerInterface {
 
   virtual ~Logger() = default;
 
-  Status LogEvent(uint32_t metric_id, uint32_t event_type_index) override;
+  Status LogEvent(uint32_t metric_id, uint32_t event_code) override;
 
-  Status LogEventCount(uint32_t metric_id, uint32_t event_type_index,
+  Status LogEventCount(uint32_t metric_id, uint32_t event_code,
                        const std::string& component,
                        int64_t period_duration_micros, uint32_t count) override;
 
-  Status LogElapsedTime(uint32_t metric_id, uint32_t event_type_index,
+  Status LogElapsedTime(uint32_t metric_id, uint32_t event_code,
                         const std::string& component,
                         int64_t elapsed_micros) override;
 
-  Status LogFrameRate(uint32_t metric_id, uint32_t event_type_index,
+  Status LogFrameRate(uint32_t metric_id, uint32_t event_code,
                       const std::string& component, float fps) override;
 
-  Status LogMemoryUsage(uint32_t metric_id, uint32_t event_type_index,
+  Status LogMemoryUsage(uint32_t metric_id, uint32_t event_code,
                         const std::string& component, int64_t bytes) override;
 
-  Status LogIntHistogram(uint32_t metric_id, uint32_t event_type_index,
+  Status LogIntHistogram(uint32_t metric_id, uint32_t event_code,
                          const std::string& component,
                          HistogramPtr histogram) override;
 

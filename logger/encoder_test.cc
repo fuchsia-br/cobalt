@@ -43,7 +43,7 @@ metric {
   customer_id: 1
   project_id: 1
   id: 1
-  max_event_type_index: 100
+  max_event_code: 100
   reports: {
     report_name: "ErrorCountsByType"
     id: 123
@@ -273,19 +273,19 @@ TEST_F(EncoderTest, EncodeIntegerEventObservation) {
   const char kComponent[] = "My Component";
   const uint32_t kValue = 314159;
   const uint32_t kDayIndex = 111;
-  const uint32_t kEventTypeIndex = 9;
+  const uint32_t kEventCode = 9;
 
   auto pair = GetMetricAndReport(kMetricName, kReportName);
   auto result = encoder_->EncodeIntegerEventObservation(
       project_context_->RefMetric(pair.first), pair.second, kDayIndex,
-      kEventTypeIndex, kComponent, kValue);
+      kEventCode, kComponent, kValue);
   CheckResult(result, kExpectedMetricId, kExpectedReportId, kDayIndex);
   // In the SystemProfile only the OS should be set.
   CheckSystemProfile(result, SystemProfile::FUCHSIA,
                      SystemProfile::UNKNOWN_ARCH, "", "");
   ASSERT_TRUE(result.observation->has_numeric_event());
   const IntegerEventObservation& obs = result.observation->numeric_event();
-  EXPECT_EQ(kEventTypeIndex, obs.event_type_index());
+  EXPECT_EQ(kEventCode, obs.event_code());
   EXPECT_EQ(obs.component_name_hash().size(), 32u);
   EXPECT_EQ(kValue, obs.value());
 }
@@ -297,7 +297,7 @@ TEST_F(EncoderTest, EncodeHistogramObservation) {
   const uint32_t kExpectedReportId = 151;
   const char kComponent[] = "";
   const uint32_t kDayIndex = 111;
-  const uint32_t kEventTypeIndex = 9;
+  const uint32_t kEventCode = 9;
 
   std::vector<uint32_t> indices = {0, 1, 2};
   std::vector<uint32_t> counts = {100, 200, 300};
@@ -305,14 +305,14 @@ TEST_F(EncoderTest, EncodeHistogramObservation) {
   auto pair = GetMetricAndReport(kMetricName, kReportName);
   auto result = encoder_->EncodeHistogramObservation(
       project_context_->RefMetric(pair.first), pair.second, kDayIndex,
-      kEventTypeIndex, kComponent, std::move(histogram));
+      kEventCode, kComponent, std::move(histogram));
   CheckResult(result, kExpectedMetricId, kExpectedReportId, kDayIndex);
   // In the SystemProfile only the OS and ARCH should be set.
   CheckSystemProfile(result, SystemProfile::FUCHSIA, SystemProfile::ARM_64, "",
                      "");
   ASSERT_TRUE(result.observation->has_histogram());
   const HistogramObservation& obs = result.observation->histogram();
-  EXPECT_EQ(kEventTypeIndex, obs.event_type_index());
+  EXPECT_EQ(kEventCode, obs.event_code());
   EXPECT_TRUE(obs.component_name_hash().empty());
   EXPECT_EQ(static_cast<size_t>(obs.buckets_size()), indices.size());
   for (auto i = 0u; i < indices.size(); i++) {
@@ -349,7 +349,6 @@ TEST_F(EncoderTest, EncodeRapporObservation) {
   EXPECT_EQ(kInvalidConfig, result.status);
 }
 
-
 TEST_F(EncoderTest, EncodeCustomObservation) {
   const char kMetricName[] = "ModuleInstalls";
   const char kReportName[] = "ModuleInstalls_DetailedData";
@@ -367,7 +366,7 @@ TEST_F(EncoderTest, EncodeCustomObservation) {
 
   auto result = encoder_->EncodeCustomObservation(
       project_context_->RefMetric(pair.first), pair.second, kDayIndex,
-                                  std::move(custom_event));
+      std::move(custom_event));
   CheckResult(result, kExpectedMetricId, kExpectedReportId, kDayIndex);
   // In the SystemProfile only the OS and ARCH should be set.
   CheckSystemProfile(result, SystemProfile::FUCHSIA, SystemProfile::ARM_64, "",

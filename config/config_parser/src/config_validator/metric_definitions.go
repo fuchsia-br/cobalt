@@ -66,8 +66,8 @@ func validateMetricDefinition(m config.MetricDefinition) (err error) {
 		return fmt.Errorf("Error in meta_data: %v", err)
 	}
 
-	if m.MaxEventTypeIndex != 0 && m.MetricType != config.MetricDefinition_EVENT_OCCURRED {
-		return fmt.Errorf("Metric %s has max_event_type_index set. max_event_type_index can only be set for metrics for metric type EVENT_OCCURRED.", m.MetricName)
+	if m.MaxEventCode != 0 && m.MetricType != config.MetricDefinition_EVENT_OCCURRED {
+		return fmt.Errorf("Metric %s has max_event_code set. max_event_code can only be set for metrics for metric type EVENT_OCCURRED.", m.MetricName)
 	}
 
 	if m.IntBuckets != nil && m.MetricType != config.MetricDefinition_INT_HISTOGRAM {
@@ -116,23 +116,23 @@ func validateMetadata(m config.MetricDefinition_Metadata) (err error) {
 	return nil
 }
 
-// Validate the event_types and max_event_type_index fields.
-func validateEventTypes(m config.MetricDefinition) error {
-	if len(m.EventTypes) == 0 {
-		return fmt.Errorf("no event_types listed for metric of type %s.", m.MetricType)
+// Validate the event_codes and max_event_code fields.
+func validateEventCodes(m config.MetricDefinition) error {
+	if len(m.EventCodes) == 0 {
+		return fmt.Errorf("no event_codes listed for metric of type %s.", m.MetricType)
 	}
 
-	if m.MaxEventTypeIndex >= 1024 {
-		return fmt.Errorf("max_event_type_index must be less than 1024.")
+	if m.MaxEventCode >= 1024 {
+		return fmt.Errorf("max_event_code must be less than 1024.")
 	}
 
-	if m.MaxEventTypeIndex == 0 {
+	if m.MaxEventCode == 0 {
 		return nil
 	}
 
-	for i, _ := range m.EventTypes {
-		if i > m.MaxEventTypeIndex {
-			return fmt.Errorf("Event index %v is greater than max_event_type_index %v.", i, m.MaxEventTypeIndex)
+	for i, _ := range m.EventCodes {
+		if i > m.MaxEventCode {
+			return fmt.Errorf("Event index %v is greater than max_event_code %v.", i, m.MaxEventCode)
 		}
 	}
 
@@ -148,13 +148,13 @@ func validateMetricDefinitionForType(m config.MetricDefinition) error {
 	case config.MetricDefinition_EVENT_OCCURRED:
 		return validateEventOccurred(m)
 	case config.MetricDefinition_EVENT_COUNT:
-		return validateEventTypes(m)
+		return validateEventCodes(m)
 	case config.MetricDefinition_ELAPSED_TIME:
-		return validateEventTypes(m)
+		return validateEventCodes(m)
 	case config.MetricDefinition_FRAME_RATE:
-		return validateEventTypes(m)
+		return validateEventCodes(m)
 	case config.MetricDefinition_MEMORY_USAGE:
-		return validateEventTypes(m)
+		return validateEventCodes(m)
 	case config.MetricDefinition_INT_HISTOGRAM:
 		return validateIntHistogram(m)
 	case config.MetricDefinition_STRING_USED:
@@ -167,11 +167,11 @@ func validateMetricDefinitionForType(m config.MetricDefinition) error {
 }
 
 func validateEventOccurred(m config.MetricDefinition) error {
-	if m.MaxEventTypeIndex == 0 {
-		return fmt.Errorf("No max_event_type_index specified for metric of type EVENT_OCCURRED.")
+	if m.MaxEventCode == 0 {
+		return fmt.Errorf("No max_event_code specified for metric of type EVENT_OCCURRED.")
 	}
 
-	return validateEventTypes(m)
+	return validateEventCodes(m)
 }
 func validateIntHistogram(m config.MetricDefinition) error {
 	if m.IntBuckets == nil {
@@ -180,19 +180,19 @@ func validateIntHistogram(m config.MetricDefinition) error {
 
 	// TODO(azani): Validate bucket definition.
 
-	return validateEventTypes(m)
+	return validateEventCodes(m)
 }
 
 func validateStringUsed(m config.MetricDefinition) error {
-	if len(m.EventTypes) > 0 {
-		return fmt.Errorf("event_types must not be set for metrics of type STRING_USED")
+	if len(m.EventCodes) > 0 {
+		return fmt.Errorf("event_codes must not be set for metrics of type STRING_USED")
 	}
 	return nil
 }
 
 func validateCustom(m config.MetricDefinition) error {
-	if len(m.EventTypes) > 0 {
-		return fmt.Errorf("event_types must not be set for metrics of type CUSTOM")
+	if len(m.EventCodes) > 0 {
+		return fmt.Errorf("event_codes must not be set for metrics of type CUSTOM")
 	}
 
 	if len(m.Parts) == 0 {

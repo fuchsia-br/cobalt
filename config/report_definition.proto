@@ -346,10 +346,10 @@ message ReportDefinition {
     //               devices with that system_profile which were awake at the
     //               time that locally aggregated Observations for this Report
     //               Definition were created and uploaded, whether or not this
-    //               event_type occurred on the device during the window.
-    //   - event_type # The name of the event type.
+    //               event_code occurred on the device during the window.
+    //   - event_code # The name of the event type.
     //   - unique_actives # The number of unique devices with this
-    //                      system_profile on which this event_type occurred at
+    //                      system_profile on which this event_code occurred at
     //                      least once during the window of size window_size
     //                      ending on this date.
     //                      Unless local_privacy_noise_level is set to NONE,
@@ -359,7 +359,7 @@ message ReportDefinition {
     //
     // Example report:
     //
-    // Date,SystemProfile,WindowSize,Samples,EventType,UniqueActives,StdErr
+    // Date,SystemProfile,WindowSize,Samples,EventCode,UniqueActives,StdErr
     // -------------------------------------------------------------------------
     // 2018-7-25, <sys-prof-1>, MONTHLY_WINDOW, 54321, "Event 1", 4321, 1.3
     // 2018-7-25, <sys-prof-1>, MONTHLY_WINDOW, 54321, "Event 2", 3210, 1.3

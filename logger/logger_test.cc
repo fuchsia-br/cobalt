@@ -65,7 +65,7 @@ metric {
   customer_id: 1
   project_id: 1
   id: 1
-  max_event_type_index: 100
+  max_event_code: 100
   reports: {
     report_name: "ErrorCountsByType"
     id: 123
@@ -356,8 +356,8 @@ class LoggerTest : public ::testing::Test {
   // true if all checks pass.
   bool CheckNumericEventObservations(
       const std::vector<uint32_t>& expected_report_ids,
-      uint32_t expected_event_type_index,
-      const std::string expected_component_name, int64_t expected_int_value) {
+      uint32_t expected_event_code, const std::string expected_component_name,
+      int64_t expected_int_value) {
     size_t expected_num_observations = expected_report_ids.size();
     std::vector<Observation2> observations(expected_num_observations);
     if (!FetchImmediateObservations(&observations, expected_report_ids)) {
@@ -365,8 +365,8 @@ class LoggerTest : public ::testing::Test {
     }
     for (auto i = 0u; i < expected_num_observations; i++) {
       const auto& numeric_event = observations[i].numeric_event();
-      EXPECT_EQ(expected_event_type_index, numeric_event.event_type_index());
-      if (expected_event_type_index != numeric_event.event_type_index()) {
+      EXPECT_EQ(expected_event_code, numeric_event.event_code());
+      if (expected_event_code != numeric_event.event_code()) {
         return false;
       }
       if (expected_component_name.empty()) {
@@ -458,7 +458,7 @@ TEST_F(LoggerTest, LogIntHistogram) {
       FetchSingleImmediateObservation(&observation, expected_report_id));
   ASSERT_TRUE(observation.has_histogram());
   auto histogram_observation = observation.histogram();
-  EXPECT_EQ(47u, histogram_observation.event_type_index());
+  EXPECT_EQ(47u, histogram_observation.event_code());
   EXPECT_EQ(histogram_observation.component_name_hash().size(), 32u);
   EXPECT_EQ(static_cast<size_t>(histogram_observation.buckets_size()),
             indices.size());

@@ -138,7 +138,7 @@ class IntegerPerformanceEventLogger : public EventLogger {
   Encoder::Result MaybeEncodeImmediateObservation(
       const ReportDefinition& report, bool may_invalidate,
       EventRecord* event_record) override;
-  virtual uint32_t EventTypeIndex(const Event& event) = 0;
+  virtual uint32_t EventCode(const Event& event) = 0;
   virtual std::string Component(const Event& event) = 0;
   virtual int64_t IntValue(const Event& event) = 0;
 };
@@ -151,7 +151,7 @@ class ElapsedTimeEventLogger : public IntegerPerformanceEventLogger {
   virtual ~ElapsedTimeEventLogger() = default;
 
  private:
-  uint32_t EventTypeIndex(const Event& event) override;
+  uint32_t EventCode(const Event& event) override;
   std::string Component(const Event& event) override;
   int64_t IntValue(const Event& event) override;
 };
@@ -164,7 +164,7 @@ class FrameRateEventLogger : public IntegerPerformanceEventLogger {
   virtual ~FrameRateEventLogger() = default;
 
  private:
-  uint32_t EventTypeIndex(const Event& event) override;
+  uint32_t EventCode(const Event& event) override;
   std::string Component(const Event& event) override;
   int64_t IntValue(const Event& event) override;
 };
@@ -177,7 +177,7 @@ class MemoryUsageEventLogger : public IntegerPerformanceEventLogger {
   virtual ~MemoryUsageEventLogger() = default;
 
  private:
-  uint32_t EventTypeIndex(const Event& event) override;
+  uint32_t EventCode(const Event& event) override;
   std::string Component(const Event& event) override;
   int64_t IntValue(const Event& event) override;
 };
@@ -231,21 +231,21 @@ Logger::Logger(const Encoder* encoder, ObservationWriter* observation_writer,
   CHECK(project);
 }
 
-Status Logger::LogEvent(uint32_t metric_id, uint32_t event_type_index) {
+Status Logger::LogEvent(uint32_t metric_id, uint32_t event_code) {
   EventRecord event_record;
   auto* occurrence_event = event_record.event->mutable_occurrence_event();
-  occurrence_event->set_event_type_index(event_type_index);
+  occurrence_event->set_event_code(event_code);
   auto event_logger = std::make_unique<OccurrenceEventLogger>(this);
   return event_logger->Log(metric_id, MetricDefinition::EVENT_OCCURRED,
                            &event_record);
 }
 
-Status Logger::LogEventCount(uint32_t metric_id, uint32_t event_type_index,
+Status Logger::LogEventCount(uint32_t metric_id, uint32_t event_code,
                              const std::string& component,
                              int64_t period_duration_micros, uint32_t count) {
   EventRecord event_record;
   auto* count_event = event_record.event->mutable_count_event();
-  count_event->set_event_type_index(event_type_index);
+  count_event->set_event_code(event_code);
   count_event->set_component(component);
   count_event->set_period_duration_micros(period_duration_micros);
   count_event->set_count(count);
@@ -254,12 +254,12 @@ Status Logger::LogEventCount(uint32_t metric_id, uint32_t event_type_index,
                            &event_record);
 }
 
-Status Logger::LogElapsedTime(uint32_t metric_id, uint32_t event_type_index,
+Status Logger::LogElapsedTime(uint32_t metric_id, uint32_t event_code,
                               const std::string& component,
                               int64_t elapsed_micros) {
   EventRecord event_record;
   auto* elapsed_time_event = event_record.event->mutable_elapsed_time_event();
-  elapsed_time_event->set_event_type_index(event_type_index);
+  elapsed_time_event->set_event_code(event_code);
   elapsed_time_event->set_component(component);
   elapsed_time_event->set_elapsed_micros(elapsed_micros);
   auto event_logger = std::make_unique<ElapsedTimeEventLogger>(this);
@@ -267,11 +267,11 @@ Status Logger::LogElapsedTime(uint32_t metric_id, uint32_t event_type_index,
                            &event_record);
 }
 
-Status Logger::LogFrameRate(uint32_t metric_id, uint32_t event_type_index,
+Status Logger::LogFrameRate(uint32_t metric_id, uint32_t event_code,
                             const std::string& component, float fps) {
   EventRecord event_record;
   auto* frame_rate_event = event_record.event->mutable_frame_rate_event();
-  frame_rate_event->set_event_type_index(event_type_index);
+  frame_rate_event->set_event_code(event_code);
   frame_rate_event->set_component(component);
   frame_rate_event->set_frames_per_1000_seconds(std::round(fps * 1000.0));
   auto event_logger = std::make_unique<FrameRateEventLogger>(this);
@@ -279,11 +279,11 @@ Status Logger::LogFrameRate(uint32_t metric_id, uint32_t event_type_index,
                            &event_record);
 }
 
-Status Logger::LogMemoryUsage(uint32_t metric_id, uint32_t event_type_index,
+Status Logger::LogMemoryUsage(uint32_t metric_id, uint32_t event_code,
                               const std::string& component, int64_t bytes) {
   EventRecord event_record;
   auto* memory_usage_event = event_record.event->mutable_memory_usage_event();
-  memory_usage_event->set_event_type_index(event_type_index);
+  memory_usage_event->set_event_code(event_code);
   memory_usage_event->set_component(component);
   memory_usage_event->set_bytes(bytes);
   auto event_logger = std::make_unique<MemoryUsageEventLogger>(this);
@@ -291,12 +291,12 @@ Status Logger::LogMemoryUsage(uint32_t metric_id, uint32_t event_type_index,
                            &event_record);
 }
 
-Status Logger::LogIntHistogram(uint32_t metric_id, uint32_t event_type_index,
+Status Logger::LogIntHistogram(uint32_t metric_id, uint32_t event_code,
                                const std::string& component,
                                HistogramPtr histogram) {
   EventRecord event_record;
   auto* int_histogram_event = event_record.event->mutable_int_histogram_event();
-  int_histogram_event->set_event_type_index(event_type_index);
+  int_histogram_event->set_event_code(event_code);
   int_histogram_event->set_component(component);
   int_histogram_event->mutable_buckets()->Swap(histogram.get());
   auto event_logger = std::make_unique<IntHistogramEventLogger>(this);
@@ -445,11 +445,10 @@ Encoder::Result EventLogger::BadReportType(const MetricDefinition& metric,
 Status OccurrenceEventLogger::ValidateEvent(const EventRecord& event_record) {
   CHECK(event_record.event->has_occurrence_event());
   const auto& occurrence_event = event_record.event->occurrence_event();
-  if (occurrence_event.event_type_index() >
-      event_record.metric->max_event_type_index()) {
-    LOG(ERROR) << "The event_type_index " << occurrence_event.event_type_index()
-               << " exceeds " << event_record.metric->max_event_type_index()
-               << ", the max_event_type_index for Metric "
+  if (occurrence_event.event_code() > event_record.metric->max_event_code()) {
+    LOG(ERROR) << "The event_code " << occurrence_event.event_code()
+               << " exceeds " << event_record.metric->max_event_code()
+               << ", the max_event_code for Metric "
                << MetricDebugString(*event_record.metric) << " in project "
                << project_context()->DebugString() << ".";
     return kInvalidArguments;
@@ -470,7 +469,7 @@ Encoder::Result OccurrenceEventLogger::MaybeEncodeImmediateObservation(
     case ReportDefinition::SIMPLE_OCCURRENCE_COUNT: {
       return encoder()->EncodeBasicRapporObservation(
           project_context()->RefMetric(&metric), &report, event.day_index(),
-          occurrence_event.event_type_index(),
+          occurrence_event.event_code(),
           RapporConfigHelper::BasicRapporNumCategories(metric));
     }
 
@@ -494,7 +493,7 @@ Encoder::Result CountEventLogger::MaybeEncodeImmediateObservation(
     case ReportDefinition::EVENT_COMPONENT_OCCURRENCE_COUNT: {
       return encoder()->EncodeIntegerEventObservation(
           project_context()->RefMetric(&metric), &report, event.day_index(),
-          count_event.event_type_index(), count_event.component(),
+          count_event.event_code(), count_event.component(),
           count_event.count());
     }
 
@@ -518,7 +517,7 @@ Encoder::Result IntegerPerformanceEventLogger::MaybeEncodeImmediateObservation(
     case ReportDefinition::INT_RANGE_HISTOGRAM: {
       return encoder()->EncodeIntegerEventObservation(
           project_context()->RefMetric(&metric), &report, event.day_index(),
-          EventTypeIndex(event), Component(event), IntValue(event));
+          EventCode(event), Component(event), IntValue(event));
       break;
     }
 
@@ -529,9 +528,9 @@ Encoder::Result IntegerPerformanceEventLogger::MaybeEncodeImmediateObservation(
 
 ////////////// ElapsedTimeEventLogger method implementations /////////////////
 
-uint32_t ElapsedTimeEventLogger::EventTypeIndex(const Event& event) {
+uint32_t ElapsedTimeEventLogger::EventCode(const Event& event) {
   CHECK(event.has_elapsed_time_event());
-  return event.elapsed_time_event().event_type_index();
+  return event.elapsed_time_event().event_code();
 }
 
 std::string ElapsedTimeEventLogger::Component(const Event& event) {
@@ -546,9 +545,9 @@ int64_t ElapsedTimeEventLogger::IntValue(const Event& event) {
 
 ////////////// FrameRateEventLogger method implementations /////////////////
 
-uint32_t FrameRateEventLogger::EventTypeIndex(const Event& event) {
+uint32_t FrameRateEventLogger::EventCode(const Event& event) {
   CHECK(event.has_frame_rate_event());
-  return event.frame_rate_event().event_type_index();
+  return event.frame_rate_event().event_code();
 }
 
 std::string FrameRateEventLogger::Component(const Event& event) {
@@ -561,10 +560,10 @@ int64_t FrameRateEventLogger::IntValue(const Event& event) {
   return event.frame_rate_event().frames_per_1000_seconds();
 }
 
-////////////// MemoryUsageEventLogger method implementations /////////////////
-uint32_t MemoryUsageEventLogger::EventTypeIndex(const Event& event) {
+////////////// MemoryUsageEventLogger method implementations ///////////////////
+uint32_t MemoryUsageEventLogger::EventCode(const Event& event) {
   CHECK(event.has_memory_usage_event());
-  return event.memory_usage_event().event_type_index();
+  return event.memory_usage_event().event_code();
 }
 
 std::string MemoryUsageEventLogger::Component(const Event& event) {
@@ -649,8 +648,8 @@ Encoder::Result IntHistogramEventLogger::MaybeEncodeImmediateObservation(
       }
       return encoder()->EncodeHistogramObservation(
           project_context()->RefMetric(&metric), &report, event.day_index(),
-          int_histogram_event->event_type_index(),
-          int_histogram_event->component(), std::move(histogram));
+          int_histogram_event->event_code(), int_histogram_event->component(),
+          std::move(histogram));
     }
 
     default:

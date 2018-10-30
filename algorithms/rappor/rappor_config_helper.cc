@@ -126,7 +126,7 @@ float RapporConfigHelper::ProbBitFlip(const ReportDefinition& report_definition,
 
 size_t RapporConfigHelper::BasicRapporNumCategories(
     const MetricDefinition& metric_definition) {
-  return metric_definition.max_event_type_index() + 1;
+  return metric_definition.max_event_code() + 1;
 }
 
 size_t RapporConfigHelper::StringRapporNumCohorts(

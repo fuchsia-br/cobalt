@@ -30,11 +30,11 @@ class LoggerInterface {
   // be one of the Metrics from the ProjectContext passed to the constructor,
   // and it must be of type EVENT_OCCURRED.
   //
-  // |event_type_index| The index of the event type that occurred. The indexed
+  // |event_code| The index of the event type that occurred. The indexed
   // set of all event types is specified in the Metric definition. Use 0
   // if there is no natural notion of event type.
   //
-  virtual Status LogEvent(uint32_t metric_id, uint32_t event_type_index) = 0;
+  virtual Status LogEvent(uint32_t metric_id, uint32_t event_code) = 0;
 
   // Logs that an event has occurred a given number of times.
   //
@@ -42,7 +42,7 @@ class LoggerInterface {
   // be one of the Metrics from the ProjectContext passed to the constructor,
   // and it must be of type EVENT_COUNT.
   //
-  // |event_type_index| The index of the event type that occurred. The indexed
+  // |event_code| The index of the event type that occurred. The indexed
   // set of all event types is specified in the Metric definition. Use 0
   // if there is no natural notion of event type.
   //
@@ -58,7 +58,7 @@ class LoggerInterface {
   // always set this value to 1 and always set |period_duration_micros| to 0
   // in order to achieve a semantics similar to the LogEventOccurred() method,
   // but with a |component|.
-  virtual Status LogEventCount(uint32_t metric_id, uint32_t event_type_index,
+  virtual Status LogEventCount(uint32_t metric_id, uint32_t event_code,
                                const std::string& component,
                                int64_t period_duration_micros,
                                uint32_t count) = 0;
@@ -69,7 +69,7 @@ class LoggerInterface {
   // be one of the Metrics from the ProjectContext passed to the constructor,
   // and it must be of type ELAPSED_TIME.
   //
-  // |event_type_index| The index of the event type that occurred. The indexed
+  // |event_code| The index of the event type that occurred. The indexed
   // set of all event types is specified in the Metric definition. Use 0
   // if there is no natural notion of event type.
   //
@@ -78,7 +78,7 @@ class LoggerInterface {
   //
   // |elapsed_micros| The elapsed time of the event, specified as a number
   // of microseconds.
-  virtual Status LogElapsedTime(uint32_t metric_id, uint32_t event_type_index,
+  virtual Status LogElapsedTime(uint32_t metric_id, uint32_t event_code,
                                 const std::string& component,
                                 int64_t elpased_micros) = 0;
 
@@ -88,7 +88,7 @@ class LoggerInterface {
   // be one of the Metrics from the ProjectContext passed to the constructor,
   // and it must be of type FRAME_RATE.
   //
-  // |event_type_index| The index of the event type that occurred. The indexed
+  // |event_code| The index of the event type that occurred. The indexed
   // set of all event types is specified in the Metric definition. Use 0
   // if there is no natural notion of event type.
   //
@@ -96,7 +96,7 @@ class LoggerInterface {
   // logged. Use the empty string if there is no natural notion of component.
   //
   // |fps| The average-frame rate in frames-per-second.
-  virtual Status LogFrameRate(uint32_t metric_id, uint32_t event_type_index,
+  virtual Status LogFrameRate(uint32_t metric_id, uint32_t event_code,
                               const std::string& component, float fps) = 0;
   // Logs a measured memory usage.
   //
@@ -104,7 +104,7 @@ class LoggerInterface {
   // be one of the Metrics from the ProjectContext passed to the constructor,
   // and it must be of type MEMORY_USAGE.
   //
-  // |event_type_index| The index of the event type that occurred. The indexed
+  // |event_code| The index of the event type that occurred. The indexed
   // set of all event types is specified in the Metric definition. Use 0
   // if there is no natural notion of event type.
   //
@@ -112,7 +112,7 @@ class LoggerInterface {
   // logged. Use the empty string if there is no natural notion of component.
   //
   // |bytes| The memory used, in bytes.
-  virtual Status LogMemoryUsage(uint32_t metric_id, uint32_t event_type_index,
+  virtual Status LogMemoryUsage(uint32_t metric_id, uint32_t event_code,
                                 const std::string& component,
                                 int64_t bytes) = 0;
 
@@ -123,7 +123,7 @@ class LoggerInterface {
   // be one of the Metrics from the ProjectContext passed to the constructor,
   // and it must be of type INT_HISTOGRAM.
   //
-  // |event_type_index| The index of the event type that occurred. The indexed
+  // |event_code| The index of the event type that occurred. The indexed
   // set of all event types is specified in the Metric definition. Use 0
   // if there is no natural notion of event type.
   //
@@ -133,7 +133,7 @@ class LoggerInterface {
   // |histogram| The histogram to log. Each HistogramBucket gives the count
   //  for one bucket of the histogram. The definitions of the buckets is
   //  given in the Metric definition.
-  virtual Status LogIntHistogram(uint32_t metric_id, uint32_t event_type_index,
+  virtual Status LogIntHistogram(uint32_t metric_id, uint32_t event_code,
                                  const std::string& component,
                                  HistogramPtr histogram) = 0;
 

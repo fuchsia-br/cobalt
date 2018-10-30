@@ -189,12 +189,11 @@ Encoder::Result Encoder::EncodeForculusObservation(
 
 Encoder::Result Encoder::EncodeIntegerEventObservation(
     MetricRef metric, const ReportDefinition* report, uint32_t day_index,
-    uint32_t event_type_index, const std::string component,
-    int64_t value) const {
+    uint32_t event_code, const std::string component, int64_t value) const {
   auto result = MakeObservation(metric, report, day_index);
   auto* observation = result.observation.get();
   auto* integer_event_observation = observation->mutable_numeric_event();
-  integer_event_observation->set_event_type_index(event_type_index);
+  integer_event_observation->set_event_code(event_code);
   if (!HashComponentNameIfNotEmpty(
           component,
           integer_event_observation->mutable_component_name_hash())) {
@@ -210,12 +209,12 @@ Encoder::Result Encoder::EncodeIntegerEventObservation(
 
 Encoder::Result Encoder::EncodeHistogramObservation(
     MetricRef metric, const ReportDefinition* report, uint32_t day_index,
-    uint32_t event_type_index, const std::string component,
+    uint32_t event_code, const std::string component,
     HistogramPtr histogram) const {
   auto result = MakeObservation(metric, report, day_index);
   auto* observation = result.observation.get();
   auto* histogram_observation = observation->mutable_histogram();
-  histogram_observation->set_event_type_index(event_type_index);
+  histogram_observation->set_event_code(event_code);
   if (!HashComponentNameIfNotEmpty(
           component, histogram_observation->mutable_component_name_hash())) {
     LOG(ERROR) << "Hashing the component name failed for: Report "
