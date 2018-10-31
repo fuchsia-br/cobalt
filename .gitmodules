@@ -95,3 +95,6 @@
 [submodule "third_party/tink"]
 	path = third_party/tink
 	url =  https://fuchsia.googlesource.com/third_party/tink
+[submodule "third_party/go/src/github.com/google/go-cmp"]
+	path = third_party/go/src/github.com/google/go-cmp
+	url = https://fuchsia.googlesource.com/third_party/github.com/google/go-cmp

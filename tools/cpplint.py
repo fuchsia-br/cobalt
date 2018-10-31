@@ -34,6 +34,8 @@ SKIP_LINT_DIRS = [
     os.path.join(SRC_ROOT_DIR, 'shuffler'),
     os.path.join(SRC_ROOT_DIR, 'sysroot'),
     os.path.join(SRC_ROOT_DIR, 'third_party'),
+    os.path.join(SRC_ROOT_DIR,
+                 'config/config_parser/src/config_parser/output_test_files'),
 ]
 
 def main():
